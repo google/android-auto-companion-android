@@ -1,0 +1,94 @@
+// Copyright 2021 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package aae.trustagent;
+
+option java_package = "com.google.companionprotos.trusteddevice";
+
+// A message specific to the trusted device feature.
+message TrustedDeviceMessage {
+  // The current version of this proto. Must be positive but declared as an
+  // int32 for interoperability reasons.
+  int32 version = 1;
+
+  // The different message types that indicate the content of the payload.
+  enum MessageType {
+    // The contents of the payload are unknown.
+    //
+    // Note, this enum name is prefixed. See
+    // go/proto-best-practices-checkers#enum-default-value-name-conflict
+    MESSAGE_TYPE_UNKNOWN = 0;
+
+    // This message is a request for the other device to start the enrollment
+    // process. The payload is empty for this type.
+    START_ENROLLMENT = 1;
+
+    // This message payload contains the escrow token.
+    ESCROW_TOKEN = 2;
+
+    // This message payload contains the unlock handle.
+    HANDLE = 3;
+
+    // The payload of this message contains all the necessary information to
+    // unlock the other device.
+    UNLOCK_CREDENTIALS = 4;
+
+    // An acknowledgment for a previous message. The payload will be empty
+    // for this type.
+    ACK = 5;
+
+    // An error has occurred on the sender of this message. The payload will be
+    // a message of TrustedDeviceError. Both sender and receiver should reset
+    // their states after this message.
+    ERROR = 6;
+
+    // Indicates that the payload contains data necessary to sync the current
+    // state of trusted device between two devices.
+    STATE_SYNC = 7;
+  }
+
+  // The type of this message.
+  MessageType type = 2;
+
+  // The bytes that represent the content for this message.
+  bytes payload = 3;
+}
+
+// An error message. Should only be sent as `TrustedDeviceMessage.payload` when
+// `type` is `MessageType.ERROR`.
+message TrustedDeviceError {
+  enum ErrorType {
+    // The contents of the payload are unknown.
+    //
+    // Note, this enum name is prefixed. See
+    // go/proto-best-practices-checkers#enum-default-value-name-conflict
+    MESSAGE_TYPE_UNKNOWN = 0;
+
+    // This device does not meet the requirement of device security to start
+    // enrollment. Instead of escrow token, send this error.
+    DEVICE_NOT_SECURED = 1;
+  }
+
+  // The type of this error.
+  ErrorType type = 1;
+}
+
+// All possible trusted device states that can be synced between two devices.
+message TrustedDeviceState {
+  // `true` if trusted device is currently enabled on the device that is
+  // sending this message.
+  bool enabled = 1;
+}

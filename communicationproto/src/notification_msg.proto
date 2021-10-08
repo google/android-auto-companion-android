@@ -1,0 +1,222 @@
+// Copyright 2021 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package aae.messenger;
+
+option java_package = "com.google.protos.aae.messenger";
+option java_outer_classname = "NotificationMsg";
+
+// Message to be sent from the phone SDK to the IHU SDK.
+message PhoneToCarMessage {
+  // The unique key of the message notification, same in phone and car.
+  // This will be the StatusBarNotification id of the original message
+  // notification posted on the phone.
+  string notification_key = 1;
+
+  // The different types of messages to be sent from the phone SDK.
+  oneof message_data {
+    // Metadata of a new conversation (new in the history of the current
+    // connection between phone and IHU SDKs).
+    ConversationNotification conversation = 2;
+    // Metadata of a new conversation received in an existing conversation.
+    MessagingStyleMessage message = 3;
+    // Fulfillment update of an action that was requested previously by
+    // the IHU SDK.
+    ActionStatusUpdate status_update = 4;
+    // Metadata of a new sender avatar icon.
+    AvatarIconSync avatar_icon_sync = 5;
+    // Request to remove all data related to a messaging application.
+    ClearAppDataRequest clear_app_data_request = 6;
+    // Informs SDK whether this feature has been enabled/disabled.
+    FeatureEnabledStateChange feature_enabled_state_change = 7;
+    // Details about the connected phone.
+    PhoneMetadata phone_metadata = 8;
+  }
+
+  // A byte array containing an undefined message. This field may contain
+  // supplemental information for a message_data, or contain all of the
+  // data for the PhoneToCarMessage.
+  bytes metadata = 9;
+}
+
+// Message to be sent from the IHU SDK to the phone SDK.
+message CarToPhoneMessage {
+  // The unique key of the message notification, same in phone and car.
+  // This will be the StatusBarNotification id of the original message
+  // notification posted on the phone.
+  string notification_key = 1;
+
+  // An action request to be fulfilled on the Phone side.
+  Action action_request = 2;
+
+  // A byte array containing an undefined message. This field may contain
+  // supplemental information for a message_data, or contain all of the
+  // data for the CarToPhoneMessage.
+  bytes metadata = 3;
+}
+
+// Message to be sent from the Phone SDK to the IHU SDK after an Action
+// has been completed. The request_id in this update will correspond to
+// the request_id of the original Action message.
+message ActionStatusUpdate {
+  // The different result types after completing an action.
+  enum Status {
+    UNKNOWN = 0;
+    SUCCESSFUL = 1;
+    ERROR = 2;
+  }
+
+  // Unique ID of the action.
+  string request_id = 1;
+
+  // The status of completing the action.
+  Status status = 2;
+
+  // Optional error message / explanation if the status resulted in an error.
+  string error_explanation = 3;
+}
+
+// A message notification originating from the user's phone.
+message ConversationNotification {
+  // Display name of the application that posted this notification.
+  string messaging_app_display_name = 1;
+
+  // Package name of the application that posted this notification.
+  string messaging_app_package_name = 2;
+
+  // MessagingStyle metadata of this conversation.
+  MessagingStyle messaging_style = 3;
+
+  // The time, in milliseconds, this message notification was last updated.
+  int64 time_ms = 4;
+
+  // Small app icon of the application that posted this notification.
+  bytes app_icon = 5;
+
+  // Small app icon color of the application that posted this notification.
+  // Color int defined by android.graphics.Color.
+  int32 app_icon_color = 6;
+}
+
+// MessagingStyle metadata that matches MessagingStyle formatting.
+message MessagingStyle {
+  // List of messages and their metadata.
+  repeated MessagingStyleMessage messaging_style_msg = 1;
+
+  // The Conversation title of this conversation.
+  string convo_title = 2;
+
+  // String of the user, needed for MessagingStyle.
+  string user_display_name = 3;
+
+  // True if this is a group conversation.
+  bool is_group_convo = 4;
+}
+
+// Message metadata that matches MessagingStyle formatting.
+message MessagingStyleMessage {
+  // Contents of the message.
+  string text_message = 1;
+
+  // Timestamp of when the message notification was originally posted on the
+  // phone.
+  int64 timestamp = 2;
+
+  // Details of the sender who sent the message.
+  Person sender = 3;
+
+  // If the message is read on the phone.
+  bool is_read = 4;
+}
+
+// Sends over an avatar icon. This should be sent once per unique sender
+// (per unique app) during a phone to car connection.
+message AvatarIconSync {
+  // Metadata of the person.
+  Person person = 1;
+
+  // Display name of the application that posted this notification.
+  string messaging_app_display_name = 2;
+
+  // Package name of the application that posted this notification.
+  string messaging_app_package_name = 3;
+}
+
+// Request to clear all internal data and remove notifications for
+// a specific messaging application.
+message ClearAppDataRequest {
+  // Specifies which messaging app's data to remove.
+  string messaging_app_package_name = 1;
+}
+
+// Message to inform whether user has disabled/enabled this feature.
+message FeatureEnabledStateChange {
+  // Enabled state of the feature.
+  bool enabled = 1;
+}
+
+// Details of the phone that is connected to the IHU.
+message PhoneMetadata {
+  // MAC address of the phone.
+  string bluetooth_device_address = 1;
+}
+
+// Metadata about a sender.
+message Person {
+  // Sender's name.
+  string name = 1;
+
+  // Sender's avatar icon.
+  bytes avatar = 2;
+
+  // Sender's low-resolution thumbnail
+  bytes thumbnail = 3;
+}
+
+// Action on a notification, initiated by the user on the IHU.
+message Action {
+  // Different types of actions user can do on the IHU notification.
+  enum ActionName {
+    UNKNOWN_ACTION_NAME = 0;
+    MARK_AS_READ = 1;
+    REPLY = 2;
+    DISMISS = 3;
+  }
+
+  // Same as the PhoneToCar and CarToPhone messages's notification_key.
+  // As mentioned above, this notification id should be the same on the
+  // phone and the car. This will be the StatusBarNotification id of the
+  // original message notification posted on the phone.
+  string notification_key = 1;
+
+  // Optional, used to capture data like the reply string.
+  repeated MapEntry map_entry = 2;
+
+  // Name of the action.
+  ActionName action_name = 3;
+
+  // Unique id of this action.
+  string request_id = 4;
+}
+
+// Backwards compatible way of supporting a map.
+message MapEntry {
+  // Key for the map.
+  string key = 1;
+
+  // Value that is mapped to this key.
+  string value = 2;
+}

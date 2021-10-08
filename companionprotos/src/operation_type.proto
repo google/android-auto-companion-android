@@ -1,0 +1,50 @@
+/*
+ * Copyright (C) 2020 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto3";
+
+package com.google.companionprotos;
+
+option java_package = "com.google.android.companionprotos";
+option java_outer_classname = "OperationProto";
+
+// The different message types that indicate the content of the payload.
+//
+// Ensure that these values are positive to reduce incurring too many bytes
+// to encode.
+enum OperationType {
+  // The contents of the payload are unknown.
+  //
+  // Note, this enum name is prefixed. See
+  // go/proto-best-practices-checkers#enum-default-value-name-conflict
+  OPERATION_TYPE_UNKNOWN = 0;
+
+  // The payload contains handshake messages needed to set up encryption.
+  ENCRYPTION_HANDSHAKE = 2;
+
+  // The message is an acknowledgment of a previously received message. The
+  // payload for this type should be empty.
+  ACK = 3;
+
+  // The payload contains a client-specific message.
+  CLIENT_MESSAGE = 4;
+
+  // The payload contains a query message.
+  QUERY = 5;
+
+  // The payload contains a response to a query.
+  QUERY_RESPONSE = 6;
+}

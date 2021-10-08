@@ -1,0 +1,233 @@
+// Copyright 2021 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/*
+ * This file must remain backwards wire compatible with ../proto/calendar.proto
+ */
+
+syntax = "proto3";
+
+package com.google.android.connecteddevice.calendarsync;
+
+option java_package = "com.google.android.connecteddevice.calendarsync";
+option java_multiple_files = true;
+
+// Update calendars on a remote device.
+message UpdateCalendars {
+  // Calendars to update on the remote device.
+  repeated Calendar calendars = 1;
+
+  // Unused field kept for compatibility with calendar.proto
+  reserved 2;
+
+  // The protocol version.
+  // When using calendar.proto this will be the default value of 0.
+  // Implementations that handle incremental updates will have non-zero values.
+  int32 version = 3;
+
+  enum Type {
+    // The default type when no value is set with protocol version 0.
+    TYPE_UNSPECIFIED = 0;
+
+    // Receive calendar data.
+    RECEIVE = 1;
+
+    // A response with only the protocol version and no calendar data.
+    ACKNOWLEDGE = 2;
+
+    // Remove all data associated with this device.
+    // This is similar to an UPDATE that deletes all stored calendars but safer
+    // in the case where the source does not have a correct record of which
+    // calendars are stored.
+    DISABLE = 3;
+  }
+  Type type = 4;
+}
+
+// Information about a calendar.
+// Based on
+// https://developer.android.com/reference/android/provider/CalendarContract.Calendars.html
+message Calendar {
+  // The title for the calendar.
+  string title = 1;
+
+  // The identifier for the calendar which must be unique for the device.
+  string key = 2;
+
+  // The display color of the calendar.
+  Color color = 3;
+
+  // The events associated with the calendar.
+  repeated Event events = 4;
+
+  // The account used to sync the calendar to the device.
+  // This typically represents an email address.
+  string account_name = 5;
+
+  // The time zone for the calendar.
+  TimeZone time_zone = 6;
+
+  // The update action
+  UpdateAction action = 7;
+
+  // The range of begin times of the events contained in this message.
+  message TimeRange {
+    // The earliest begin time of the events, inclusive.
+    Timestamp from = 1;
+
+    // The latest begin time of the events, exclusive.
+    Timestamp to = 2;
+  }
+  TimeRange range = 8;
+}
+
+// Information about a calendar event instance.
+// Based on
+// https://developer.android.com/reference/android/provider/CalendarContract.Instances.html
+message Event {
+  // The title for the calendar event.
+  string title = 1;
+
+  // The identifier for the calendar event which must be unique for the
+  // calendar.
+  string key = 2;
+
+  // The begin time of the calendar event instance.
+  Timestamp begin_time = 3;
+
+  // The end time of the calendar event instance.
+  Timestamp end_time = 4;
+
+  // The time zone for the calendar event.
+  TimeZone time_zone = 5;
+
+  // The time zone for the end time of the calendar event.
+  TimeZone end_time_zone = 6;
+
+  // A boolean value that indicates whether an event is an all-day event.
+  bool is_all_day = 7;
+
+  // The location associated with the calendar event.
+  string location = 8;
+
+  // The description of the event.
+  string description = 9;
+
+  // A secondary color for the event.
+  // Set only if it differs from the calendar color.
+  Color color = 10;
+
+  // Represents a status for a calendar event.
+  enum Status {
+    UNSPECIFIED_STATUS = 0;
+    TENTATIVE = 1;
+    CONFIRMED = 2;
+    CANCELED = 3;
+  }
+  Status status = 11;
+
+  // The organizer associated with the calendar event.
+  // This is typically an email address.
+  string organizer = 12;
+
+  // The attendees associated with the calendar event.
+  repeated Attendee attendees = 13;
+
+  // Unused fields kept for compatibility with calendar.proto
+  reserved 14, 15;
+
+  UpdateAction action = 16;
+}
+
+// Representation of an event participant.
+// Based on
+// https://developer.android.com/reference/android/provider/CalendarContract.Attendees
+message Attendee {
+  // The attendee name.
+  string name = 1;
+
+  // The attendee email which must be unique in its event.
+  string email = 2;
+
+  // Represents the attendee status for an event.
+  enum Status {
+    UNSPECIFIED_STATUS = 0;
+    NONE_STATUS = 1;
+    ACCEPTED = 2;
+    DECLINED = 3;
+    INVITED = 4;
+    TENTATIVE = 5;
+  }
+  Status status = 3;
+
+  // Represents the attendee type for an event.
+  enum Type {
+    UNSPECIFIED_TYPE = 0;
+    NONE_TYPE = 1;
+    OPTIONAL = 2;
+    REQUIRED = 3;
+    RESOURCE = 4;
+  }
+  Type type = 4;
+
+  UpdateAction action = 5;
+}
+
+// Timestamp independent of any timezone or local calendar.
+// This is a subset of
+// https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
+message Timestamp {
+  // Represents seconds of UTC time since Unix epoch
+  // 1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
+  // 9999-12-31T23:59:59Z inclusive.
+  int64 seconds = 1;
+
+  // Unused field kept for compatibility with calendar.proto
+  reserved 2;
+}
+
+// Information about the time zone.
+message TimeZone {
+  // The geopolitical region ID that identifies this time zone.
+  string name = 1;
+
+  // Unused field kept for compatibility with calendar.proto
+  reserved 2;
+}
+
+message Color {
+  // A color as an ARGB integer value.
+  int32 argb = 1;
+}
+
+// The type of update to make with the data message.
+enum UpdateAction {
+  // The default action when no value is set with protocol version 0.
+  ACTION_UNSPECIFIED = 0;
+
+  // Send full calendars to replace existing data.
+  REPLACE = 1;
+
+  // Create a new item and its children.
+  CREATE = 2;
+
+  // Delete the item and children.
+  DELETE = 3;
+
+  // The item is changed and should be updated.
+  UPDATE = 4;
+
+  // The item is not changed (children might be).
+  UNCHANGED = 5;
+}

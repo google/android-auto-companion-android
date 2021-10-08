@@ -1,0 +1,166 @@
+/*
+ * Copyright (C) 2020 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto3";
+
+package aae.calendarsync;
+
+option java_package = "com.google.android.connecteddevice.calendarsync.proto";
+option java_multiple_files = true;
+
+// Information about the calendar.
+// Based on
+// https://developer.android.com/reference/android/provider/CalendarContract.Calendars.html
+message Calendar {
+  // The title for the calendar.
+  string title = 1;
+
+  // A unique identifier of the calendar.
+  string uuid = 2;
+
+  // The color of the calendar.
+  Color color = 3;
+
+  // The events associated with the calendar.
+  repeated Event event = 4;
+
+  // The account used to sync the calendar to the device.
+  // This typically represents an email address.
+  string account_name = 5;
+}
+
+// Information about the calendars to be send to the head unit.
+message Calendars {
+  repeated Calendar calendar = 1;
+  TimeZone device_time_zone = 2;
+}
+
+// Information about the calendar event.
+// Based on
+// https://developer.android.com/reference/android/provider/CalendarContract.Events.html
+message Event {
+  // The title for the calendar event.
+  string title = 1;
+
+  // A unique identifier of the calendar event.
+  string external_identifier = 2;
+
+  // The start date of the calendar event.
+  Timestamp start_date = 3;
+
+  // The end date of the calendar event.
+  Timestamp end_date = 4;
+
+  // The time zone for the calendar event.
+  TimeZone time_zone = 5;
+
+  // The time zone for the end time of the calendar event.
+  TimeZone end_time_zone = 6;
+
+  // A boolean value that indicates whether an event is an all-day event.
+  bool is_all_day = 7;
+
+  // The location associated with the calendar event.
+  string location = 8;
+
+  // The description of the event.
+  string description = 9;
+
+  // A secondary color for the event.
+  // Set only if it differs from the calendar color.
+  Color color = 10;
+
+  // Represents a status for a calendar event.
+  enum Status {
+    UNSPECIFIED_STATUS = 0;
+    TENTATIVE = 1;
+    CONFIRMED = 2;
+    CANCELED = 3;
+  }
+  Status status = 11;
+
+  // The organizer associated with the calendar event.
+  // This is typically an email address.
+  string organizer = 12;
+
+  // The attendees associated with the calendar event.
+  repeated Attendee attendee = 13;
+
+  // The date that this calendar event was created.
+  Timestamp creation_date = 14;
+
+  // The date that this calendar event was last modified.
+  Timestamp last_modified_date = 15;
+}
+
+message Color {
+  // A color as an ARGB integer value.
+  int32 argb = 1;
+}
+
+// Representation of an event participant.
+// Based on
+// https://developer.android.com/reference/android/provider/CalendarContract.Attendees
+message Attendee {
+  // The attendee name.
+  string name = 1;
+
+  // The attendee email.
+  string email = 2;
+
+  // Represents the attendee status for an event.
+  enum Status {
+    UNSPECIFIED_STATUS = 0;
+    NONE_STATUS = 1;
+    ACCEPTED = 2;
+    DECLINED = 3;
+    INVITED = 4;
+    TENTATIVE = 5;
+  }
+  Status status = 3;
+
+  // Represents the attendee type for an event.
+  enum Type {
+    UNSPECIFIED_TYPE = 0;
+    NONE_TYPE = 1;
+    OPTIONAL = 2;
+    REQUIRED = 3;
+    RESOURCE = 4;
+  }
+  Type type = 4;
+}
+
+// Timestamp independent of any timezone or local calendar.
+// This is a subset of
+// https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/timestamp.proto
+message Timestamp {
+  // Reserved field.
+  reserved 2;
+
+  // Represents seconds of UTC time since Unix epoch
+  // 1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
+  // 9999-12-31T23:59:59Z inclusive.
+  int64 seconds = 1;
+}
+
+// Information about the time zone.
+message TimeZone {
+  // The geopolitical reqion ID that identifies this time zone.
+  string name = 1;
+
+  // The difference in seconds between the time zone and Greenwich Mean Time.
+  int64 seconds_from_gmt = 2;
+}

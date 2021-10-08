@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Copyright 2021 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- GATT service UUID for association. -->
+    <string name="car_association_service_uuid" translatable="false">5e2a68a4-27be-43f9-8d1e-4546976fabd7</string>
+
+    <!-- Rfcomm service record UUID for SPP connection. -->
+    <string name="car_spp_service_uuid_secure" translatable="false">32a0e1c6-bbd2-11ea-b3de-0242ac130004</string>
+
+    <!-- GATT transport; acceptable values are "TRANSPORT_AUTO", "TRANSPORT_BREDR", and "TRANSPORT_LE". -->
+    <string name="gatt_transport" translatable="false">TRANSPORT_AUTO</string>
+
+    <!-- Comma-delimited names of devices that will always be connected to. This value is intended for BleProxy devices. -->
+    <string name="always_allowed_device_names" translatable="false">EmulatorBleProxy</string>
+</resources>
+

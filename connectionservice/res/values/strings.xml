@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ Copyright 2021 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<resources>
+  <string
+    name="trusted_device_notification_channel_name"
+    translation_description="Trusted device notification channel name [CHAR_LIMIT=20]">
+    TrustedDevice
+  </string>
+  <string
+    name="trusted_device_unlock_notification_text"
+    translation_description="Trusted device unlock notification text [CHAR_LIMIT=50]">
+    Your profile on %1$s was unlocked
+  </string>
+  <string
+    name="trusted_device_enrollment_notification_title"
+    translation_description="Trusted device enrollment notification title [CHAR_LIMIT=50]">
+    This phone can unlock your profile
+  </string>
+  <string
+    name="trusted_device_enrollment_notification_text"
+    translation_description="Trusted device enrollment notification text [CHAR_LIMIT=120]">
+    You\'ll need to unlock your phone first to unlock %1$s. To avoid this step, open this app\’s settings.
+  </string>
+</resources>

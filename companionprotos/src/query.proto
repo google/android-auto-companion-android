@@ -1,0 +1,52 @@
+/*
+ * Copyright (C) 2021 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto3";
+
+package com.google.companionprotos;
+
+option java_package = "com.google.android.companionprotos";
+
+option java_multiple_files = true;
+
+// A query that can be tied to a response.
+message Query {
+  // Id of the query to be paired with a response.
+  int32 id = 1;
+
+  // Identifier of the sender for a response.
+  bytes sender = 2;
+
+  // Identifier of request type. Defined by recipient so each side understands
+  // the intent.
+  bytes request = 3;
+
+  // Any parameters needed to fulfill the query. Structure is defined by
+  // the recipient.
+  bytes parameters = 4;
+}
+
+// A response to a query.
+message QueryResponse {
+  // Id of the query prompting this response.
+  int32 query_id = 1;
+
+  // Whether this query resulted in a successful response.
+  bool success = 2;
+
+  // The response to a query. Structure is defined by the recipient.
+  bytes response = 3;
+}
