@@ -375,7 +375,8 @@ internal constructor(
    *
    * The filter is decided by the structure of the advertisement data from the car side. It looks
    * for the given [associationUuid] bytes from the whole advertisement data beginning on a certain
-   * index. 
+   * index. The detailed logic is described in this document:
+   * @see [link](http://go/auto-cdm-integration-plan)
    */
   private fun createRawDataFilter(associationUuid: UUID): ByteArray {
     val rawDataFilter = ByteArray(ADVERTISED_DATA_LENGTH)

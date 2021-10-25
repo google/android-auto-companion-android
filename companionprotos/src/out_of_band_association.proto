@@ -1,0 +1,54 @@
+/*
+ * Copyright (C) 2021 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto3";
+
+package com.google.companionprotos;
+
+option java_package = "com.google.android.companionprotos";
+option java_multiple_files = true;
+
+// A message that contains the token for out-of-band association.
+//
+// Out-of-band (OOB) has 2 roles: an IHU and a mobile device.
+//
+// The IHU generates an |encryption_key| and the initialization
+// vectors (IVs) for both IHU and mobile.
+message OutOfBandAssociationToken {
+  // The encryption key for out-of-band association.
+  bytes encryption_key = 1;
+
+  // The initialization vector of ihu-side cipher.
+  //
+  // A message from IHU to mobile should be encrypted and decrypted by a
+  // cipher initiated using |encryption_key| and |ihu_iv|.
+  bytes ihu_iv = 2;
+
+  // The initialization vector of mobile-side cipher.
+  //
+  // A message from mobile to IHU should be encrypted and decrypted by a
+  // cipher initiated using |encryption_key| and |mobile_iv|.
+  bytes mobile_iv = 3;
+}
+
+// The wrapping message that contains the data for out-of-band association.
+message OutOfBandAssociationData {
+  // The data that identifies the device.
+  bytes device_identifier = 1;
+
+  // The token for out-of-band association.
+  OutOfBandAssociationToken token = 2;
+}

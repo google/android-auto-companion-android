@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2020 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ public class FakeEncryptionRunner implements EncryptionRunner {
   public static final byte[] RECONNECTION_MESSAGE_KEY_ERROR = "reconnectMessageKeyError".getBytes();
   public static final byte[] RECONNECTION_MESSAGE_EMPTY_RESPONSE =
       "reconnectMessageEmptyResponse".getBytes();
-  public static final String VERIFICATION_CODE = "1234";
+  public static final byte[] VERIFICATION_CODE = "1234".getBytes();
 
   /** The role that this runner is playing. */
   @Retention(RetentionPolicy.SOURCE)
@@ -140,7 +140,7 @@ public class FakeEncryptionRunner implements EncryptionRunner {
     }
 
     return HandshakeMessage.newBuilder()
-        .setVerificationCode(VERIFICATION_CODE)
+        .setFullVerificationCode(VERIFICATION_CODE)
         .setNextMessage(nextMessage)
         .setHandshakeState(state)
         .build();

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2020 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package com.google.android.encryptionrunner;
 
-import android.os.Build;
 import android.util.Log;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
@@ -49,8 +48,8 @@ public class Ukey2EncryptionRunner implements EncryptionRunner {
   private static final byte[] SERVER = "SERVER".getBytes();
   private static final byte[] CLIENT = "CLIENT".getBytes();
 
-  /** The length of the verification string. 6 is chosen as the length for product reasons. */
-  private static final int AUTH_STRING_LENGTH = 6;
+  /** Full length of the verification code bytes. */
+  private static final int FULL_VERIFICATION_LENGTH = 32;
 
   @IntDef({Mode.UNKNOWN, Mode.CLIENT, Mode.SERVER})
   private @interface Mode {
@@ -129,11 +128,11 @@ public class Ukey2EncryptionRunner implements EncryptionRunner {
         nextMessage = uKey2Client.getNextHandshakeMessage();
       }
 
-      String verificationCode = null;
+      byte[] fullVerificationCode = null;
       if (uKey2Client.getHandshakeState() == Ukey2Handshake.State.VERIFICATION_NEEDED) {
         // getVerificationString() needs to be called before notifyPinVerified().
-        verificationCode =
-            generateReadablePairingCode(uKey2Client.getVerificationString(AUTH_STRING_LENGTH));
+        fullVerificationCode = uKey2Client.getVerificationString(FULL_VERIFICATION_LENGTH);
+
         if (isReconnect) {
           HandshakeMessage handshakeMessage = notifyPinVerified();
           return HandshakeMessage.newBuilder()
@@ -146,7 +145,7 @@ public class Ukey2EncryptionRunner implements EncryptionRunner {
       return HandshakeMessage.newBuilder()
           .setHandshakeState(getNextHandshakeMessageState())
           .setNextMessage(nextMessage)
-          .setVerificationCode(verificationCode)
+          .setFullVerificationCode(fullVerificationCode)
           .build();
     } catch (com.google.security.cryptauth.lib.securegcm.HandshakeException
         | Ukey2Handshake.AlertException e) {
@@ -343,38 +342,6 @@ public class Ukey2EncryptionRunner implements EncryptionRunner {
     if (uKey2Client != null) {
       throw new IllegalStateException("UKey2Client already initialized.");
     }
-  }
-
-  /**
-   * Returns a human-readable pairing code string generated from the verification bytes. Converts
-   * each byte into a digit with a simple modulo.
-   *
-   * <p>This should match the implementation in the iOS and Android client libraries.
-   */
-  private static String generateReadablePairingCode(byte[] verificationCode) {
-    StringBuilder outString = new StringBuilder();
-    for (byte b : verificationCode) {
-      int unsignedInt = toUnsignedInt(b);
-      int digit = unsignedInt % 10;
-      outString.append(digit);
-    }
-
-    return outString.toString();
-  }
-
-  /**
-   * Converts the argument to an {@code int} by an unsigned conversion.
-   *
-   * @param value the value to convert to an unsigned {@code int}
-   * @return the argument converted to {@code int} by an unsigned conversion
-   */
-  @SuppressWarnings("AndroidJdkLibsChecker")  // Call already guarded against API version.
-  private static int toUnsignedInt(byte value) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      return Byte.toUnsignedInt(value);
-    }
-
-    return ((int) value) & 0xff;
   }
 
   @Nullable

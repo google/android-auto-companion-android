@@ -63,13 +63,12 @@ val Notification.markAsReadAction: NotificationCompat.Action?
   get() = getAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
 
 /**
- * Checks to see if this notification shows a user interface when one of the actions are clicked on
+ * Checks to see if the mark as read or reply action shows a user interface when clicked
  *
  * @return true if notification shows user interface
  */
 val Notification.showsUI: Boolean
-  get() = getVisibleAndInvisibleActions()
-    .any { action -> action.showsUserInterface }
+  get() = markAsReadAction?.showsUserInterface ?: false || replyAction?.showsUserInterface ?: false
 
 /**
  * Gets the last message based on the message timestamps

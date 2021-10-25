@@ -213,7 +213,7 @@ internal class EncryptionRunnerManager(
   }
 
   private fun notifyOobAuthTokenAvailable(message: HandshakeMessage) {
-    val oobVerificationCode = message.oobVerificationCode
+    val oobVerificationCode = message.fullVerificationCode
     if (oobVerificationCode == null) {
       loge(TAG, "Unexpected. Verification needed, but the code is null")
       callback?.onEncryptionFailure(FailureReason.NO_VERIFICATION_CODE)

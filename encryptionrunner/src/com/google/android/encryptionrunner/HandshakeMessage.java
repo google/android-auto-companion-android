@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2020 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,20 @@
 
 package com.google.android.encryptionrunner;
 
+import android.os.Build;
 import android.text.TextUtils;
 import androidx.annotation.IntDef;
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.Arrays;
 
 /**
  * During an {@link EncryptionRunner} handshake process, these are the messages returned as part of
  * each step.
  */
 public class HandshakeMessage {
+
   /** States for handshake progress. */
   @Retention(RetentionPolicy.SOURCE)
   @IntDef({
@@ -56,23 +58,26 @@ public class HandshakeMessage {
     int OOB_VERIFICATION_NEEDED = 6;
   }
 
+  /** The length of the verification string. 6 is chosen as the length for product reasons. */
+  private static final int AUTH_STRING_LENGTH = 6;
+
   @HandshakeState private final int handshakeState;
   private final Key key;
   private final byte[] nextMessage;
   private final String verificationCode;
-  private final byte[] oobVerificationCode;
+  private final byte[] fullVerificationCode;
 
   private HandshakeMessage(
       @HandshakeState int handshakeState,
       @Nullable Key key,
       @Nullable byte[] nextMessage,
       @Nullable String verificationCode,
-      @Nullable byte[] oobVerificationCode) {
+      @Nullable byte[] fullVerificationCode) {
     this.handshakeState = handshakeState;
     this.key = key;
     this.nextMessage = nextMessage;
     this.verificationCode = verificationCode;
-    this.oobVerificationCode = oobVerificationCode;
+    this.fullVerificationCode = fullVerificationCode;
   }
 
   /** Returns the next message to send in a handshake. */
@@ -93,15 +98,19 @@ public class HandshakeMessage {
     return key;
   }
 
-  /** Returns a verification code to show to the user. */
+  /**
+   * Returns a string representing the truncated bytes returned by
+   * {@link #getFullVerificationCode()} to show to the user.
+   */
   @Nullable
   public String getVerificationCode() {
     return verificationCode;
   }
 
+  /** Returns the full bytes of the verification code. */
   @Nullable
-  public byte[] getOobVerificationCode() {
-    return oobVerificationCode;
+  public byte[] getFullVerificationCode() {
+    return fullVerificationCode;
   }
 
   /** Returns a builder for {@link HandshakeMessage}. */
@@ -114,7 +123,7 @@ public class HandshakeMessage {
     Key key;
     byte[] nextMessage;
     String verificationCode;
-    byte[] oobVerificationCode;
+    byte[] fullVerificationCode;
 
     Builder setHandshakeState(@HandshakeState int handshakeState) {
       this.handshakeState = handshakeState;
@@ -131,13 +140,14 @@ public class HandshakeMessage {
       return this;
     }
 
-    Builder setVerificationCode(@Nullable String verificationCode) {
-      this.verificationCode = verificationCode;
-      return this;
-    }
-
-    Builder setOobVerificationCode(@NonNull byte[] oobVerificationCode) {
-      this.oobVerificationCode = oobVerificationCode;
+    Builder setFullVerificationCode(@Nullable byte[] fullVerificationCode) {
+      this.fullVerificationCode = fullVerificationCode;
+      if (fullVerificationCode == null) {
+        verificationCode = null;
+        return this;
+      }
+      verificationCode =
+          generateReadablePairingCode(Arrays.copyOf(fullVerificationCode, AUTH_STRING_LENGTH));
       return this;
     }
 
@@ -153,14 +163,46 @@ public class HandshakeMessage {
       }
 
       if (handshakeState == HandshakeState.OOB_VERIFICATION_NEEDED
-          && (oobVerificationCode == null || oobVerificationCode.length == 0)) {
+          && (fullVerificationCode == null || fullVerificationCode.length == 0)) {
         throw new IllegalStateException(
             "Handshake state of OOB verification needed requires an out of band verification"
                 + " code.");
       }
 
       return new HandshakeMessage(
-          handshakeState, key, nextMessage, verificationCode, oobVerificationCode);
+          handshakeState, key, nextMessage, verificationCode, fullVerificationCode);
+    }
+
+    /**
+     * Returns a human-readable pairing code string generated from the verification bytes. Converts
+     * each byte into a digit with a simple modulo.
+     *
+     * <p>This should match the implementation in the iOS and Android client libraries.
+     */
+    private static String generateReadablePairingCode(byte[] verificationCode) {
+      StringBuilder outString = new StringBuilder();
+      for (byte b : verificationCode) {
+        int unsignedInt = toUnsignedInt(b);
+        int digit = unsignedInt % 10;
+        outString.append(digit);
+      }
+
+      return outString.toString();
+    }
+
+    /**
+     * Converts the argument to an {@code int} by an unsigned conversion.
+     *
+     * @param value the value to convert to an unsigned {@code int}
+     * @return the argument converted to {@code int} by an unsigned conversion
+     */
+    @SuppressWarnings("AndroidJdkLibsChecker") // Call already guarded against API version.
+    private static int toUnsignedInt(byte value) {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        return Byte.toUnsignedInt(value);
+      }
+
+      return ((int) value) & 0xff;
     }
   }
 }

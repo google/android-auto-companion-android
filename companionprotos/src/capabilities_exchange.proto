@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2020 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,8 +30,12 @@ message CapabilitiesExchange {
     // go/proto-best-practices-checkers#enum-default-value-name-conflict
     OOB_CHANNEL_UNKNOWN = 0;
 
-    // Bluetooth RFCOMM OOB channel
+    // Bluetooth RFCOMM OOB channel.
     BT_RFCOMM = 1;
+
+    // OOB Channel that passes the data before association starts.
+    // For example, QR code.
+    PRE_ASSOCIATION = 2;
   }
 
   // All supported OOB channels

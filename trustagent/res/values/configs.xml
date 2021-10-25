@@ -20,7 +20,7 @@
     <string name="car_association_service_uuid" translatable="false">5e2a68a4-27be-43f9-8d1e-4546976fabd7</string>
 
     <!-- Rfcomm service record UUID for SPP connection. -->
-    <string name="car_spp_service_uuid_secure" translatable="false">32a0e1c6-bbd2-11ea-b3de-0242ac130004</string>
+    <string name="car_spp_service_uuid_secure" translatable="false">5e2a68a4-27be-43f9-8d1e-4546976fabd7</string>
 
     <!-- GATT transport; acceptable values are "TRANSPORT_AUTO", "TRANSPORT_BREDR", and "TRANSPORT_LE". -->
     <string name="gatt_transport" translatable="false">TRANSPORT_AUTO</string>

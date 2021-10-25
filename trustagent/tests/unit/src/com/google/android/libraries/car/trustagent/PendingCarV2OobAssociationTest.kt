@@ -262,7 +262,7 @@ class PendingCarV2OobAssociationTest {
         serverRunner.continueHandshake(secondValue.payload).also {
           assertThat(it.handshakeState).isEqualTo(HandshakeState.OOB_VERIFICATION_NEEDED)
         }
-      oobAuthCode = contMessage.oobVerificationCode!!
+      oobAuthCode = contMessage.fullVerificationCode!!
 
       val encryptedToken = serverOobConnectionManager.encryptVerificationCode(oobAuthCode)
       streamCallbacks.forEach { it.onMessageReceived(createStreamMessage(encryptedToken)) }
