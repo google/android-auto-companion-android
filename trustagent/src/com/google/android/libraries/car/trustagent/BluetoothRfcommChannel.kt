@@ -16,20 +16,22 @@ package com.google.android.libraries.car.trustagent
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import androidx.annotation.GuardedBy
-import com.google.android.libraries.car.trustagent.util.logd
+import com.google.android.companionprotos.OutOfBandAssociationToken
 import com.google.android.libraries.car.trustagent.util.loge
+import com.google.android.libraries.car.trustagent.util.logi
 import java.io.IOException
+import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * A channel for out-of-band verification, established over RFCOMM Bluetooth socket.
@@ -38,15 +40,10 @@ import kotlinx.coroutines.withContext
  *
  * @property backgroundContext The coroutine context to launch task with; must not be main thread.
  */
-internal class BluetoothRfcommChannel(
+class BluetoothRfcommChannel(
   private val acceptBluetoothSocketTimeout: Duration,
-  private val backgroundContext: CoroutineContext,
-  // TODO(b/179171369): remove this val once the experimental page is removed.
-  //   Currently rfcomm needs to konw about GATT because this object will be converted to a
-  //   `DiscoveredCar` that is showned to user for OOB association. The actual process now depends
-  //   on resolved capability, so after the experimental page is removed we should remove this val.
-  private val gattServiceUuid: UUID,
-  private val sppServiceUuid: UUID
+  private val isProtoApplied: Boolean,
+  private val backgroundContext: CoroutineContext
 ) : OobChannel {
   private val lock = Any()
 
@@ -54,46 +51,46 @@ internal class BluetoothRfcommChannel(
   @GuardedBy("lock") internal var bluetoothServerSocket: BluetoothServerSocket? = null
   @GuardedBy("lock") internal var bluetoothSocket: BluetoothSocket? = null
 
+  override var callback: OobChannel.Callback? = null
+
   /** Launches blocking calls to read OOB data on [backgroundContext]. */
   @SuppressLint("MissingPermission")
-  override suspend fun startOobDataExchange(
-    oobConnectionManager: OobConnectionManager,
-    callback: OobChannel.Callback?
-  ) {
+  override fun startOobDataExchange() {
+    CoroutineScope(backgroundContext).launch { oobDataExchange() }
+  }
+
+  /** This method blocks waiting for socket connection so it must not run in the main thread. */
+  internal fun oobDataExchange() {
     isInterrupted.set(false)
 
     // Wait for the remote device to connect through BluetoothSocket.
-    val bluetoothSocket = withContext(backgroundContext) { waitForBluetoothSocket() }
+    val bluetoothSocket = waitForBluetoothSocket()
     if (isInterrupted.get()) {
+      logi(TAG, "Stopped after socket connection.")
       return
     }
+
     if (bluetoothSocket == null) {
       loge(TAG, "Bluetooth socket was not able to accept connection.")
-      callback?.onOobExchangeFailure()
+      callback?.onFailure()
+      cleanUp()
       return
     }
     synchronized(lock) { this.bluetoothSocket = bluetoothSocket }
 
     // Attempt to read OOB data out of the BluetoothSocket.
-    val success =
-      withContext(backgroundContext) { readOobData(bluetoothSocket, oobConnectionManager) }
-
-    bluetoothServerSocket?.close()
-    synchronized(lock) { bluetoothServerSocket = null }
-
+    val oobData = readOobData(bluetoothSocket.inputStream)
     if (isInterrupted.get()) {
+      logi(TAG, "Stopped while reading OOB data.")
       return
     }
 
-    if (success) {
-      callback?.onOobExchangeSuccess(
-        bluetoothSocket.remoteDevice.toDiscoveredCar(oobConnectionManager)
-      )
+    if (oobData != null) {
+      callback?.onSuccess(oobData)
     } else {
-      callback?.onOobExchangeFailure()
+      callback?.onFailure()
     }
-    bluetoothSocket.close()
-    synchronized(lock) { this.bluetoothSocket = null }
+    cleanUp()
   }
 
   /**
@@ -108,7 +105,8 @@ internal class BluetoothRfcommChannel(
     val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
 
     if (bluetoothAdapter.getBondedDevices().isEmpty()) {
-      logd(TAG, "No Bluetooth devices are bonded, so will not attempt to accept Bluetooth socket.")
+      logi(TAG, "No Bluetooth devices are bonded, so will not attempt to accept Bluetooth socket.")
+      // No need to clean up because we cannot estalish any connection.
       return null
     }
 
@@ -122,6 +120,7 @@ internal class BluetoothRfcommChannel(
         bluetoothServerSocket.accept(acceptBluetoothSocketTimeout.toMillis().toInt())
       } catch (e: IOException) {
         loge(TAG, "Accepting bluetooth socket was aborted or timed out.", e)
+        cleanUp()
         return null
       }
 
@@ -129,61 +128,64 @@ internal class BluetoothRfcommChannel(
   }
 
   /**
-   * Reads out-of-band data through [bluetoothSocket] to set to [oobConnectionManager].
+   * Returns the out-of-band data read via [inputStream].
    *
-   * This call potentially blocks reading data.
+   * Returns `null` if OOB data could not be read fully.
    *
-   * Returns `true` if OOB data was read successfully.
+   * Launch this method in [backgroundContext] because it blocks reading the data.
    */
-  private fun readOobData(
-    bluetoothSocket: BluetoothSocket,
-    oobConnectionManager: OobConnectionManager
-  ): Boolean {
-    val sizeData = ByteArray(4)
-    if (!readData(bluetoothSocket, sizeData)) {
-      loge(TAG, "Bluetooth socket was not able to receive size of out of band data.")
-      return false
+  private fun readOobData(inputStream: InputStream): OobData? {
+    val sizeData = readData(inputStream, DATA_SIZE_BYTES)
+    if (sizeData == null) {
+      loge(TAG, "Could not receive size of out-of-band data.")
+      return null
     }
+
     val messageLength = ByteBuffer.wrap(sizeData).order(ByteOrder.LITTLE_ENDIAN).int
+    val tokenBytes = readData(inputStream, messageLength)
 
-    if (messageLength != OobConnectionManager.DATA_LENGTH_BYTES) {
-      loge(TAG, "The size of the incoming out of band data is incorrect")
-      return false
+    return if (isProtoApplied) {
+      tokenBytes?.let { OutOfBandAssociationToken.parseFrom(it) }?.toOobData()
+    } else {
+      tokenBytes?.toOobData()
     }
-    val oobData = ByteArray(messageLength)
-    if (!readData(bluetoothSocket, oobData)) {
-      loge(TAG, "Bluetooth socket was not able to receive out of band data.")
-      return false
-    }
-
-    return oobConnectionManager.setOobData(oobData)
   }
 
-  private fun readData(bluetoothSocket: BluetoothSocket, data: ByteArray): Boolean {
-    val bytesRead =
-      try {
-        bluetoothSocket.inputStream?.read(data) ?: 0
-      } catch (e: IOException) {
-        loge(TAG, "Could not read OOB data from bluetooth socket input stream.", e)
-        0
+  /** Reads [size] bytes from [inputStream]. Returns `null` if reading fails. */
+  private fun readData(inputStream: InputStream, size: Int): ByteArray? {
+    val buffer = ByteArray(size)
+    var bytesRead = 0
+    while (bytesRead < size) {
+      val read =
+        try {
+          inputStream.read(buffer)
+        } catch (e: IOException) {
+          loge(TAG, "Could not read OOB data from input stream.", e)
+          break
+        }
+      if (read == -1) {
+        loge(TAG, "The stream is at the end of file. Stopped reading.")
+        break
       }
+      bytesRead += read
+    }
 
-    return bytesRead > 0
+    logi(TAG, "Read $bytesRead; expected $size.")
+    return if (bytesRead == size) {
+      buffer
+    } else {
+      null
+    }
   }
-
-  private fun BluetoothDevice.toDiscoveredCar(oobConnectionManager: OobConnectionManager) =
-    DiscoveredCar(
-      this,
-      this.name,
-      gattServiceUuid,
-      sppServiceUuid,
-      oobConnectionManager = oobConnectionManager
-    )
 
   override fun stopOobDataExchange() {
     isInterrupted.set(true)
+    cleanUp()
+  }
+
+  private fun cleanUp() {
     synchronized(lock) {
-      logd(TAG, "Closing BluetoothServerSocket, InputStream, and BluetoothSocket.")
+      logi(TAG, "Closing BluetoothServerSocket, InputStream, and BluetoothSocket.")
       bluetoothServerSocket?.close()
       bluetoothSocket?.inputStream?.close()
       bluetoothSocket?.close()
@@ -198,5 +200,8 @@ internal class BluetoothRfcommChannel(
     private const val SERVICE_NAME = "batmobile_oob"
     // TODO(b/159500330): Generate a random UUID
     private val RFCOMM_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+
+    // Number of bytes that represents an int, which will be the size of OOB data.
+    private const val DATA_SIZE_BYTES = 4
   }
 }

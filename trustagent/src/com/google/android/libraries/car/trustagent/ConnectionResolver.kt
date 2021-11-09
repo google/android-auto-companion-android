@@ -71,7 +71,7 @@ internal class ConnectionResolver(private val manager: BluetoothConnectionManage
       }
     }
 
-  suspend fun exchangeCapabilities(): CapabilitiesExchange? =
+  suspend fun exchangeCapabilities(oobChannelTypes: List<OobChannelType>): CapabilitiesExchange? =
     suspendCoroutine<CapabilitiesExchange?> { continuation ->
       val messageCallback =
         object : BluetoothConnectionManager.MessageCallback {
@@ -90,9 +90,13 @@ internal class ConnectionResolver(private val manager: BluetoothConnectionManage
         }
       manager.registerMessageCallback(messageCallback)
 
-      logi(TAG, "Sending capabilities exchange: ${CAPABILITIES_EXCHANGE.asString()}")
+      val capabilities = CapabilitiesExchange.newBuilder().run {
+        addAllSupportedOobChannels(oobChannelTypes)
+        build()
+      }
+      logi(TAG, "Sending capabilities exchange: ${capabilities.asString()}")
       // After sending capabilities exchange, gattMessageCallback will be triggered.
-      if (!manager.sendMessage(CAPABILITIES_EXCHANGE.toByteArray())) {
+      if (!manager.sendMessage(capabilities.toByteArray())) {
         logw(TAG, "Could not send message to init capabilities exchange. Disconnecting.")
         manager.unregisterMessageCallback(messageCallback)
         manager.disconnect()
@@ -138,13 +142,6 @@ internal class ConnectionResolver(private val manager: BluetoothConnectionManage
     const val MAX_SECURITY_VERSION = 3
     const val MIN_SECURITY_VERSION_FOR_CAPABILITIES_EXCHANGE = 3
 
-    /** A proto that represents the locally supported capabilities. */
-    private val CAPABILITIES_EXCHANGE: CapabilitiesExchange by lazy {
-      CapabilitiesExchange.newBuilder()
-        .addAllSupportedOobChannels(listOf<OobChannelType>(OobChannelType.BT_RFCOMM))
-        .build()
-    }
-
     /**
      * Resolves version by exchanging version with [manager].
      *
@@ -153,7 +150,8 @@ internal class ConnectionResolver(private val manager: BluetoothConnectionManage
      */
     suspend fun resolve(
       manager: BluetoothConnectionManager,
-      isAssociating: Boolean
+      isAssociating: Boolean,
+      oobChannelTypes: List<OobChannelType>
     ): ResolvedConnection? {
       val resolver = ConnectionResolver(manager)
       val remoteVersion = resolver.exchangeVersion()
@@ -167,7 +165,7 @@ internal class ConnectionResolver(private val manager: BluetoothConnectionManage
             remoteVersion.maxSupportedSecurityVersion >=
               MIN_SECURITY_VERSION_FOR_CAPABILITIES_EXCHANGE
         ) {
-          resolver.exchangeCapabilities()
+          resolver.exchangeCapabilities(oobChannelTypes)
         } else {
           null
         }
@@ -201,8 +199,7 @@ private fun VersionExchange.asString() =
   |max message version: ${this.maxSupportedMessagingVersion}.
   """.trimMargin()
 
-private fun CapabilitiesExchange.asString() =
-  this.supportedOobChannelsList.joinToString { it.name }
+private fun CapabilitiesExchange.asString() = this.supportedOobChannelsList.joinToString { it.name }
 
 data class ResolvedConnection(
   val messageVersion: Int,

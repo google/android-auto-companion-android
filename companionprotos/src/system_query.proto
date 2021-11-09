@@ -33,12 +33,37 @@ enum SystemQueryType {
   // Query that returns the name of the device.
   DEVICE_NAME = 1;
 
-  // Name of the mobile companion application.
+  // Query that returns the name of the mobile companion application.
   APP_NAME = 2;
+
+  // Query that returns the current role of the user.
+  USER_ROLE = 3;
 }
 
 // Definition proto for a system query.
 message SystemQuery {
   // Type indication for this query.
   SystemQueryType type = 1;
+}
+
+// Potential user roles.
+enum SystemUserRole {
+  // The user's role is unknown.
+  //
+  // Note, this enum name is prefixed. See
+  // go/proto-best-practices-checkers#enum-default-value-name-conflict
+  SYSTEM_USER_ROLE_UNKNOWN = 0;
+
+  // The user associated with this device is currently driving.
+  DRIVER = 1;
+
+  // The user associated with this device is not currently driving.
+  PASSENGER = 2;
+}
+
+// Response to a user role query which should be performed on each reconnect
+// prior to issuing callbacks so features can properly adapt.
+message SystemUserRoleResponse {
+  // The user's current role.
+  SystemUserRole role = 1;
 }

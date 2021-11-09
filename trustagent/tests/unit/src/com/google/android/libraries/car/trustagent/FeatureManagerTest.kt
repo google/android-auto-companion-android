@@ -201,22 +201,22 @@ class FeatureManagerTest {
 internal open class FeatureManagerFake : FeatureManager() {
   override val featureId = FEATURE_ID
 
-  override fun onCarConnected(carId: UUID) {}
+  override fun onCarConnected(deviceId: UUID) {}
 
-  override fun onMessageReceived(message: ByteArray, carId: UUID) {}
+  override fun onMessageReceived(message: ByteArray, deviceId: UUID) {}
 
-  override fun onMessageSent(messageId: Int, carId: UUID) {}
+  override fun onMessageSent(messageId: Int, deviceId: UUID) {}
 
-  override fun onCarDisconnected(carId: UUID) {}
+  override fun onCarDisconnected(deviceId: UUID) {}
 
-  override fun onCarDisassociated(carId: UUID) {}
+  override fun onCarDisassociated(deviceId: UUID) {}
 
   override fun onAllCarsDisassociated() {}
 
   // Explicit override to expose the following methods as public for testing. This preserves the
   // existing `FeatureManager`'s methods as `protected`.
 
-  public override fun sendQuery(query: Query, carId: UUID, onResponse: (QueryResponse) -> Unit) {
-    super.sendQuery(query, carId, onResponse)
+  public override fun sendQuery(query: Query, deviceId: UUID, onResponse: (QueryResponse) -> Unit) {
+    super.sendQuery(query, deviceId, onResponse)
   }
 }

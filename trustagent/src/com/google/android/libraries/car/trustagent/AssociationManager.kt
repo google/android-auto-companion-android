@@ -32,7 +32,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import android.os.Parcelable
@@ -51,10 +50,11 @@ import com.google.common.util.concurrent.ListenableFuture
 import java.nio.ByteBuffer
 import java.nio.ByteOrder.BIG_ENDIAN
 import java.nio.ByteOrder.LITTLE_ENDIAN
-import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.regex.Pattern
+import kotlin.ExperimentalStdlibApi
+import kotlin.experimental.or
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +68,7 @@ import kotlinx.coroutines.launch
  * - initiating the association and notifying callbacks that require user interactin.
  */
 @PublicApi
+@OptIn(kotlin.ExperimentalStdlibApi::class)
 open class AssociationManager
 internal constructor(
   private val context: Context,
@@ -324,7 +325,13 @@ internal constructor(
     // Create CDM association request
     val pairingRequest =
       CmdAssociationRequest.Builder().run {
-        addDeviceFilter(createBleDeviceFilter(request.namePrefix, associationServiceUuid))
+        addDeviceFilter(
+          createBleDeviceFilter(
+            request.namePrefix,
+            associationServiceUuid,
+            request.deviceIdentifier
+          )
+        )
 
         if (isSppEnabled) {
           addDeviceFilter(createSppDeviceFilter())
@@ -345,7 +352,8 @@ internal constructor(
 
   private fun createBleDeviceFilter(
     namePrefix: String,
-    filterService: UUID
+    filterService: UUID,
+    serviceData: ByteArray?
   ): BluetoothLeDeviceFilter {
     val bleDeviceFilterBuilder =
       BluetoothLeDeviceFilter.Builder()
@@ -357,47 +365,24 @@ internal constructor(
           BIG_ENDIAN
         )
 
-    return if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
-      // Need to filter raw data instead of service uuid because of the filter bug b/158243042
-      // which is fixed in Android R.
-      bleDeviceFilterBuilder
-        .setRawDataFilter(createRawDataFilter(filterService), RAW_DATA_FILTER_MASK)
-        .build()
+    // Filter raw data instead of service uuid because of the filter bug b/158243042
+    // which is fixed in Android R.
+    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+      val filter = createRawDataFilter(filterService, serviceData)
+      val filterMask = createRawDataFilterMask(serviceData)
+      bleDeviceFilterBuilder.setRawDataFilter(filter, filterMask)
     } else {
-      val bleScanFilter = ScanFilter.Builder().setServiceUuid(ParcelUuid(filterService)).build()
-      bleDeviceFilterBuilder.setScanFilter(bleScanFilter).build()
+      val bleScanFilter =
+        ScanFilter.Builder().run {
+          setServiceUuid(ParcelUuid(filterService))
+          serviceData?.let { setServiceData(ParcelUuid(DEVICE_NAME_DATA_UUID), it) }
+          build()
+        }
+      bleDeviceFilterBuilder.setScanFilter(bleScanFilter)
     }
-  }
 
-  /**
-   * Generates the raw data filter which is needed to filter the device which is advertising the
-   * [associationUuid].
-   *
-   * The filter is decided by the structure of the advertisement data from the car side. It looks
-   * for the given [associationUuid] bytes from the whole advertisement data beginning on a certain
-   * index. The detailed logic is described in this document:
-   * @see [link](http://go/auto-cdm-integration-plan)
-   */
-  private fun createRawDataFilter(associationUuid: UUID): ByteArray {
-    val rawDataFilter = ByteArray(ADVERTISED_DATA_LENGTH)
-    val uuidBytes = associationUuid.toByteArray()
-    // Copy the UUID as bytes into filter byte array with offset.
-    System.arraycopy(
-      uuidBytes,
-      0,
-      rawDataFilter,
-      ADVERTISED_DATA_SERVICE_UUID_START_INDEX,
-      uuidBytes.size
-    )
-    return rawDataFilter
+    return bleDeviceFilterBuilder.build()
   }
-
-  private fun UUID.toByteArray() =
-    ByteBuffer.allocate(UUID_LENGTH_BYTES)
-      .order(LITTLE_ENDIAN)
-      .putLong(leastSignificantBits)
-      .putLong(mostSignificantBits)
-      .array()
 
   /**
    * Starts SPP discovery for cars to connect.
@@ -457,7 +442,7 @@ internal constructor(
       return
     }
     currentPendingCdmDevice = discoveredCar.device
-    associate(discoveredCar)
+    associate(discoveredCar, request.oobData)
   }
 
   /**
@@ -493,6 +478,10 @@ internal constructor(
    * Progress is notified by [AssociationCallback].
    */
   fun associate(discoveredCar: DiscoveredCar) {
+    associate(discoveredCar, oobData = null)
+  }
+
+  private fun associate(discoveredCar: DiscoveredCar, oobData: OobData?) {
     CoroutineScope(coroutineContext).launch {
       if (!checkPermissionsForBluetoothConnection(context)) {
         loge(TAG, "Missing required permission. Ignore association request.")
@@ -501,8 +490,8 @@ internal constructor(
       stopDiscovery()
       stopSppDiscovery()
 
+      // Establish connection with discovered car over GATT/SPP.
       val bluetoothManagers = discoveredCar.toBluetoothConnectionManagers(context)
-
       val bluetoothManager =
         bluetoothManagers.firstOrNull { manager ->
           val connectionResult = manager.connectToDevice()
@@ -510,21 +499,34 @@ internal constructor(
 
           connectionResult
         }
-
       if (bluetoothManager == null) {
         loge(TAG, "Could not establish connection.")
         associationCallbacks.forEach { it.onAssociationFailed() }
         return@launch
       }
+
       associationCallbacks.forEach { it.onAssociationStart() }
 
-      val resolvedConnection = ConnectionResolver.resolve(bluetoothManager, isAssociating = true)
+      // Attempt to use OOB association over RFCOMM when oobData is not available. Otherwise,
+      // skip RFCOMM because before security V4, IHU will stuck at establishing RFCOMM channel while
+      // mobile sends the encryption init message, which will be ignored by IHU.
+      val oobChannelTypes = buildList {
+        if (oobData == null) {
+          add(OobChannelType.BT_RFCOMM)
+        } else {
+          add(OobChannelType.PRE_ASSOCIATION)
+        }
+      }
+      // Resolve message and security version.
+      val resolvedConnection =
+        ConnectionResolver.resolve(bluetoothManager, isAssociating = true, oobChannelTypes)
       if (resolvedConnection == null) {
         loge(TAG, "Could not resolve version over $bluetoothManager.")
         associationCallbacks.forEach { it.onAssociationFailed() }
         return@launch
       }
 
+      // Locally construct a message stream based on message version.
       val stream = MessageStream.create(resolvedConnection.messageVersion, bluetoothManager)
       if (stream == null) {
         loge(TAG, "Resolved version is $resolvedConnection but could not create stream.")
@@ -532,69 +534,24 @@ internal constructor(
         return@launch
       }
 
-      if (resolvedConnection.oobChannels.contains(OobChannelType.BT_RFCOMM)) {
-        val oobExchangeCallback =
-          object : OobChannel.Callback {
-            override fun onOobExchangeSuccess(discoveredCar: DiscoveredCar) {
-              currentPendingCar =
-                startConnection(
-                  resolvedConnection.securityVersion,
-                  stream,
-                  discoveredCar.device,
-                  bluetoothManager,
-                  discoveredCar.oobConnectionManager
-                )
-            }
-
-            override fun onOobExchangeFailure() {
-              currentPendingCar =
-                startConnection(
-                  resolvedConnection.securityVersion,
-                  stream,
-                  discoveredCar.device,
-                  bluetoothManager,
-                  oobConnectionManager = null
-                )
-            }
-          }
-
-        startOobDataExchange(
-          timeout = DEFAULT_OOB_TIMEOUT,
-          oobChannelCallback = oobExchangeCallback
+      // Start OOB exchange to receive an OobConnectionManager.
+      val oobChannelManager =
+        OobChannelManager.create(
+          resolvedConnection.oobChannels,
+          oobData,
+          resolvedConnection.securityVersion
         )
-      } else {
-        currentPendingCar =
-          startConnection(
-            resolvedConnection.securityVersion,
-            stream,
-            discoveredCar.device,
-            bluetoothManager,
-            discoveredCar.oobConnectionManager
-          )
-      }
-    }
-  }
+      val oobConnectionManager =
+        oobChannelManager.readOobData()?.let { OobConnectionManager.create(it) }
 
-  private fun checkPermission(context: Context, permission: String): Boolean {
-    val granted = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
-    if (!granted) loge(TAG, "Required $permission is not granted.")
-    return granted
-  }
-
-  private fun startOobDataExchange(timeout: Duration, oobChannelCallback: OobChannel.Callback) {
-    // Rfcomm channel is constructed with a background context for blocking operation.
-    // startOobDataExchange() is launched on the main thread because it invokes
-    // a callback that manipulates UI.
-    val oobChannel =
-      BluetoothRfcommChannel(
-        timeout,
-        backgroundContext,
-        associationServiceUuid,
-        sppServiceUuid,
-      )
-    this.oobChannel = oobChannel
-    CoroutineScope(coroutineContext).launch {
-      oobChannel.startOobDataExchange(OobConnectionManager(), oobChannelCallback)
+      currentPendingCar =
+        startConnection(
+          resolvedConnection.securityVersion,
+          stream,
+          discoveredCar.device,
+          bluetoothManager,
+          oobConnectionManager,
+        )
     }
   }
 
@@ -807,7 +764,7 @@ internal constructor(
 
     /**
      * Invoked when [startDiscovery] failed. [errorCode] are `SCAN_FAILED_*` constants in
-     * [ScanCallback], or custom error [OOB_DISCOVERY_FAILURE] and [SPP_DISCOVERY_FAILURE].
+     * [ScanCallback], or custom error [SPP_DISCOVERY_FAILURE].
      */
     fun onDiscoveryFailed(errorCode: Int)
   }
@@ -863,50 +820,68 @@ internal constructor(
 
   @PublicApi
   companion object {
-    private val DEFAULT_OOB_TIMEOUT = Duration.ofMillis(500)
     private const val TAG = "AssociationManager"
     private const val SCAN_CALLBACK_TYPE = ScanSettings.CALLBACK_TYPE_ALL_MATCHES
     private const val ADVERTISED_NAME_DATA_LENGTH_LONG = 8
     private const val ADVERTISED_NAME_DATA_LENGTH_SHORT = 2
 
     /**
-     * Decided by car advertising data structure, will change if the advertising schema on car
-     * changed. Details calculating the index is describe in b/187241458.
-     */
-    private const val DEVICE_NAME_START_INDEX = 25
-
-    /**
      * Decided by the maximum advertised data size(31) defined by [BluetoothLeAdvertiser]. The total
      * advertisement data is consist of advertised data and scan response so has a maximum length of
      * 62.
      */
-    private const val ADVERTISED_DATA_LENGTH = 62
+    private const val ADVERTISEMENT_LENGTH = 62
 
     /**
-     * Decided by car advertising data structure, will change if the advertising schema on car
-     * changed. Details calculating the index is describe in b/187241458.
+     * The index of service UUID in a car's BLE advertisement.
+     *
+     * The service UUID is the second element in the advertisement. The first element is flags that
+     * take 3 bytes.
+     *
+     * In the second element, the first 2 bytes are split as:
+     * - 1 byte of length;
+     * - 1 byte of type;
+     *
+     * The advertisement format should be kept in sync with the advertising schema on the car side.
+     * Details calculating the index is describe in b/187241458.
      */
     private const val ADVERTISED_DATA_SERVICE_UUID_START_INDEX = 5
     private const val UUID_LENGTH_BYTES = 16
+    /**
+     * The index of service data of [DEVICE_NAME_DATA_UUID] in a car's BLE advertisement.
+     *
+     * The service data element is packed after the service UUID (start index + UUID length).
+     *
+     * In the service data element, the first 4 bytes are split as:
+     * - 1 byte of length;
+     * - 1 byte of type;
+     * - 2 byte of short UUID [DEVICE_NAME_DATA_UUID];
+     *
+     * The advertisement format should be kept in sync with the advertising schema on the car side.
+     * Details calculating the index is describe in b/187241458.
+     */
+    private const val DEVICE_NAME_START_INDEX =
+      ADVERTISED_DATA_SERVICE_UUID_START_INDEX + UUID_LENGTH_BYTES + 4
 
     // Filter for non-null name.
     private const val BLUETOOTH_DEVICE_NAME_PATTERN_REGEX = ".+"
 
-    private val RAW_DATA_FILTER_MASK =
-      ByteArray(ADVERTISED_DATA_LENGTH).apply {
+    private val SERVICE_UUID_FILTER_MASK =
+      ByteArray(ADVERTISEMENT_LENGTH).apply {
         fill(
           0xff.toByte(),
           ADVERTISED_DATA_SERVICE_UUID_START_INDEX,
           ADVERTISED_DATA_SERVICE_UUID_START_INDEX + UUID_LENGTH_BYTES
         )
       }
-
-    /**
-     * Generic error code for all out of band discovery failures, to be passed to
-     * [callback.onDiscoveryFailed].
-     */
-    // TODO(b/179171369): remove this val once the experimental page is removed.
-    const val OOB_DISCOVERY_FAILURE = 10
+    private val DEVICE_NAME_FILTER_MASK =
+      ByteArray(ADVERTISEMENT_LENGTH).apply {
+        fill(
+          0xff.toByte(),
+          DEVICE_NAME_START_INDEX,
+          DEVICE_NAME_START_INDEX + ADVERTISED_NAME_DATA_LENGTH_SHORT
+        )
+      }
 
     /**
      * Generic error code for all SPP discovery failures, to be passed to
@@ -940,5 +915,62 @@ internal constructor(
           // Double checked locking. Note the field must be volatile.
           instance ?: AssociationManager(context.applicationContext).also { instance = it }
         }
+
+    /**
+     * Generates the raw data as filter to scan for the device.
+     *
+     * Only filter for devices are that are advertising [associationUuid], and optionally contains
+     * [advertisedData] under GATT service of [DEVICE_NAME_DATA_UUID].
+     *
+     * The filter is decided by the structure of the advertisement data from the car side. It looks
+     * for the given [associationUuid] bytes from the whole advertisement data beginning on a
+     * certain index. The detailed logic is described in this document: go/auto-cdm-integration-plan
+     */
+    @VisibleForTesting
+    internal fun createRawDataFilter(associationUuid: UUID, advertisedData: ByteArray?): ByteArray {
+      val rawDataFilter = ByteArray(ADVERTISEMENT_LENGTH)
+      val uuidBytes = associationUuid.toByteArray()
+      // Copy the UUID as bytes into filter byte array with offset.
+      System.arraycopy(
+        uuidBytes,
+        0,
+        rawDataFilter,
+        ADVERTISED_DATA_SERVICE_UUID_START_INDEX,
+        uuidBytes.size
+      )
+      advertisedData?.let {
+        // Also copy the advertised data into filter, only with supported length.
+        when (it.size) {
+          ADVERTISED_NAME_DATA_LENGTH_LONG, ADVERTISED_NAME_DATA_LENGTH_SHORT -> {
+            System.arraycopy(it, 0, rawDataFilter, DEVICE_NAME_START_INDEX, it.size)
+          }
+          else -> {
+            logw(TAG, "Advertised data is null, or does not have expected size. Ignored.")
+          }
+        }
+      }
+      return rawDataFilter
+    }
+
+    /**
+     * Generates the mask of raw data filter to scan for the device.
+     *
+     * @param serviceData The advertised data; to be interpreted as the device name of advertiser.
+     */
+    private fun createRawDataFilterMask(serviceData: ByteArray?): ByteArray {
+      return if (serviceData == null) {
+        SERVICE_UUID_FILTER_MASK
+      } else {
+        // Create a byte array of (SERVICE_UUID_FILTER_MASK | DEVICE_NAME_FILTER_MASK).
+        SERVICE_UUID_FILTER_MASK.zip(DEVICE_NAME_FILTER_MASK) { a, b -> a or b }.toByteArray()
+      }
+    }
+
+    private fun UUID.toByteArray() =
+      ByteBuffer.allocate(UUID_LENGTH_BYTES)
+        .order(LITTLE_ENDIAN)
+        .putLong(leastSignificantBits)
+        .putLong(mostSignificantBits)
+        .array()
   }
 }

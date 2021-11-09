@@ -22,7 +22,12 @@ import java.util.UUID
 /** Parameters to start a discovery for companion device to associate with. */
 @PublicApi
 data class DiscoveryRequest
-private constructor(val activity: Activity, val namePrefix: String, val associationUuid: UUID?) {
+private constructor(
+  val activity: Activity,
+  val namePrefix: String,
+  val associationUuid: UUID?,
+  val deviceIdentifier: ByteArray?
+) {
   /**
    * A builder for [DiscoveryResult]s.
    *
@@ -50,8 +55,21 @@ private constructor(val activity: Activity, val namePrefix: String, val associat
      */
     var associationUuid: UUID? = null
 
+    /**
+     * The data that identifies the device.
+     *
+     * Adding this value will ensure that the discovery will only attempt to surface results that
+     * match the given value. Any non-`null` value here will be utilized. Defaults to `null`.
+     *
+     * The data can be obtained through channels before discovery is started, e.g. QR code scanning
+     * or NFC, which requires setup on IHU.
+     */
+    // TODO(b/202849608): link to external QR code doc to explain how to retrieve deviceIdentifier.
+    var deviceIdentifier: ByteArray? = null
+
     /** Creates a [DiscoveryRequest]. */
-    fun build(): DiscoveryRequest = DiscoveryRequest(activity, namePrefix, associationUuid)
+    fun build(): DiscoveryRequest =
+      DiscoveryRequest(activity, namePrefix, associationUuid, deviceIdentifier)
   }
 }
 

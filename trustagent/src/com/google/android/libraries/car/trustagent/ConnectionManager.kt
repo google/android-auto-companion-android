@@ -385,7 +385,8 @@ internal constructor(
       return
     }
 
-    val resolvedConnection = ConnectionResolver.resolve(manager, isAssociating = false)
+    // OOB channels is not necessary during reconnection.
+    val resolvedConnection = ConnectionResolver.resolve(manager, isAssociating = false, emptyList())
     if (resolvedConnection == null) {
       loge(TAG, "Could not resolve version over $device.")
       connectionCallbacks.forEach { it.onConnectionFailed(device) }

@@ -23,60 +23,48 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * This is a class that manages a token--[encryptionKey]-- passed via an out of band [Channel] that
- * is distinct from the channel that is currently being secured.
+ * Manages a token--[encryptionKey]-- passed via an out-of-band channel that is distinct from the
+ * channel that is currently being secured.
  *
- * Intended usage:
+ * This class is not to be directly constructed. Instead, use `OobChannelManager`, which returns an
+ * instance of this class when OOB token is received.
  *
- * 1. on `oobData` received from `OobChannel`
- * 1. Set the data: `oobConnectionManager.setOobData(oobData)`
- * 1. `encryptedMessage = encryptVerificationCode(...)`
- * 1. sendMessage
- * 1. When a message is received:
- * 1. `verificationCode = decryptVerificationCode(...)`
- * 1. Check that verification code is valid
- * 1. If code is valid, verify handshake; otherwise, fail.
+ * @throws IllegalStateException if [oobData] is not valid.
  */
-internal class OobConnectionManager {
+internal class OobConnectionManager
+private constructor(
+  @get:VisibleForTesting internal val encryptionKey: SecretKey,
+  @get:VisibleForTesting internal val mobileIv: ByteArray,
+  @get:VisibleForTesting internal val ihuIv: ByteArray
+) {
   private val cipher = Cipher.getInstance(ALGORITHM)
-  @VisibleForTesting internal var encryptionKey: SecretKey? = null
-  @VisibleForTesting internal var encryptionIv = ByteArray(NONCE_LENGTH_BYTES)
-  @VisibleForTesting internal var decryptionIv = ByteArray(NONCE_LENGTH_BYTES)
-
-  /** Returns true if the OOB data is set successfully, otherwise returns false. */
-  fun setOobData(oobData: ByteArray): Boolean {
-    encryptionIv = oobData.copyOfRange(0, NONCE_LENGTH_BYTES)
-    decryptionIv = oobData.copyOfRange(NONCE_LENGTH_BYTES, NONCE_LENGTH_BYTES * 2)
-    if (encryptionIv.contentEquals(decryptionIv)) {
-      loge(TAG, "Invalid OOB data. IVs values are not different. Failed to set OOB data.")
-      return false
-    }
-    encryptionKey =
-      SecretKeySpec(
-        oobData.copyOfRange(NONCE_LENGTH_BYTES * 2, oobData.size),
-        KeyProperties.KEY_ALGORITHM_AES
-      )
-    return true
-  }
 
   fun encryptVerificationCode(verificationCode: ByteArray): ByteArray {
-    cipher.init(Cipher.ENCRYPT_MODE, encryptionKey, IvParameterSpec(encryptionIv))
+    cipher.init(Cipher.ENCRYPT_MODE, encryptionKey, IvParameterSpec(mobileIv))
     return cipher.doFinal(verificationCode)
   }
 
   fun decryptVerificationCode(encryptedMessage: ByteArray): ByteArray {
-    cipher.init(Cipher.DECRYPT_MODE, encryptionKey, IvParameterSpec(decryptionIv))
-
+    cipher.init(Cipher.DECRYPT_MODE, encryptionKey, IvParameterSpec(ihuIv))
     return cipher.doFinal(encryptedMessage)
   }
 
   companion object {
     private const val TAG = "OobConnectionManager"
-    // The nonce length is chosen to be consistent with the standard specification:
-    // Section 8.2 of https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
-    @VisibleForTesting internal const val NONCE_LENGTH_BYTES = 12
-    // The total data size is the size of the two nonces plus the secret key
-    const val DATA_LENGTH_BYTES = NONCE_LENGTH_BYTES * 2 + 16
     private const val ALGORITHM = "AES/GCM/NoPadding"
+
+    /**
+     * Creates an OobConnectionManager with [oobData].
+     *
+     * Returns `null` if data is invalid.
+     */
+    fun create(oobData: OobData): OobConnectionManager? {
+      if (oobData.mobileIv contentEquals oobData.ihuIv) {
+        loge(TAG, "Invalid OOB data. IVs must not be the same. Cannot create OobConnectionManager.")
+        return null
+      }
+      val key = SecretKeySpec(oobData.encryptionKey, KeyProperties.KEY_ALGORITHM_AES)
+      return OobConnectionManager(key, oobData.mobileIv, oobData.ihuIv)
+    }
   }
 }

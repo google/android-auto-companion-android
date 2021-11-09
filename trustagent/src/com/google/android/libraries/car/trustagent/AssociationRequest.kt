@@ -19,7 +19,7 @@ import com.google.android.libraries.car.trustagent.api.PublicApi
 
 /** Parameters to start association with a companion device. */
 @PublicApi
-data class AssociationRequest private constructor(val intent: Intent) {
+data class AssociationRequest private constructor(val intent: Intent, val oobData: OobData?) {
   /**
    * Builder for [AssociationRequest].
    *
@@ -30,7 +30,30 @@ data class AssociationRequest private constructor(val intent: Intent) {
    */
   @PublicApi
   class Builder(private val intent: Intent) {
+    /**
+     * The out-of-band data from out-of-band channel.
+     *
+     * Defaults to `null`. If set, the association will attempt to confirm the encryption based on
+     * this data.
+     */
+    var oobData: OobData? = null
+
     /** Creates a [AssociationRequest]. */
-    fun build(): AssociationRequest = AssociationRequest(intent)
+    fun build(): AssociationRequest = AssociationRequest(intent, oobData)
   }
 }
+
+/**
+ * Convenience DSL for constructing a [AssociationRequest].
+ *
+ * Refer to [AssociationRequest.Builder] for documentation on the properties that can be modified.
+ *
+ * @property activity The [Activity] that will handle the discovery result, which is an
+ * [IntentSender] returned through [ConnectedDeviceManager.Callback]. The discovery will be stopped
+ * if the activity is destroyed.
+ * @param block Lambda with a receiver of [AssociationRequest.Builder].
+ */
+inline fun associationRequest(
+  intent: Intent,
+  block: AssociationRequest.Builder.() -> Unit
+): AssociationRequest = AssociationRequest.Builder(intent).apply(block).build()

@@ -24,23 +24,6 @@ import com.google.android.libraries.car.trustagent.blemessagestream.SppManager
 import java.util.Objects
 import java.util.UUID
 
-// Default value used by car enrollment service.
-private val SERVER_WRITE_CHARACTERISTIC_UUID =
-  UUID.fromString("5e2a68a5-27be-43f9-8d1e-4546976fabd7")
-
-// Default value used by car enrollment service.
-private val CLIENT_WRITE_CHARACTERISTIC_UUID =
-  UUID.fromString("5e2a68a6-27be-43f9-8d1e-4546976fabd7")
-
-// The following prefixes are required to ensure BLE and SPP devices have unique addresses. There
-// is a corner case where a vehicle might be discoverable via SPP, but intends to use BLE for
-// association.  This can occur in a brief window after Bluetooth pairing; other apps can also
-// request to make the vehicle discoverable. Without the prefix, the user might see two devices
-// with the same address. See b/178207557 for more information.
-// TODO(b/178116375): Finalize way to integrate SPP and BLE on the phone side.
-private const val BLE_DISCOVERED_DEVICE_ID_PREFIX = "BLE"
-private const val SPP_DISCOVERED_DEVICE_ID_PREFIX = "SPP"
-
 /**
  * A car that can be associated with.
  *
@@ -60,8 +43,7 @@ internal constructor(
   open val name: String,
   internal val gattServiceUuid: UUID,
   internal val sppServiceUuid: UUID?,
-  // This field should not be null if this DiscoveredCar was discovered through OOB channel.
-  internal val oobConnectionManager: OobConnectionManager? = null,
+  internal var oobConnectionManager: OobConnectionManager? = null
 ) {
   /** Unique identification of current discovered car. */
   val id =
@@ -108,5 +90,23 @@ internal constructor(
       )
     sppServiceUuid?.let { managers.add(SppManager(context, device, it)) }
     return managers
+  }
+
+  companion object {
+    // Default value used by car enrollment service.
+    private val SERVER_WRITE_CHARACTERISTIC_UUID =
+      UUID.fromString("5e2a68a5-27be-43f9-8d1e-4546976fabd7")
+
+    // Default value used by car enrollment service.
+    private val CLIENT_WRITE_CHARACTERISTIC_UUID =
+      UUID.fromString("5e2a68a6-27be-43f9-8d1e-4546976fabd7")
+
+    // The following prefixes are required to ensure BLE and SPP devices have unique addresses.
+    // There is a corner case where a vehicle might be discoverable via SPP, but intends to use
+    // BLE for association.  This can occur in a brief window after Bluetooth pairing; other apps
+    // can also request to make the vehicle discoverable. Without the prefix, the user might see
+    // two devices with the same address. See b/178207557 for more information.
+    private const val BLE_DISCOVERED_DEVICE_ID_PREFIX = "BLE"
+    private const val SPP_DISCOVERED_DEVICE_ID_PREFIX = "SPP"
   }
 }

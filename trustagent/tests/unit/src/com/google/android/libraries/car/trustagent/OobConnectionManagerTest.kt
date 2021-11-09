@@ -17,12 +17,10 @@ package com.google.android.libraries.car.trustagent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import java.security.InvalidAlgorithmParameterException
-import java.security.InvalidKeyException
 import java.security.SecureRandom
 import javax.crypto.AEADBadTagException
 import javax.crypto.KeyGenerator
 import org.junit.Assert.assertThrows
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -30,32 +28,28 @@ import org.junit.runner.RunWith
 class OobConnectionManagerTest {
   private lateinit var oobConnectionManager: OobConnectionManager
 
-  @Before
-  fun setUp() {
-    oobConnectionManager = OobConnectionManager()
-  }
-
   @Test
-  fun testServer_setOobData_setsKeyAndNonce_returnTrue() {
-    assertThat(oobConnectionManager.setOobData(TEST_OOB_DATA)).isTrue()
+  fun testServer_validOobData_setsKeyAndNonce() {
+    val oobConnectionManager = OobConnectionManager.create(TEST_OOB_DATA)!!
 
-    // The decryption IV for one device is the encryption IV for the other and vice versa
-    assertThat(oobConnectionManager.decryptionIv).isEqualTo(TEST_ENCRYPTION_IV)
-    assertThat(oobConnectionManager.encryptionIv).isEqualTo(TEST_DECRYPTION_IV)
+    assertThat(oobConnectionManager.ihuIv).isEqualTo(TEST_IHU_IV)
+    assertThat(oobConnectionManager.mobileIv).isEqualTo(TEST_MOBILE_IV)
     assertThat(oobConnectionManager.encryptionKey).isEqualTo(TEST_KEY)
   }
 
   @Test
-  fun testServer_setOobData_setsSameEncryptAndDecryptNonce_returnFalse() {
-    assertThat(oobConnectionManager.setOobData(TEST_INVALID_OOB_DATA)).isFalse()
+  fun testServer_create_sameEncryptAndDecryptNonce_returnsNull() {
+    assertThat(OobConnectionManager.create(TEST_INVALID_OOB_DATA)).isNull()
   }
 
   @Test
   fun testSuccessfulEncryptAndServerDecrypt() {
-    oobConnectionManager.setOobData(TEST_OOB_DATA)
-    val otherOobConnectionManager = OobConnectionManager()
+    val oobConnectionManager = OobConnectionManager.create(TEST_OOB_DATA)!!
     // The decryption IV for one device is the encryption IV for the other and vice versa
-    otherOobConnectionManager.setOobData(TEST_ENCRYPTION_IV + TEST_DECRYPTION_IV + TEST_KEY.encoded)
+    val otherOobConnectionManager =
+      OobConnectionManager.create(
+        OobData(encryptionKey = TEST_KEY.encoded, ihuIv = TEST_MOBILE_IV, mobileIv = TEST_IHU_IV)
+      )!!
 
     val encryptedTestMessage = oobConnectionManager.encryptVerificationCode(TEST_MESSAGE)
     val decryptedTestMessage =
@@ -69,7 +63,7 @@ class OobConnectionManagerTest {
     // The OobConnectionManager stores a different nonce for encryption and decryption, so it can't
     // decrypt messages that it encrypted itself. It can only send encrypted messages to an
     // OobConnectionManager on another device that share its nonces and encryption key.
-    oobConnectionManager.setOobData(TEST_OOB_DATA)
+    val oobConnectionManager = OobConnectionManager.create(TEST_OOB_DATA)!!
     oobConnectionManager.encryptVerificationCode(TEST_MESSAGE)
     assertThrows(AEADBadTagException::class.java) {
       oobConnectionManager.decryptVerificationCode(TEST_MESSAGE)
@@ -78,7 +72,7 @@ class OobConnectionManagerTest {
 
   @Test
   fun testMultipleCallsToEncrypt_throwsInvalidParameterException() {
-    oobConnectionManager.setOobData(TEST_OOB_DATA)
+    val oobConnectionManager = OobConnectionManager.create(TEST_OOB_DATA)!!
     oobConnectionManager.encryptVerificationCode(TEST_MESSAGE)
     assertThrows(InvalidAlgorithmParameterException::class.java) {
       oobConnectionManager.encryptVerificationCode(TEST_MESSAGE)
@@ -87,7 +81,7 @@ class OobConnectionManagerTest {
 
   @Test
   fun testDecryptWithShortMessage_throwsAEADBadTagException() {
-    oobConnectionManager.setOobData(TEST_OOB_DATA)
+    val oobConnectionManager = OobConnectionManager.create(TEST_OOB_DATA)!!
 
     // An exception will be thrown if the message to decrypt is shorter than the IV
     assertThrows(AEADBadTagException::class.java) {
@@ -95,28 +89,28 @@ class OobConnectionManagerTest {
     }
   }
 
-  @Test
-  fun testEncryptWithNullKey_throwsInvalidKeyException() {
-    assertThrows(InvalidKeyException::class.java) {
-      oobConnectionManager.encryptVerificationCode(TEST_MESSAGE)
-    }
-  }
-
-  @Test
-  fun testDecryptWithNullKey_throwsInvalidKeyException() {
-    assertThrows(InvalidKeyException::class.java) {
-      oobConnectionManager.decryptVerificationCode(TEST_MESSAGE)
-    }
-  }
-
   companion object {
+    // 12 is what IHU uses but its value does not affect the logic.
+    private const val NONCE_LENGTH_BYTES = 12
+
     private val TEST_KEY = KeyGenerator.getInstance("AES").generateKey()
-    private val TEST_ENCRYPTION_IV =
-      ByteArray(OobConnectionManager.NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
-    private val TEST_DECRYPTION_IV =
-      ByteArray(OobConnectionManager.NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
-    private val TEST_OOB_DATA = TEST_DECRYPTION_IV + TEST_ENCRYPTION_IV + TEST_KEY.encoded
-    private val TEST_INVALID_OOB_DATA = TEST_ENCRYPTION_IV + TEST_ENCRYPTION_IV + TEST_KEY.encoded
+    private val TEST_MOBILE_IV =
+      ByteArray(NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
+    private val TEST_IHU_IV = ByteArray(NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
+
+    private val TEST_OOB_DATA =
+      OobData(
+        encryptionKey = TEST_KEY.encoded,
+        ihuIv = TEST_IHU_IV,
+        mobileIv = TEST_MOBILE_IV,
+      )
+    private val TEST_INVALID_OOB_DATA =
+      OobData(
+        encryptionKey = TEST_KEY.encoded,
+        // IHU IV is the same as mobile IV.
+        ihuIv = TEST_MOBILE_IV,
+        mobileIv = TEST_MOBILE_IV,
+      )
     private val TEST_MESSAGE: ByteArray = "testMessage".toByteArray()
   }
 }

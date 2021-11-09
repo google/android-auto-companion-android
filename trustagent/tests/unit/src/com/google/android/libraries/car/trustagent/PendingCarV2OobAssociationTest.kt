@@ -137,13 +137,15 @@ class PendingCarV2OobAssociationTest {
     setUpMockStreamMessageId()
 
     oobConnectionManager =
-      OobConnectionManager().apply {
-        setOobData(TEST_DECRYPTION_IV + TEST_ENCRYPTION_IV + TEST_KEY.encoded)
-      }
+      OobConnectionManager.create(
+        OobData(encryptionKey = TEST_KEY.encoded, ihuIv = TEST_IHU_IV, mobileIv = TEST_MOBILE_IV)
+      )!!
+
+    // The server uses the same class so we need to reverse the IVs.
     serverOobConnectionManager =
-      OobConnectionManager().apply {
-        setOobData(TEST_ENCRYPTION_IV + TEST_DECRYPTION_IV + TEST_KEY.encoded)
-      }
+      OobConnectionManager.create(
+        OobData(encryptionKey = TEST_KEY.encoded, ihuIv = TEST_MOBILE_IV, mobileIv = TEST_IHU_IV)
+      )!!
 
     serverRunner = EncryptionRunnerFactory.newRunner(EncryptionRunnerType.OOB_UKEY2)
 
@@ -298,10 +300,11 @@ class PendingCarV2OobAssociationTest {
       .apply { callback = mockPendingCarCallback }
 
   companion object {
+    private const val NONCE_LENGTH_BYTES = 12
+
     private val TEST_KEY = KeyGenerator.getInstance("AES").generateKey()
-    private val TEST_ENCRYPTION_IV =
-      ByteArray(OobConnectionManager.NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
-    private val TEST_DECRYPTION_IV =
-      ByteArray(OobConnectionManager.NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
+    private val TEST_MOBILE_IV =
+      ByteArray(NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
+    private val TEST_IHU_IV = ByteArray(NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
   }
 }

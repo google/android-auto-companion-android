@@ -27,6 +27,8 @@ option java_multiple_files = true;
 //
 // The IHU generates an |encryption_key| and the initialization
 // vectors (IVs) for both IHU and mobile.
+//
+// All the fields in this message are required.
 message OutOfBandAssociationToken {
   // The encryption key for out-of-band association.
   bytes encryption_key = 1;

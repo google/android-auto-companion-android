@@ -18,23 +18,39 @@ package com.google.android.libraries.car.trustagent
  * A channel that can handle out-of-band verification for establishing a secure connection with a
  * remote vehicle.
  */
-internal interface OobChannel {
+interface OobChannel {
+
+  var callback: Callback?
 
   /**
    * Attempts to connect to an out of band-capable device and initiate data exchange.
    *
    * The phone should receive the out of band data sent by the IHU. If it successfully receives the
-   * data, it should call [oobConnectionManager.setOobData], and then
-   * [callback.onOobExchangeSuccess]. Otherwise, it should call [callback.onOobExchangeFailure].
+   * data, [Callback.onSuccess] will be invoked.
    */
-  suspend fun startOobDataExchange(oobConnectionManager: OobConnectionManager, callback: Callback?)
+  fun startOobDataExchange()
 
-  /** Cancels the out of band discovery and data exchange, typically due to a user action. */
+  /**
+   * Cancels the out of band discovery and data exchange, typically due to a user action.
+   *
+   * Does not trigger [Callback.onFailure].
+   */
   fun stopOobDataExchange()
 
-  /** Callbacks that will be invoked for OOB discovery events. */
+  /**
+   * Callbacks that will be invoked for OOB exchange events.
+   *
+   * A channel should only make a single callback of either success or failure.
+   */
   interface Callback {
-    fun onOobExchangeSuccess(discoveredCar: DiscoveredCar)
-    fun onOobExchangeFailure()
+    /** Invoked when the OOB channel has successfully received the data. */
+    fun onSuccess(oobData: OobData)
+
+    /**
+     * Invoked when the OOB channel failed to receive data.
+     *
+     * For example when a connection could not be established, or OOB data was not read in full.
+     */
+    fun onFailure()
   }
 }
