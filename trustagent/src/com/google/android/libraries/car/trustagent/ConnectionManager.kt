@@ -385,30 +385,31 @@ internal constructor(
       return
     }
 
-    // OOB channels is not necessary during reconnection.
-    val resolvedConnection = ConnectionResolver.resolve(manager, isAssociating = false, emptyList())
-    if (resolvedConnection == null) {
+    val resolvedVersion = VersionResolver.resolve(manager)
+    if (resolvedVersion == null) {
       loge(TAG, "Could not resolve version over $device.")
       connectionCallbacks.forEach { it.onConnectionFailed(device) }
       return
     }
 
-    val stream = MessageStream.create(resolvedConnection.messageVersion, manager)
+    val stream = MessageStream.create(resolvedVersion.messageVersion, manager)
     if (stream == null) {
-      loge(TAG, "Resolved version is $resolvedConnection but could not create stream.")
+      loge(TAG, "Resolved version is $resolvedVersion but could not create stream.")
       connectionCallbacks.forEach { it.onConnectionFailed(device) }
       return
     }
 
     val pendingCar =
       PendingCar.create(
-          resolvedConnection.securityVersion,
+          resolvedVersion.securityVersion,
           context,
           isAssociating = false,
           stream = stream,
           associatedCarManager = associatedCarManager,
           device = device,
-          bluetoothManager = manager
+          bluetoothManager = manager,
+          oobChannelTypes = emptyList(),
+          oobData = null
         )
         .apply { callback = pendingCarCallback }
 

@@ -9,37 +9,54 @@ import com.google.android.companionprotos.outOfBandAssociationToken
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.util.Random
-import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class UriElementsTest {
   @Test
-  fun reservedParameterName_noViolation() {
+  fun reservedParameterName_arbitraryName_success() {
     val uri = createUri("foo" to "bar")
 
-    UriElements.decodeFrom(uri)
+    assertThat(decode(uri)).isNotNull()
   }
+
   @Test
-  fun reservedParameterName_oob_fails() {
+  fun reservedParameterName_oob_returnsNull() {
     val uri = createUri("oobFoo" to "value")
 
-    assertThrows(IllegalStateException::class.java) { UriElements.decodeFrom(uri) }
+    assertThat(decode(uri)).isNull()
   }
 
   @Test
-  fun reservedParameterName_bat_fails() {
+  fun reservedParameterName_bat_returnsNull() {
     val uri = createUri("batBar" to "value")
 
-    assertThrows(IllegalStateException::class.java) { UriElements.decodeFrom(uri) }
+    assertThat(decode(uri)).isNull()
+  }
+
+  @Test
+  fun mismatchedPath_returnsNull() {
+    val uri = createUri("batBar" to "value", path = "reconnect")
+
+    assertThat(decode(uri)).isNull()
+  }
+
+  @Test
+  fun customizedParameterName_success() {
+    val customizeKey = "customizeKey"
+    val customizeValue = "customizeValue"
+    val uri = createUri(customizeKey to customizeValue)
+
+    val elements = decode(uri)!!
+    assertThat(elements.queries[customizeKey]).isEqualTo(customizeValue)
   }
 
   @Test
   fun noQueryParameter_noOobData() {
     val uri = createUri()
 
-    val uriElements = UriElements.decodeFrom(uri)
+    val uriElements = decode(uri)!!
 
     assertThat(uriElements.oobData).isNull()
   }
@@ -48,7 +65,7 @@ class UriElementsTest {
   fun noQueryParameter_noDeviceIdentifier() {
     val uri = createUri()
 
-    val uriElements = UriElements.decodeFrom(uri)
+    val uriElements = decode(uri)!!
 
     assertThat(uriElements.deviceIdentifier).isNull()
   }
@@ -63,7 +80,7 @@ class UriElementsTest {
       )
     val uri = createUri(UriElements.OOB_DATA_PARAMETER_KEY to encoded)
 
-    val uriElements = UriElements.decodeFrom(uri)
+    val uriElements = decode(uri)!!
 
     assertThat(uriElements.oobData).isNotNull()
     assertThat(uriElements.oobData!!.encryptionKey).isEqualTo(oobToken.encryptionKey.toByteArray())
@@ -82,7 +99,7 @@ class UriElementsTest {
       )
     val uri = createUri(UriElements.OOB_DATA_PARAMETER_KEY to encoded)
 
-    val uriElements = UriElements.decodeFrom(uri)
+    val uriElements = decode(uri)!!
 
     assertThat(uriElements.deviceIdentifier).isEqualTo(identifier)
   }
@@ -92,13 +109,17 @@ class UriElementsTest {
     val encoded = Base64.encodeToString(outOfBandAssociationData {}.toByteArray(), Base64.URL_SAFE)
     val uri = createUri(UriElements.OOB_DATA_PARAMETER_KEY to encoded)
 
-    val uriElements = UriElements.decodeFrom(uri)
+    val uriElements = decode(uri)!!
 
     assertThat(uriElements.oobData).isNull()
     assertThat(uriElements.deviceIdentifier).isNull()
   }
 
   companion object {
+    private const val TEST_SCHEME = "test_scheme"
+    private const val TEST_AUTHORITY = "test_authority"
+    private const val TEST_PATH = "/test_path"
+
     // Length 5 is arbitrary.
     private const val OOB_DATA_LENGTH = 5
     /**
@@ -106,14 +127,22 @@ class UriElementsTest {
      *
      * @param pairs contains the key and value of a URI query parameter.
      */
-    private fun createUri(vararg pairs: Pair<String, String>): Uri =
+    private fun createUri(
+      vararg pairs: Pair<String, String>,
+      scheme: String = TEST_SCHEME,
+      authority: String = TEST_AUTHORITY,
+      path: String = TEST_PATH,
+    ): Uri =
       Uri.Builder().run {
-        scheme("https")
-        authority("www.google.com")
-        appendPath("a")
+        scheme(scheme)
+        authority(authority)
+        // Remove the leading / in path.
+        appendPath(path.drop(1))
         pairs.forEach { appendQueryParameter(it.first, it.second) }
         build()
       }
+
+    private fun decode(uri: Uri): UriElements? = UriElements.decodeFrom(uri)
 
     /** Creates an OOB token with randomly filled bytes. */
     private fun createToken(): OutOfBandAssociationToken {

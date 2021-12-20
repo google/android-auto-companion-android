@@ -22,8 +22,8 @@ import android.graphics.Color
 import android.graphics.drawable.Icon
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationCompat.MessagingStyle.Message
-import android.support.v4.graphics.drawable.IconCompat
 import androidx.core.app.Person
+import androidx.core.graphics.drawable.IconCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -33,9 +33,7 @@ import java.time.Instant
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Tests for [PhoneToCarMessageDAO].
- */
+/** Tests for [PhoneToCarMessageDAO]. */
 @RunWith(AndroidJUnit4::class)
 class PhoneToCarMessageDAOTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
@@ -43,17 +41,13 @@ class PhoneToCarMessageDAOTest {
   private val appIcon: Icon
     get() {
       val bmp = Bitmap.createBitmap(20, 20, Bitmap.Config.ARGB_8888)
-      Canvas(bmp).run {
-        drawColor(Color.RED)
-      }
+      Canvas(bmp).run { drawColor(Color.RED) }
       return Icon.createWithBitmap(bmp)
     }
   private val avatarIcon: IconCompat
     get() {
       val bmp = Bitmap.createBitmap(200, 200, Bitmap.Config.ARGB_8888)
-      Canvas(bmp).run {
-        drawColor(Color.RED)
-      }
+      Canvas(bmp).run { drawColor(Color.RED) }
       return IconCompat.createWithBitmap(bmp)
     }
   private val key = "key"
@@ -62,73 +56,48 @@ class PhoneToCarMessageDAOTest {
   private val maxWidthAndHeight = 50
   private val msgAppPackageName = "app.package.com"
 
-  /**
-   * The default sender with no avatar
-   */
+  /** The default sender with no avatar */
   private val person: Person
     get() {
       return Person.Builder().setName("Sender").build()
     }
 
-  /**
-   * The default sender with an avatar
-   */
+  /** The default sender with an avatar */
   private val personWithAvatar: Person
     get() {
       return Person.Builder().setName("Sender").setIcon(avatarIcon).build()
     }
 
-  /**
-   * The default valid firstMessage unless customized in test case
-   */
-  private val firstMessage = Message(
-    "First text message",
-    connectionTime.toEpochMilli() + 10,
-    person
-  )
+  /** The default valid firstMessage unless customized in test case */
+  private val firstMessage =
+    Message("First text message", connectionTime.toEpochMilli() + 10, person)
 
-  /**
-   * The default valid lastMessage unless customized in test case
-   */
-  private val lastMessage = Message(
-    "Last Message",
-    connectionTime.toEpochMilli() + 100,
-    person
-  )
+  /** The default valid lastMessage unless customized in test case */
+  private val lastMessage = Message("Last Message", connectionTime.toEpochMilli() + 100, person)
 
-  private val messageWithAvatar = Message(
-    "A message with avatar",
-    connectionTime.toEpochMilli() + 10,
-    personWithAvatar
-  )
+  private val messageWithAvatar =
+    Message("A message with avatar", connectionTime.toEpochMilli() + 10, personWithAvatar)
 
   private val oldMessage =
-    Message(
-      "Really old Message",
-      connectionTime.toEpochMilli() - 1000,
-      person
-    )
+    Message("Really old Message", connectionTime.toEpochMilli() - 1000, person)
 
   @Test
   fun toMessage_newConversation() {
     val messages = listOf(firstMessage, lastMessage)
-    val dao = createDAO(
-      isNewConversation = true,
-      isGroupConversation = false,
-      listOfMessages = messages,
-      lastMessage = lastMessage
-    )
-    val expectedStyle = createStyle(
-      listOfMessages = messages
-    )
+    val dao =
+      createDAO(
+        isNewConversation = true,
+        isGroupConversation = false,
+        listOfMessages = messages,
+        lastMessage = lastMessage
+      )
+    val expectedStyle = createStyle(listOfMessages = messages)
     val result = dao.toMessage()
     assertThat(result.messageDataCase.name).isEqualTo(CONVERSATION_DATA_TYPE)
     result.conversation.run {
       assertThat(messagingAppPackageName).isEqualTo(msgAppPackageName)
       assertThat(timeMs).isEqualTo(lastMessage.timestamp)
-      val inputType = guessContentTypeFromStream(
-        ByteArrayInputStream(appIcon.toByteArray())
-      )
+      val inputType = guessContentTypeFromStream(ByteArrayInputStream(appIcon.toByteArray()))
       assertThat(inputType).isEqualTo("image/png")
       assertThat(appIconColor).isEqualTo(Color.RED)
     }
@@ -149,12 +118,13 @@ class PhoneToCarMessageDAOTest {
 
   @Test
   fun toMessage_preExistingConversation() {
-    val dao = createDAO(
-      isNewConversation = false,
-      isGroupConversation = false,
-      listOfMessages = listOf(firstMessage, lastMessage),
-      lastMessage = lastMessage
-    )
+    val dao =
+      createDAO(
+        isNewConversation = false,
+        isGroupConversation = false,
+        listOfMessages = listOf(firstMessage, lastMessage),
+        lastMessage = lastMessage
+      )
     val result = dao.toMessage()
     assertThat(result.messageDataCase.name).isEqualTo(MESSAGE_DATA_TYPE)
     result.message.run {
@@ -167,33 +137,33 @@ class PhoneToCarMessageDAOTest {
 
   @Test
   fun testGroupConversation() {
-    val dao = createDAO(
-      isNewConversation = true,
-      isGroupConversation = true,
-      listOfMessages = listOf(firstMessage, lastMessage),
-      lastMessage = lastMessage
-    )
+    val dao =
+      createDAO(
+        isNewConversation = true,
+        isGroupConversation = true,
+        listOfMessages = listOf(firstMessage, lastMessage),
+        lastMessage = lastMessage
+      )
     val result = dao.toMessage()
     assertThat(result.conversation.messagingStyle.isGroupConvo).isEqualTo(true)
   }
 
   @Test
   fun toMessage_sendsSenderAvatarForNewConversation() {
-    val dao = createDAO(
-      isNewConversation = true,
-      isGroupConversation = true,
-      listOfMessages = listOf(messageWithAvatar),
-      lastMessage = messageWithAvatar
-    )
+    val dao =
+      createDAO(
+        isNewConversation = true,
+        isGroupConversation = true,
+        listOfMessages = listOf(messageWithAvatar),
+        lastMessage = messageWithAvatar
+      )
     val result = dao.toMessage()
     val messageList = result.conversation.messagingStyle.messagingStyleMsgList
     val message = messageList[0]
     val avatarArray = message.sender.avatar.toByteArray()
-    val inputType = guessContentTypeFromStream(
-      ByteArrayInputStream(avatarArray)
-    )
+    val inputType = guessContentTypeFromStream(ByteArrayInputStream(avatarArray))
     assertThat(inputType).isEqualTo(compressFormat)
-    val bitmap = BitmapFactory.decodeByteArray(avatarArray, /* offset= */0, avatarArray.size)
+    val bitmap = BitmapFactory.decodeByteArray(avatarArray, /* offset= */ 0, avatarArray.size)
     assertThat(bitmap.width).isAtMost(maxWidthAndHeight)
     assertThat(bitmap.height).isAtMost(maxWidthAndHeight)
     assertThat(messageList).hasSize(1)
@@ -201,18 +171,17 @@ class PhoneToCarMessageDAOTest {
 
   @Test
   fun toMessage_alwaysSendsSenderAvatarInGroupConversation() {
-    val dao = createDAO(
-      isNewConversation = false,
-      isGroupConversation = true,
-      listOfMessages = listOf(messageWithAvatar),
-      lastMessage = messageWithAvatar
-    )
+    val dao =
+      createDAO(
+        isNewConversation = false,
+        isGroupConversation = true,
+        listOfMessages = listOf(messageWithAvatar),
+        lastMessage = messageWithAvatar
+      )
     val result = dao.toMessage()
     val message = result.message
     val avatarArray = message.sender.avatar.toByteArray()
-    val inputType = guessContentTypeFromStream(
-      ByteArrayInputStream(avatarArray)
-    )
+    val inputType = guessContentTypeFromStream(ByteArrayInputStream(avatarArray))
     assertThat(inputType).isEqualTo(compressFormat)
     val bitmap = BitmapFactory.decodeByteArray(avatarArray, /* offset= */ 0, avatarArray.size)
     assertThat(bitmap.width <= maxWidthAndHeight).isTrue()
@@ -221,12 +190,13 @@ class PhoneToCarMessageDAOTest {
 
   @Test
   fun toMessage_preexistingOneOnOneConversationIgnoresSenderAvatar() {
-    val dao = createDAO(
-      isNewConversation = false,
-      isGroupConversation = false,
-      listOfMessages = listOf(messageWithAvatar),
-      lastMessage = messageWithAvatar
-    )
+    val dao =
+      createDAO(
+        isNewConversation = false,
+        isGroupConversation = false,
+        listOfMessages = listOf(messageWithAvatar),
+        lastMessage = messageWithAvatar
+      )
     val result = dao.toMessage()
     assertThat(result.messageDataCase.name).isEqualTo(MESSAGE_DATA_TYPE)
     assertThat(result.message.sender.avatar.toByteArray()).isEmpty()
@@ -234,12 +204,13 @@ class PhoneToCarMessageDAOTest {
 
   @Test
   fun toMessage_ignoresOldMessage() {
-    val dao = createDAO(
-      isNewConversation = true,
-      isGroupConversation = false,
-      listOfMessages = listOf(oldMessage, lastMessage),
-      lastMessage = lastMessage
-    )
+    val dao =
+      createDAO(
+        isNewConversation = true,
+        isGroupConversation = false,
+        listOfMessages = listOf(oldMessage, lastMessage),
+        lastMessage = lastMessage
+      )
     val result = dao.toMessage()
     val messageList = result.conversation.messagingStyle.messagingStyleMsgList
     assertThat(messageList).hasSize(1)
@@ -266,20 +237,18 @@ class PhoneToCarMessageDAOTest {
     isGroupConversation: Boolean = false,
     listOfMessages: List<Message>,
     lastMessage: Message
-  ) = PhoneToCarMessageDAO(
-    context,
-    key,
-    msgAppPackageName,
-    createStyle(
-      listOfMessages = listOfMessages,
-      isGroupConversation = isGroupConversation
-    ),
-    lastMessage,
-    isNewConversation,
-    appIcon,
-    Color.RED,
-    connectionTime
-  )
+  ) =
+    PhoneToCarMessageDAO(
+      context,
+      key,
+      msgAppPackageName,
+      createStyle(listOfMessages = listOfMessages, isGroupConversation = isGroupConversation),
+      lastMessage,
+      isNewConversation,
+      appIcon,
+      Color.RED,
+      connectionTime
+    )
 
   companion object {
     const val MESSAGE_DATA_TYPE = "MESSAGE"

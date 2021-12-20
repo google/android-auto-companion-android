@@ -20,9 +20,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Telephony
 import android.service.notification.StatusBarNotification
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat.MessagingStyle.Message
 import androidx.core.app.RemoteInput
-import androidx.annotation.VisibleForTesting
 import com.google.android.libraries.car.communication.messagingsync.DebugLogs.CarToPhoneMessageError.INVALID_PROTOBUF_EXCEPTION
 import com.google.android.libraries.car.communication.messagingsync.DebugLogs.CarToPhoneMessageError.UNKNOWN_ACTION
 import com.google.android.libraries.car.communication.messagingsync.DebugLogs.PhoneToCarMessageError.DUPLICATE_MESSAGE
@@ -53,9 +53,8 @@ import java.util.UUID
 import kotlin.math.abs
 
 /**
- * Synchronizes car-compatible text messages with the connected [Car].
- * It also relays Mark-as-Read and Reply actions user does on the car
- * to the appropriate messaging app on the device.
+ * Synchronizes car-compatible text messages with the connected [Car]. It also relays Mark-as-Read
+ * and Reply actions user does on the car to the appropriate messaging app on the device.
  */
 internal class MessagingNotificationHandler(
   private val context: Context,
@@ -66,8 +65,8 @@ internal class MessagingNotificationHandler(
   sharedState: NotificationHandlerSharedState
 ) : NotificationHandler {
   /**
-   * The notification map where the key is [StatusBarNotification.getKey]
-   * and the Notification represents [StatusBarNotification.getNotification]
+   * The notification map where the key is [StatusBarNotification.getKey] and the Notification
+   * represents [StatusBarNotification.getNotification]
    */
   private val notificationMap = mutableMapOf<String, Notification>()
   private val replyMessages = sharedState.replyMessages
@@ -88,8 +87,7 @@ internal class MessagingNotificationHandler(
     }
 
   /**
-   * Enables handler to listen for notifications and post to car.
-   * Example use:
+   * Enables handler to listen for notifications and post to car. Example use:
    * ```
    * MessagingNotificationHandler().also { it.onCarConnected }
    * ```
@@ -103,9 +101,8 @@ internal class MessagingNotificationHandler(
   }
 
   /**
-   * Clears all car-level caching on disconnect
-   * Also stops listening for notifications, rendering this handler as inoperable.
-   * To reuse handler re-call [onCarConnected],
+   * Clears all car-level caching on disconnect Also stops listening for notifications, rendering
+   * this handler as inoperable. To reuse handler re-call [onCarConnected],
    */
   fun onCarDisconnected() {
     NotificationSyncManager.removeNotificationHandler(this)
@@ -138,27 +135,27 @@ internal class MessagingNotificationHandler(
       !isSMSMessage(sbn.packageName)
 
   /**
-   * Returns a string concatenation with the error code name
-   * and details of the [StatusBarNotification]
+   * Returns a string concatenation with the error code name and details of the
+   * [StatusBarNotification]
    */
   @VisibleForTesting
   fun cannotHandleNotificationReason(sbn: StatusBarNotification): String {
-    val error = when {
-      !isFeatureEnabled() -> MESSAGING_SYNC_FEATURE_DISABLED
-      sbn.notification.messagingStyle == null -> NON_CAR_COMPATIBLE_MESSAGE_NO_MESSAGING_STYLE
-      sbn.notification.replyAction == null -> NON_CAR_COMPATIBLE_MESSAGE_NO_REPLY
-      sbn.notification.showsUI -> NON_CAR_COMPATIBLE_MESSAGE_SHOWS_UI
-      !isUnique(sbn) -> DUPLICATE_MESSAGE
-      !isRecentTextMessage(sbn) -> OLD_MESSAGES_IN_NOTIFICATION
-      isReplyRepost(sbn) -> REPLY_REPOST
-      isSMSMessage(sbn.packageName) -> SMS_MESSAGE
-      else -> UNKNOWN
-    }
+    val error =
+      when {
+        !isFeatureEnabled() -> MESSAGING_SYNC_FEATURE_DISABLED
+        sbn.notification.messagingStyle == null -> NON_CAR_COMPATIBLE_MESSAGE_NO_MESSAGING_STYLE
+        sbn.notification.replyAction == null -> NON_CAR_COMPATIBLE_MESSAGE_NO_REPLY
+        sbn.notification.showsUI -> NON_CAR_COMPATIBLE_MESSAGE_SHOWS_UI
+        !isUnique(sbn) -> DUPLICATE_MESSAGE
+        !isRecentTextMessage(sbn) -> OLD_MESSAGES_IN_NOTIFICATION
+        isReplyRepost(sbn) -> REPLY_REPOST
+        isSMSMessage(sbn.packageName) -> SMS_MESSAGE
+        else -> UNKNOWN
+      }
     return "${error.name}, ${sbn.packageName}."
   }
 
-  private fun isFeatureEnabled() =
-    messagingUtils.isMessagingSyncEnabled(carId.toString())
+  private fun isFeatureEnabled() = messagingUtils.isMessagingSyncEnabled(carId.toString())
 
   private fun StatusBarNotification.toMessageDAO(): PhoneToCarMessageDAO? {
     val isNewConversation = notificationMap[key] == null
@@ -209,9 +206,9 @@ internal class MessagingNotificationHandler(
   }
 
   /**
-   * SMS is already supported through Bluetooth Message Profile.
-   * For v1, the handler ignores any sms message from the default sms package
-   * Future work includes also checking 3p messaging apps that posts sms notifications.
+   * SMS is already supported through Bluetooth Message Profile. For v1, the handler ignores any sms
+   * message from the default sms package Future work includes also checking 3p messaging apps that
+   * posts sms notifications.
    */
   private fun isSMSMessage(packageName: String) =
     Telephony.Sms.getDefaultSmsPackage(context) == packageName
@@ -220,26 +217,25 @@ internal class MessagingNotificationHandler(
    *
    * Previous, unread messages are occasionally reposted in new notifications.
    *
-   * When a new notification is received, we check to see if the phone is connected
-   * to a car before handling the notification.
+   * When a new notification is received, we check to see if the phone is connected to a car before
+   * handling the notification.
    *
-   * We also need to verify that the text message is recent and
-   * was received after the phone was connected to the car.
+   * We also need to verify that the text message is recent and was received after the phone was
+   * connected to the car.
    *
    * Returns true if text message was received after the phone connected with the car.
    */
   private fun isRecentTextMessage(sbn: StatusBarNotification): Boolean {
     val connectionInstant = connectionTime ?: return false
-    val lastMessageTime = Instant.ofEpochMilli(
-      sbn.notification.messagingStyle?.lastMessage?.timestamp ?: 0
-    )
+    val lastMessageTime =
+      Instant.ofEpochMilli(sbn.notification.messagingStyle?.lastMessage?.timestamp ?: 0)
     return lastMessageTime >= connectionInstant
   }
 
   /**
-   * Returns true if this is a non-duplicate/unique notification
-   * It is a known issue that WhatsApp sends out the same message multiple times.
-   * To handle this, we check the timestamp to make sure this is not a duplicate message
+   * Returns true if this is a non-duplicate/unique notification It is a known issue that WhatsApp
+   * sends out the same message multiple times. To handle this, we check the timestamp to make sure
+   * this is not a duplicate message
    */
   private fun isUnique(sbn: StatusBarNotification): Boolean {
     val newStyle = sbn.notification.messagingStyle
@@ -249,59 +245,58 @@ internal class MessagingNotificationHandler(
     val previousStyle = previousNotification?.messagingStyle
     val previousLastMessage = previousStyle?.lastMessage ?: return true
 
-    return !(
-      previousLastMessage.timestamp == newLastMessage.timestamp &&
-        previousLastMessage.text == newLastMessage.text &&
-        previousLastMessage.person?.name == newLastMessage.person?.name
-      )
+    return !(previousLastMessage.timestamp == newLastMessage.timestamp &&
+      previousLastMessage.text == newLastMessage.text &&
+      previousLastMessage.person?.name == newLastMessage.person?.name)
   }
 
   /**
    * Returns true if this is a notification update representing the user's reply to a message.
    *
-   * We compare the last known reply message from our internal cache to the latest message in
-   * the Status Bar Notification to verify this notification is not a reply repost.
+   * We compare the last known reply message from our internal cache to the latest message in the
+   * Status Bar Notification to verify this notification is not a reply repost.
    *
-   * It is important to note that user can trigger a response outside of IHU interactions.
-   * The reply cache will not know of these responses, so we also check to see if there are other
-   * indications that this message is clearly from the user with a call to
-   * [isMessageClearlyFromUser] which checks to see if unique identifiers such as
-   * user key or user uri are present.
+   * It is important to note that user can trigger a response outside of IHU interactions. The reply
+   * cache will not know of these responses, so we also check to see if there are other indications
+   * that this message is clearly from the user with a call to [isMessageClearlyFromUser] which
+   * checks to see if unique identifiers such as user key or user uri are present.
    *
-   * These identifiers are optional and not always present in message notifications,
-   * so the reply cache is still necessary as a fallback to check for replies by the user
-   * triggered by the IHU.
+   * These identifiers are optional and not always present in message notifications, so the reply
+   * cache is still necessary as a fallback to check for replies by the user triggered by the IHU.
    *
-   * The reply timestamp is an approximation of the expected reply timestamp, created when we
-   * send a reply intent to the 3p messaging app. The 3p messaging app sets the true timestamp
-   * for the reply message. In this case the true timestamp is unknown but we anticipate it would
-   * be within 2 seconds, plus or minus of our approximation.
+   * The reply timestamp is an approximation of the expected reply timestamp, created when we send a
+   * reply intent to the 3p messaging app. The 3p messaging app sets the true timestamp for the
+   * reply message. In this case the true timestamp is unknown but we anticipate it would be within
+   * 2 seconds, plus or minus of our approximation.
    */
   private fun isReplyRepost(sbn: StatusBarNotification): Boolean {
     if (isMessageClearlyFromUser(sbn)) return true
     val replyMessage = replyMessages[sbn.key] ?: return false
     val lastMessage = sbn.notification.messagingStyle?.lastMessage ?: return false
-    val isWithinTimeInterval = abs(
-      lastMessage.timestamp - replyMessage.timestamp
-    ) <= REPLY_REPOST_INTERVAL_MS
+    val isWithinTimeInterval =
+      abs(lastMessage.timestamp - replyMessage.timestamp) <= REPLY_REPOST_INTERVAL_MS
     return isWithinTimeInterval &&
       lastMessage.person?.name == replyMessage.person?.name &&
       lastMessage.text == replyMessage.text
   }
 
   /**
-   * Returns true if the message notification is clearly from current user, using
-   * unique identifiers such as key or uri. Sender name is not a sufficient unique
-   * identifier as there can be multiple users with the same name. The unique
-   * identifiers (uri and key) are optional and may not be set by the messaging app.
-   * If method returns false, it means more checks need to be made to determine if the message is
-   * from the current user, such as checking the last reply cache sent directly from the IHU.
+   * Returns true if the message notification is clearly from current user, using unique identifiers
+   * such as key or uri. Sender name is not a sufficient unique identifier as there can be multiple
+   * users with the same name. The unique identifiers (uri and key) are optional and may not be set
+   * by the messaging app. If method returns false, it means more checks need to be made to
+   * determine if the message is from the current user, such as checking the last reply cache sent
+   * directly from the IHU.
    */
   private fun isMessageClearlyFromUser(sbn: StatusBarNotification): Boolean {
     val messagingStyle = sbn.notification.messagingStyle ?: return false
     val lastMessage = messagingStyle.lastMessage ?: return false
-    lastMessage.person?.key?.let { return it == messagingStyle.user.key }
-    lastMessage.person?.uri?.let { return it == messagingStyle.user.uri }
+    lastMessage.person?.key?.let {
+      return it == messagingStyle.user.key
+    }
+    lastMessage.person?.uri?.let {
+      return it == messagingStyle.user.uri
+    }
     return false
   }
 

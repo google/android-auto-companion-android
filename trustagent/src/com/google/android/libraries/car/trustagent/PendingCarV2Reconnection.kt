@@ -50,7 +50,6 @@ internal constructor(
   private val bluetoothManager: BluetoothConnectionManager,
   private val coroutineScope: CoroutineScope = MainScope()
 ) : PendingCar {
-  override val isAssociating = false
   override var callback: PendingCar.Callback? = null
 
   private var deviceId: UUID? = null
@@ -191,7 +190,7 @@ internal constructor(
   @VisibleForTesting
   val encryptionCallback =
     object : EncryptionRunnerManager.Callback {
-      override fun onAuthStringAvailable(authString: String) {
+      override fun onAuthStringAvailable(authString: String, oobToken: ByteArray) {
         loge(TAG, "Received encryption callback onAuthStringAvailable. Ignored.")
       }
 

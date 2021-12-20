@@ -30,9 +30,7 @@ import com.google.protos.aae.messenger.NotificationMsg.MessagingStyleMessage
 import com.google.protos.aae.messenger.NotificationMsg.PhoneToCarMessage
 import java.time.Instant
 
-/**
- * Converts notification to a message for the car
- */
+/** Converts notification to a message for the car */
 internal class PhoneToCarMessageDAO(
   private val context: Context,
   private val key: String,
@@ -50,35 +48,26 @@ internal class PhoneToCarMessageDAO(
   private val appIconBytes: ByteString
     get() = appIcon.toByteString()
 
-  /**
-   * Converts to [PhoneToCarMessage]
-   */
+  /** Converts to [PhoneToCarMessage] */
   fun toMessage(): PhoneToCarMessage =
-    PhoneToCarMessage
-      .newBuilder()
-      .setNotificationKey(key)
-      .setMessageOrConversation()
-      .build()
+    PhoneToCarMessage.newBuilder().setNotificationKey(key).setMessageOrConversation().build()
 
-  private fun PhoneToCarMessage.Builder.setMessageOrConversation():
-    PhoneToCarMessage.Builder =
-      if (isNewConversation) {
-        setConversation(buildNewConversation())
-      } else {
-        setMessage(lastMessage.buildNewMessage())
-      }
+  private fun PhoneToCarMessage.Builder.setMessageOrConversation(): PhoneToCarMessage.Builder =
+    if (isNewConversation) {
+      setConversation(buildNewConversation())
+    } else {
+      setMessage(lastMessage.buildNewMessage())
+    }
 
   private fun buildNewConversation() =
-    ConversationNotification
-      .newBuilder()
+    ConversationNotification.newBuilder()
       .setMessagingAppPackageName(packageName)
       .setMessagingAppDisplayName(getAppName(context, packageName))
       .setAppIcon(appIconBytes)
       .setAppIconColor(appIconColor)
       .setTimeMs(lastMessage.timestamp)
-      .setMessagingStyle(
-        style.buildMessageStyle()
-      ).build()
+      .setMessagingStyle(style.buildMessageStyle())
+      .build()
 
   private fun NotificationCompat.MessagingStyle.buildMessageStyle() =
     NotificationMsg.MessagingStyle.newBuilder()
@@ -86,22 +75,20 @@ internal class PhoneToCarMessageDAO(
       .setIsGroupConvo(isGroupConversation)
       .setConvoTitle(conversationTitle.toString())
       .apply {
-        messages.filter { Instant.ofEpochMilli(it.timestamp) >= connectionTime }
-          .forEach { message ->
-            addMessagingStyleMsg(message.buildNewMessage())
-          }
-      }.build()
+        messages.filter { Instant.ofEpochMilli(it.timestamp) >= connectionTime }.forEach { message
+          ->
+          addMessagingStyleMsg(message.buildNewMessage())
+        }
+      }
+      .build()
 
   private fun NotificationCompat.MessagingStyle.Message.buildNewMessage() =
     MessagingStyleMessage.newBuilder()
       .setTextMessage(text.toString())
       .setIsRead(false)
       .setTimestamp(timestamp)
-      .apply {
-        this@buildNewMessage.person?.let { person ->
-          sender = person.buildSender()
-        }
-      }.build()
+      .apply { this@buildNewMessage.person?.let { person -> sender = person.buildSender() } }
+      .build()
 
   private fun Person.buildSender(): NotificationMsg.Person =
     NotificationMsg.Person.newBuilder()
@@ -109,10 +96,9 @@ internal class PhoneToCarMessageDAO(
       .apply {
         icon?.let {
           if (style.isGroupConversation || isNewConversation) {
-            avatar = it.toIcon(context).toByteString(
-              quality = AVATAR_QUALITY,
-              maxWidthHeight = AVATAR_SIZE_PX
-            )
+            avatar =
+              it.toIcon(context)
+                .toByteString(quality = AVATAR_QUALITY, maxWidthHeight = AVATAR_SIZE_PX)
           }
         }
       }
@@ -125,15 +111,13 @@ internal class PhoneToCarMessageDAO(
   ) =
     loadDrawable(context)
       .toBitmap()
-      .run {
-        maxWidthHeight?.let { maxSize -> reduceSize(maxSize) }
-          ?: this
-      }.toByteString(compressFormat, quality)
+      .run { maxWidthHeight?.let { maxSize -> reduceSize(maxSize) } ?: this }
+      .toByteString(compressFormat, quality)
 
   companion object {
     /**
-     * Quality Hint to the compressor, 0-100. The value is interpreted
-     * differently depending on the [Bitmap.CompressFormat].
+     * Quality Hint to the compressor, 0-100. The value is interpreted differently depending on the
+     * [Bitmap.CompressFormat].
      */
     private const val ICON_QUALITY_DEFAULT = 100
     private const val AVATAR_QUALITY = 0

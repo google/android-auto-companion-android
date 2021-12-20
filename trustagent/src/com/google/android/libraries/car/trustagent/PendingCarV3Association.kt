@@ -17,6 +17,7 @@ package com.google.android.libraries.car.trustagent
 import android.bluetooth.BluetoothDevice
 import android.content.Context
 import androidx.annotation.VisibleForTesting
+import com.google.android.companionprotos.CapabilitiesExchangeProto.CapabilitiesExchange.OobChannelType
 import com.google.android.companionprotos.OperationProto.OperationType
 import com.google.android.encryptionrunner.EncryptionRunnerFactory
 import com.google.android.encryptionrunner.Key
@@ -30,22 +31,29 @@ import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.toHexString
 import java.lang.IllegalStateException
-import java.lang.UnsupportedOperationException
 import java.util.UUID
 import javax.crypto.SecretKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
 
 /**
  * Represents a car that is ready to be associated with.
  *
- * This class handles the association flow defined by security version V2.
+ * This class handles the association flow defined by security version V3.
  *
- * See detailed design in https://goto.google.com/aae-batmobile-hide-device-ids
+ * V3 supports out-of-band association.
+ * - Phone-IHU exchange capabilities, mostly for supported OOB channels;
+ * - if resolved OOB channels is not empty, i.e. both support RFCOMM, start those channels;
+ * - IHU sends OOB data to the phone;
+ * - phone instantiate UKEY2 encryption runner with OOB support;
+ * - instead of UKEY2 PIN verification, use the OOB data to confirm the encryption.
  *
- * See also [PendingCarV2Reconnection].
+ * If resolved capabilities is empty, or OOB channel failed to receive OOB data, use the regular
+ * UKEY2 encryption, i.e. PIN verification.
  */
-internal class PendingCarV2Association
+@OptIn(kotlin.ExperimentalStdlibApi::class)
+internal class PendingCarV3Association
 internal constructor(
   private val context: Context,
   @get:VisibleForTesting internal val messageStream: MessageStream,
@@ -53,6 +61,9 @@ internal constructor(
   // External API exposes ScanResult so keep it for reporting error.
   override val device: BluetoothDevice,
   private val bluetoothManager: BluetoothConnectionManager,
+  private val resolvedOobChannelTypes: List<OobChannelType>,
+  private val oobData: OobData?,
+  private val oobChannelManagerFactory: OobChannelManagerFactory = OobChannelManagerFactoryImpl(),
   private val coroutineScope: CoroutineScope = MainScope()
 ) : PendingCar {
   override var callback: PendingCar.Callback? = null
@@ -61,49 +72,15 @@ internal constructor(
   private enum class State {
     UNINITIATED,
     ENCRYPTION_HANDSHAKE,
+    PENDING_OOB_CONFIRMATION,
     PENDING_CONFIRMATION,
     SENDING_DEVICE_ID_AND_SECRET
   }
+  private var encryptionRunnerManager: EncryptionRunnerManager? = null
 
-  @VisibleForTesting
-  internal val encryptionCallback =
-    object : EncryptionRunnerManager.Callback {
-      override fun onAuthStringAvailable(authString: String, oobToken: ByteArray) {
-        state = State.PENDING_CONFIRMATION
-        logd(TAG, "Notifying callback auth string available: $authString.")
-        callback?.onAuthStringAvailable(authString)
-
-        // Internally we blindly accept the auth string so encryption key is ready
-        // to decrypt the next message as IHU device ID.
-        // This leads to onEncryptionEstablished() callback.
-        encryptionRunnerManager.notifyAuthStringConfirmed()
-      }
-
-      override fun onOobAuthTokenAvailable(oobToken: ByteArray) {
-        throw UnsupportedOperationException("Out of band association is not supported.")
-      }
-
-      override fun onEncryptionEstablished(key: Key) {
-        messageStream.encryptionKey = key
-      }
-
-      override fun onEncryptionFailure(reason: EncryptionRunnerManager.FailureReason) {
-        when (reason) {
-          EncryptionRunnerManager.FailureReason.NO_VERIFICATION_CODE ->
-            callback?.onConnectionFailed(this@PendingCarV2Association)
-          else -> throw IllegalStateException("Unexpected failure reason $reason. Ignored.")
-        }
-      }
-    }
-
-  // Specify the type of encryptionRunnerManager because its callback refers to this variable.
-  // Otherwise we'd get error "type checking has run into a recursive problem".
-  private var encryptionRunnerManager: EncryptionRunnerManager =
-    EncryptionRunnerManager(
-        EncryptionRunnerFactory.newRunner(EncryptionRunnerFactory.EncryptionRunnerType.UKEY2),
-        messageStream
-      )
-      .apply { callback = encryptionCallback }
+  // oobConnectionManager and oobAuthToken will be set if the association uses OOB flow.
+  private var oobConnectionManager: OobConnectionManager? = null
+  private var oobAuthToken: ByteArray? = null
 
   // =======
   // This comment explains the peculiar points during association flow:
@@ -135,6 +112,9 @@ internal constructor(
           State.PENDING_CONFIRMATION -> {
             handleAuthStringConfirmation(streamMessage.payload)
           }
+          State.PENDING_OOB_CONFIRMATION -> {
+            handleOobVerificationMessage(streamMessage)
+          }
           else -> logd(TAG, "Received message $streamMessage when state is $state. Ignored")
         }
       }
@@ -149,6 +129,37 @@ internal constructor(
         }
         logi(TAG, "DeviceId and secret key has been delivered. Association completed.")
         callback?.onConnected(toCar())
+      }
+    }
+
+  @VisibleForTesting
+  internal val encryptionCallback =
+    object : EncryptionRunnerManager.Callback {
+      override fun onAuthStringAvailable(authString: String, oobToken: ByteArray) {
+        state = State.PENDING_CONFIRMATION
+        logd(TAG, "Notifying callback auth string available: $authString.")
+        callback?.onAuthStringAvailable(authString)
+
+        // Internally we blindly accept the auth string so encryption key is ready
+        // to decrypt the next message as IHU device ID.
+        // This leads to onEncryptionEstablished() callback.
+        encryptionRunnerManager?.notifyAuthStringConfirmed()
+      }
+
+      override fun onOobAuthTokenAvailable(oobToken: ByteArray) {
+        handleOobAuthToken(oobToken)
+      }
+
+      override fun onEncryptionEstablished(key: Key) {
+        messageStream.encryptionKey = key
+      }
+
+      override fun onEncryptionFailure(reason: EncryptionRunnerManager.FailureReason) {
+        when (reason) {
+          EncryptionRunnerManager.FailureReason.NO_VERIFICATION_CODE ->
+            callback?.onConnectionFailed(this@PendingCarV3Association)
+          else -> throw IllegalStateException("Unexpected failure reason $reason.")
+        }
       }
     }
 
@@ -177,15 +188,106 @@ internal constructor(
     require(advertisedData == null) {
       "Expected parameter advertisedData to be null; actual ${advertisedData?.toHexString()}."
     }
+
+    coroutineScope.launch {
+      if (resolvedOobChannelTypes.isNotEmpty()) {
+        readOobData(resolvedOobChannelTypes)
+      } else {
+        initEncryption(EncryptionRunnerFactory.EncryptionRunnerType.UKEY2)
+      }
+    }
+  }
+
+  private suspend fun readOobData(oobChannelTypes: List<OobChannelType>) {
+    // Start OOB exchange to receive an OobConnectionManager.
+    val oobChannelManager =
+      oobChannelManagerFactory.create(oobChannelTypes, oobData, securityVersion = 3)
+
+    oobConnectionManager = oobChannelManager.readOobData()?.let { OobConnectionManager.create(it) }
+
+    val encryptionRunnerType =
+      if (oobConnectionManager == null) {
+        EncryptionRunnerFactory.EncryptionRunnerType.UKEY2
+      } else {
+        EncryptionRunnerFactory.EncryptionRunnerType.OOB_UKEY2
+      }
+    logi(TAG, "OOB data is handled by $oobConnectionManager; using $encryptionRunnerType.")
+
+    initEncryption(encryptionRunnerType)
+  }
+
+  private fun initEncryption(encryptionRunnerType: Int) {
     state = State.ENCRYPTION_HANDSHAKE
-    encryptionRunnerManager.initEncryption()
+    encryptionRunnerManager =
+      EncryptionRunnerManager(
+          EncryptionRunnerFactory.newRunner(encryptionRunnerType),
+          messageStream
+        )
+        .apply {
+          callback = encryptionCallback
+          initEncryption()
+        }
+  }
+
+  private fun handleOobAuthToken(token: ByteArray) {
+    logi(TAG, "Received Oob auth string of ${token.size} bytes, sending oob data.")
+
+    val manager = oobConnectionManager
+    if (manager == null) {
+      "Received onOobAuthTokenAvailable callback but OobConnectionManager is null."
+      callback?.onConnectionFailed(this@PendingCarV3Association)
+      return
+    }
+
+    val encryptedVerificationCode = manager.encryptVerificationCode(token)
+    messageStream.sendMessage(
+      StreamMessage(
+        payload = encryptedVerificationCode,
+        operation = OperationType.ENCRYPTION_HANDSHAKE,
+        isPayloadEncrypted = false,
+        originalMessageSize = 0,
+        recipient = null
+      )
+    )
+
+    oobAuthToken = token
+    state = State.PENDING_OOB_CONFIRMATION
+  }
+
+  private fun handleOobVerificationMessage(streamMessage: StreamMessage) {
+    val token = oobAuthToken
+    if (token == null) {
+      loge(TAG, "Received OOB verification message but OOB auth token is null.")
+      callback?.onConnectionFailed(this@PendingCarV3Association)
+      return
+    }
+
+    val manager = oobConnectionManager
+    if (manager == null) {
+      "Received OOB verification message but OobConnectionManager is null."
+      callback?.onConnectionFailed(this@PendingCarV3Association)
+      return
+    }
+
+    val decryptedMessage = manager.decryptVerificationCode(streamMessage.payload)
+    if (!decryptedMessage.contentEquals(token)) {
+      loge(TAG, "OOB verification exchange failed: verification codes don't match.")
+      callback?.onConnectionFailed(this@PendingCarV3Association)
+      return
+    }
+
+    state = State.PENDING_CONFIRMATION
+    // Internally we blindly accept the auth string so encryption key is ready
+    // to decrypt the next message as IHU device ID.
+    // This leads to onEncryptionEstablished() callback.
+    encryptionRunnerManager?.notifyAuthStringConfirmed()
   }
 
   private fun handleAuthStringConfirmation(message: ByteArray) {
     val deviceId = bytesToUuid(message)
     logi(TAG, "Received car device id: $deviceId.")
 
-    this@PendingCarV2Association.deviceId = deviceId
+    this@PendingCarV3Association.deviceId = deviceId
     callback?.onDeviceIdReceived(deviceId)
 
     val phoneDeviceId = getDeviceId(context)
@@ -202,7 +304,7 @@ internal constructor(
   }
 
   companion object {
-    private const val TAG = "PendingCarV2Association"
+    private const val TAG = "PendingCarV3Association"
 
     private const val INVALID_MESSAGE_ID = -1
   }

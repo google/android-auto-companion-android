@@ -169,7 +169,9 @@ class PendingCarV2ReconnectionTest {
           stream = mockStream,
           associatedCarManager = associatedCarManager,
           device = bluetoothDevice,
-          bluetoothManager = mockGattManager
+          bluetoothManager = mockGattManager,
+          oobChannelTypes = emptyList(),
+          oobData = null
         )
       )
       .isInstanceOf(PendingCarV2Reconnection::class.java)

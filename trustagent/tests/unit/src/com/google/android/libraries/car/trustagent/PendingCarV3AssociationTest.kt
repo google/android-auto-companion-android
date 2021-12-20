@@ -24,8 +24,8 @@ import com.google.android.encryptionrunner.EncryptionRunner
 import com.google.android.encryptionrunner.EncryptionRunnerFactory
 import com.google.android.encryptionrunner.EncryptionRunnerFactory.EncryptionRunnerType
 import com.google.android.encryptionrunner.HandshakeMessage.HandshakeState
-import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothConnectionManager
-import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothGattManager
+import com.google.android.encryptionrunner.Key
+import com.google.android.libraries.car.trustagent.blemessagestream.FakeBluetoothConnectionManager
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
 import com.google.android.libraries.car.trustagent.blemessagestream.StreamMessage
 import com.google.android.libraries.car.trustagent.testutils.Base64CryptoHelper
@@ -35,21 +35,21 @@ import com.google.common.util.concurrent.MoreExecutors.directExecutor
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.argumentCaptor
 import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.never
+import com.nhaarman.mockitokotlin2.spy
 import com.nhaarman.mockitokotlin2.times
 import com.nhaarman.mockitokotlin2.verify
-import com.nhaarman.mockitokotlin2.verifyZeroInteractions
 import com.nhaarman.mockitokotlin2.whenever
-import java.security.SecureRandom
+import java.lang.IllegalStateException
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
-import javax.crypto.KeyGenerator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestCoroutineDispatcher
 import kotlinx.coroutines.test.resetMain
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,27 +64,25 @@ private const val DEVICE_AND_SECRET_KEY_MESSAGE_ID = 3
 
 @ExperimentalCoroutinesApi
 @RunWith(AndroidJUnit4::class)
-class PendingCarV2OobAssociationTest {
+class PendingCarV3AssociationTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
   private val testDispatcher = TestCoroutineDispatcher()
 
-  private val mockGattManager: BluetoothGattManager = mock()
+  private val fakeBluetoothConnectionManager = spy(FakeBluetoothConnectionManager())
   private val mockPendingCarCallback: PendingCar.Callback = mock()
   private val mockStream: MessageStream = mock()
 
-  private lateinit var pendingCar: PendingCarV2OobAssociation
+  private lateinit var pendingCar: PendingCarV3Association
 
   private lateinit var streamCallbacks: CopyOnWriteArrayList<MessageStream.Callback>
-  private lateinit var gattCallbacks:
-    CopyOnWriteArrayList<BluetoothConnectionManager.ConnectionCallback>
 
   private lateinit var serverRunner: EncryptionRunner
   private lateinit var associatedCarManager: AssociatedCarManager
   private lateinit var database: ConnectedCarDatabase
   private lateinit var bluetoothDevice: BluetoothDevice
-  private lateinit var oobConnectionManager: OobConnectionManager
-  private lateinit var serverOobConnectionManager: OobConnectionManager
-  private lateinit var oobAuthCode: ByteArray
+
+  private var authString: String? = null
+  private var serverKey: Key? = null
 
   @Before
   fun setUp() {
@@ -101,26 +99,7 @@ class PendingCarV2OobAssociationTest {
 
     associatedCarManager = AssociatedCarManager(context, database, Base64CryptoHelper())
 
-    gattCallbacks = CopyOnWriteArrayList()
-    whenever(
-      mockGattManager.registerConnectionCallback(
-        any<BluetoothConnectionManager.ConnectionCallback>()
-      )
-    )
-      .thenAnswer {
-        val callback = it.getArgument(0) as BluetoothConnectionManager.ConnectionCallback
-        gattCallbacks.add(callback)
-      }
-
-    whenever(
-      mockGattManager.unregisterConnectionCallback(
-        any<BluetoothConnectionManager.ConnectionCallback>()
-      )
-    )
-      .thenAnswer {
-        val callback = it.getArgument(0) as BluetoothConnectionManager.ConnectionCallback
-        gattCallbacks.remove(callback)
-      }
+    serverRunner = EncryptionRunnerFactory.newRunner(EncryptionRunnerType.UKEY2)
 
     streamCallbacks = CopyOnWriteArrayList()
     // Keep track of the stream callbacks because encryption runner also registers one.
@@ -135,21 +114,6 @@ class PendingCarV2OobAssociationTest {
     }
 
     setUpMockStreamMessageId()
-
-    oobConnectionManager =
-      OobConnectionManager.create(
-        OobData(encryptionKey = TEST_KEY.encoded, ihuIv = TEST_IHU_IV, mobileIv = TEST_MOBILE_IV)
-      )!!
-
-    // The server uses the same class so we need to reverse the IVs.
-    serverOobConnectionManager =
-      OobConnectionManager.create(
-        OobData(encryptionKey = TEST_KEY.encoded, ihuIv = TEST_MOBILE_IV, mobileIv = TEST_IHU_IV)
-      )!!
-
-    serverRunner = EncryptionRunnerFactory.newRunner(EncryptionRunnerType.OOB_UKEY2)
-
-    pendingCar = createPendingCar(oobConnectionManager)
   }
 
   @After
@@ -164,79 +128,127 @@ class PendingCarV2OobAssociationTest {
   fun createdBySecurityVersion() {
     assertThat(
         PendingCar.create(
-          2,
-          context,
+          securityVersion = 3,
+          context = context,
           isAssociating = true,
           stream = mockStream,
           associatedCarManager = associatedCarManager,
           device = bluetoothDevice,
-          bluetoothManager = mockGattManager,
-          oobConnectionManager = oobConnectionManager
+          bluetoothManager = fakeBluetoothConnectionManager,
+          oobChannelTypes = emptyList(),
+          oobData = null
         )
       )
-      .isInstanceOf(PendingCarV2OobAssociation::class.java)
+      .isInstanceOf(PendingCarV3Association::class.java)
+  }
+
+  @Test
+  fun connect_onAuthStringAvailable() = runBlocking {
+    pendingCar = createPendingCar()
+    pendingCar.connect()
+    respondToInitMessage()
+    respondToContMessage()
+
+    verify(mockPendingCarCallback).onAuthStringAvailable(checkNotNull(authString))
+  }
+
+  @Test
+  fun connect_encryptedDeviceIdConfirmsAuthString() {
+    pendingCar = createPendingCar()
+    pendingCar.connect()
+    respondToInitMessage()
+
+    // IHU responds with encrypted device ID as auth string confirmation.
+    respondToContMessage()
+
+    assertThat(pendingCar.deviceId).isEqualTo(DEVICE_ID)
+    verify(mockPendingCarCallback).onDeviceIdReceived(DEVICE_ID)
   }
 
   @Test
   fun connect_onConnected() {
+    pendingCar = createPendingCar()
     pendingCar.connect()
     respondToInitMessage()
-    respondToOobContMessage()
-
+    respondToContMessage()
     // Message containing device Id and secret key is delivered.
-    streamCallbacks.forEach { it.onMessageSent(DEVICE_AND_SECRET_KEY_MESSAGE_ID) }
+    for (callback in streamCallbacks) {
+      callback.onMessageSent(DEVICE_AND_SECRET_KEY_MESSAGE_ID)
+    }
 
     verify(mockPendingCarCallback).onConnected(any())
-    verify(mockPendingCarCallback, never()).onAuthStringAvailable(any())
   }
 
   @Test
-  fun testOnOobAuthTokenAvailable_sendsEncryptedAuthToken() {
-    pendingCar.encryptionCallback.onOobAuthTokenAvailable(TEST_VERIFICATION_TOKEN)
-    verify(mockPendingCarCallback, never()).onConnectionFailed(pendingCar)
-    argumentCaptor<StreamMessage>().apply {
-      verify(mockStream).sendMessage(capture())
+  fun disconnect_GattIsDisconnected() {
+    pendingCar = createPendingCar()
+    pendingCar.connect()
+    respondToInitMessage()
+    respondToContMessage()
 
-      assertThat(lastValue.operation).isEqualTo(OperationType.ENCRYPTION_HANDSHAKE)
-      assertThat(lastValue.isPayloadEncrypted).isFalse()
-    }
+    pendingCar.disconnect()
+
+    verify(fakeBluetoothConnectionManager).disconnect()
   }
 
   @Test
-  fun testHandleOobVerificationMessage_invalidAuthTokenReceived_invokesOnConnectionFailed() {
-    pendingCar.encryptionCallback.onOobAuthTokenAvailable(TEST_VERIFICATION_TOKEN)
-    streamCallbacks.forEach {
-      it.onMessageReceived(
-        createStreamMessage(
-          serverOobConnectionManager.encryptVerificationCode(
-            "invalidVerificationToken".toByteArray()
-          )
-        )
-      )
+  fun gattDisconnection_connectionFails() {
+    pendingCar = createPendingCar()
+    pendingCar.connect()
+    respondToInitMessage()
+
+    for (callback in fakeBluetoothConnectionManager.connectionCallbacks) {
+      callback.onDisconnected()
     }
 
     verify(mockPendingCarCallback).onConnectionFailed(pendingCar)
   }
 
   @Test
-  fun testEncryptedCodeReceivedBeforeSent_ignoreMessage() {
-    streamCallbacks.forEach {
-      it.onMessageReceived(
-        createStreamMessage(
-          serverOobConnectionManager.encryptVerificationCode("IgnoredMessage".toByteArray())
-        )
-      )
+  fun gattConnectedCallback_connectionFails() {
+    pendingCar = createPendingCar()
+    pendingCar.connect()
+    respondToInitMessage()
+
+    // Unexpected callback also fails connection.
+    for (callback in fakeBluetoothConnectionManager.connectionCallbacks) {
+      callback.onConnected()
     }
 
-    verify(mockStream, never()).sendMessage(any())
-    verifyZeroInteractions(mockPendingCarCallback)
+    verify(mockPendingCarCallback).onConnectionFailed(pendingCar)
+  }
+
+  @Test
+  fun connect_noVerificationCodeEncryptionFailure_connectionFails() {
+    pendingCar = createPendingCar()
+    pendingCar.connect()
+    respondToInitMessage()
+
+    pendingCar.encryptionCallback.onEncryptionFailure(
+      EncryptionRunnerManager.FailureReason.NO_VERIFICATION_CODE
+    )
+
+    verify(mockPendingCarCallback).onConnectionFailed(pendingCar)
+  }
+
+  @Test
+  fun connect_ukey2KeyMismatchEncryptionFailure_failureIgnored() {
+    pendingCar = createPendingCar()
+    pendingCar.connect()
+    respondToInitMessage()
+
+    assertThrows(IllegalStateException::class.java) {
+      pendingCar.encryptionCallback.onEncryptionFailure(
+        EncryptionRunnerManager.FailureReason.UKEY2_KEY_MISMATCH
+      )
+    }
   }
 
   /**
    * Sets up the returned message ID.
    *
-   * Connection flow waits for certain message delivery. These message IDs can be used to trigger
-   * the next state.
+   * Conection flow waits for certain message delivery. These message IDs can be used to trigger the
+   * next state.
    */
   private fun setUpMockStreamMessageId() {
     whenever(mockStream.sendMessage(any()))
@@ -251,30 +263,34 @@ class PendingCarV2OobAssociationTest {
       verify(mockStream).sendMessage(capture())
 
       val message = serverRunner.respondToInitRequest(lastValue.payload)
-      streamCallbacks.forEach { it.onMessageReceived(createStreamMessage(message.nextMessage!!)) }
-    }
-  }
-
-  private fun respondToOobContMessage() {
-    argumentCaptor<StreamMessage>().apply {
-      // Second message is encryption cont. message. Third is the encrypted code message.
-      verify(mockStream, times(3)).sendMessage(capture())
-
-      val contMessage =
-        serverRunner.continueHandshake(secondValue.payload).also {
-          assertThat(it.handshakeState).isEqualTo(HandshakeState.OOB_VERIFICATION_NEEDED)
-        }
-      oobAuthCode = contMessage.fullVerificationCode!!
-
-      val encryptedToken = serverOobConnectionManager.encryptVerificationCode(oobAuthCode)
-      streamCallbacks.forEach { it.onMessageReceived(createStreamMessage(encryptedToken)) }
+      for (callback in streamCallbacks) {
+        callback.onMessageReceived(createStreamMessage(message.nextMessage!!))
+      }
 
       // Check the auth string is accepted as soon as it becomes available.
       verify(mockStream).encryptionKey = any()
+    }
+  }
 
-      val idMessage = createStreamMessage(uuidToBytes(DEVICE_ID))
+  private fun respondToContMessage() {
+    argumentCaptor<StreamMessage>().apply {
+      // Second message is encryption cont. message.
+      verify(mockStream, times(2)).sendMessage(capture())
+
+      val contMessage =
+        serverRunner.continueHandshake(lastValue.payload).also {
+          assertThat(it.handshakeState).isEqualTo(HandshakeState.VERIFICATION_NEEDED)
+        }
+      authString = contMessage.verificationCode
+
+      // Confirm PIN on server side; retrieve the encryption key.
+      val lastMessage = serverRunner.notifyPinVerified()
+      serverKey = lastMessage.key
+
       // Send IHU device ID as confirmation.
-      streamCallbacks.forEach { it.onMessageReceived(idMessage) }
+      for (callback in streamCallbacks) {
+        callback.onMessageReceived(createStreamMessage(uuidToBytes(DEVICE_ID)))
+      }
     }
   }
 
@@ -287,24 +303,16 @@ class PendingCarV2OobAssociationTest {
       recipient = null
     )
 
-  private fun createPendingCar(oobConnectionManager: OobConnectionManager) =
-    PendingCarV2OobAssociation(
+  private fun createPendingCar() =
+    PendingCarV3Association(
         context,
         messageStream = mockStream,
         associatedCarManager = associatedCarManager,
         device = bluetoothDevice,
-        bluetoothManager = mockGattManager,
-        oobConnectionManager = oobConnectionManager,
-        coroutineScope = CoroutineScope(testDispatcher)
+        bluetoothManager = fakeBluetoothConnectionManager,
+        coroutineScope = CoroutineScope(testDispatcher),
+        resolvedOobChannelTypes = emptyList(),
+        oobData = null
       )
       .apply { callback = mockPendingCarCallback }
-
-  companion object {
-    private const val NONCE_LENGTH_BYTES = 12
-
-    private val TEST_KEY = KeyGenerator.getInstance("AES").generateKey()
-    private val TEST_MOBILE_IV =
-      ByteArray(NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
-    private val TEST_IHU_IV = ByteArray(NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
-  }
 }

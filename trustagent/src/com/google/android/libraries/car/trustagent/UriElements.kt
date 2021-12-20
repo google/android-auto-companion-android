@@ -18,16 +18,23 @@ import android.net.Uri
 import android.util.Base64
 import androidx.annotation.VisibleForTesting
 import com.google.android.companionprotos.OutOfBandAssociationData
+import com.google.android.libraries.car.trustagent.util.loge
 
 /**
  * Companion device data extracted from elements in a URI.
  *
  * @property oobEncryptionKey an encryption key for out-of-band association.
  * @property deviceIdentifier the data that identifies the device during discovery.
+ * @property queries list of customized queries which is retrieved from the original uri.
  */
 data class UriElements
-private constructor(val oobData: OobData?, val deviceIdentifier: ByteArray?) {
+private constructor(
+  val oobData: OobData?,
+  val deviceIdentifier: ByteArray?,
+  val queries: Map<String, String?>
+) {
   companion object {
+    private const val TAG = "UriElements"
     /**
      * The key name of the companion device out-of-band data.
      *
@@ -39,21 +46,24 @@ private constructor(val oobData: OobData?, val deviceIdentifier: ByteArray?) {
     private val RESERVED_KEYS = setOf(OOB_DATA_PARAMETER_KEY)
     private val RESERVED_PREFIXES = setOf("oob", "bat")
 
-    fun decodeFrom(uri: Uri): UriElements {
-      // Filter for parameter name that is not reserved but starts with a reserved prefix.
-      val containsViolation =
-        uri.getQueryParameterNames().any { name ->
-          name !in RESERVED_KEYS && RESERVED_PREFIXES.any { prefix -> name.startsWith(prefix) }
-        }
-      check(!containsViolation) { "URI parameters cannot start with reserved prefixes" }
+    /**
+     * Decodes [uri] into an [UriElements].
+     *
+     * Returns `null` if the URI contains invalid parameter names.
+     */
+    fun decodeFrom(uri: Uri): UriElements? {
+      if (!uri.isParameterNamesValid()) {
+        loge(TAG, "$uri parameters cannot start with reserved prefixes.")
+        return null
+      }
 
+      val queries = uri.queryParameterNames.associateBy({ it }, { uri.getQueryParameter(it) })
       val proto =
         uri.getQueryParameter(OOB_DATA_PARAMETER_KEY)?.let {
           // Decode String parameter to ByteArray.
           // Parse ByteArray as proto message.
           OutOfBandAssociationData.parseFrom(Base64.decode(it, Base64.URL_SAFE))
         }
-
       // Directly accessing the proto field always returns a non-null message.
       // If the field is not set, the message will be empty.
       val oobData =
@@ -70,7 +80,15 @@ private constructor(val oobData: OobData?, val deviceIdentifier: ByteArray?) {
           null
         }
 
-      return UriElements(oobData, deviceIdentifier)
+      return UriElements(oobData, deviceIdentifier, queries)
     }
+
+    internal fun Uri.isParameterNamesValid(): Boolean =
+      queryParameterNames.all { name ->
+        // Name is okay if it meets any of the following criteria:
+        // 1. it's reserved;
+        // 2. it doesn't start with any of the reserved prefix.
+        name in RESERVED_KEYS || RESERVED_PREFIXES.none { prefix -> name.startsWith(prefix) }
+      }
   }
 }

@@ -17,6 +17,7 @@ package com.google.android.libraries.car.trustagent
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.android.companionprotos.CapabilitiesExchangeProto.CapabilitiesExchange
 import com.google.android.companionprotos.CapabilitiesExchangeProto.CapabilitiesExchange.OobChannelType
 import com.google.android.companionprotos.capabilitiesExchange
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothConnectionManager
@@ -35,7 +36,7 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 @ExperimentalCoroutinesApi
-class ConnectionResolverTest {
+class CapabilityResolverTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
   private val mockGatt: BluetoothGattManager = mock() { on { sendMessage(any()) } doReturn true }
 
@@ -52,60 +53,18 @@ class ConnectionResolverTest {
     supportedOobChannels += OobChannelType.PRE_ASSOCIATION
   }
 
-  private lateinit var resolver: ConnectionResolver
+  private lateinit var resolver: CapabilityResolver
 
   @Before
   fun setUp() {
-    resolver = ConnectionResolver(mockGatt)
+    resolver = CapabilityResolver(mockGatt)
   }
 
   @Test
-  fun makeBleVersionExchange_validVersion() {
-    val versionExchange = ConnectionResolver.makeVersionExchange()
-
-    assertThat(versionExchange.maxSupportedMessagingVersion)
-      .isAtLeast(versionExchange.minSupportedMessagingVersion)
-    assertThat(versionExchange.maxSupportedSecurityVersion)
-      .isAtLeast(versionExchange.minSupportedSecurityVersion)
-  }
-
-  @Test
-  fun exchangeVersion_sendsLocalVersion() = runBlockingTest {
-    val localVersion = ConnectionResolver.makeVersionExchange()
-    whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
-      .thenAnswer {
-        val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
-        // Okay to callback with anything. This test only cares about what is sent out.
-        callback.onMessageReceived(localVersion.toByteArray())
-      }
-
-    resolver.exchangeVersion()
-
-    verify(mockGatt).sendMessage(localVersion.toByteArray())
-  }
-
-  @Test
-  fun exchangeVersion_returnsRemoteVersion() = runBlockingTest {
-    val remoteVersion = ConnectionResolver.makeVersionExchange(maxMessagingVersion = 10)
-    // ArgumentCaptor does not work with suspendCoroutine to capture callback.
-    // Configure the mock ahead of invoking the suspend fun.
-    // See https://github.com/Kotlin/kotlinx.coroutines/issues/514
-    whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
-      .thenAnswer {
-        val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
-        callback.onMessageReceived(remoteVersion.toByteArray())
-      }
-
-    val result = resolver.exchangeVersion()
-
-    assertThat(result).isEqualTo(remoteVersion)
-  }
-
-  @Test
-  fun exchangeVersion_returnsNullIfCouldNotSendMessage() = runBlockingTest {
+  fun exchangeCapabilities_returnsNullIfCouldNotSendMessage() = runBlockingTest {
     whenever(mockGatt.sendMessage(any())).thenReturn(false)
 
-    assertThat(resolver.exchangeVersion()).isNull()
+    assertThat(resolver.exchangeCapabilities(emptyList())).isNull()
   }
 
   @Test
@@ -118,6 +77,7 @@ class ConnectionResolverTest {
       }
 
     resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
+
     // Local capability is the same as remote, containing only BT_RFCOMM.
     verify(mockGatt).sendMessage(RFCOMM_CAPABILITIES_EXCHANGE.toByteArray())
   }
@@ -132,7 +92,9 @@ class ConnectionResolverTest {
         callback.onMessageReceived(capabilities.toByteArray())
       }
 
-    val result = resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
+    val result: CapabilitiesExchange? =
+      resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
+
     assertThat(result).isEqualTo(capabilities)
   }
 
@@ -146,38 +108,9 @@ class ConnectionResolverTest {
       }
 
     // Local is capable of OOB channel, but resolved result is empty.
-    val result = resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
+    val result: CapabilitiesExchange? =
+      resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
+
     assertThat(result).isEqualTo(EMPTY_CAPABILITIES_EXCHANGE)
-  }
-
-  @Test
-  fun resolveVersion_returnsMaxSupportedVersion() {
-    val supported =
-      ConnectionResolver.makeVersionExchange(
-        minMessagingVersion = 1,
-        maxMessagingVersion = 10,
-        minSecurityVersion = 1,
-        maxSecurityVersion = 10
-      )
-
-    val resolved = resolver.resolveVersion(supported)
-
-    assertThat(resolved?.messageVersion).isEqualTo(ConnectionResolver.MAX_MESSAGING_VERSION)
-    assertThat(resolved?.securityVersion).isEqualTo(ConnectionResolver.MAX_SECURITY_VERSION)
-  }
-
-  @Test
-  fun resolveVersion_returnsNullForUnsupportedSecurityVersion() {
-    val unsupported = ConnectionResolver.makeVersionExchange(minSecurityVersion = 10)
-
-    assertThat(resolver.resolveVersion(unsupported)).isNull()
-  }
-
-  @Test
-  fun resolveVersion_returnsNullForUnsupportedMessageVersion() {
-    val unsupported =
-      ConnectionResolver.makeVersionExchange(minMessagingVersion = 10, maxMessagingVersion = 20)
-
-    assertThat(resolver.resolveVersion(unsupported)).isNull()
   }
 }

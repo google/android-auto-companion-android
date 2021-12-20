@@ -19,43 +19,30 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
-import androidx.core.app.NotificationManagerCompat
 import androidx.annotation.VisibleForTesting
+import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Provides useful methods to request Notification Access and poll
- * for permission granted
- */
+/** Provides useful methods to request Notification Access and poll for permission granted */
 object NotificationAccessUtils {
-  @VisibleForTesting
-  const val MAXIMUM_NOTIFICATION_ACCESS_ITERATIONS = 50
-  @VisibleForTesting
-  const val NOTIFICATION_ACCESS_CHECK_TIME_MS = 1000L
-  @VisibleForTesting
-  const val EXTRA_FRAGMENT_ARG_KEY = ":settings:fragment_args_key"
-  @VisibleForTesting
-  const val EXTRA_SHOW_FRAGMENT_ARGS_KEY = ":settings:show_fragment_args"
+  @VisibleForTesting const val MAXIMUM_NOTIFICATION_ACCESS_ITERATIONS = 50
+  @VisibleForTesting const val NOTIFICATION_ACCESS_CHECK_TIME_MS = 1000L
+  @VisibleForTesting const val EXTRA_FRAGMENT_ARG_KEY = ":settings:fragment_args_key"
+  @VisibleForTesting const val EXTRA_SHOW_FRAGMENT_ARGS_KEY = ":settings:show_fragment_args"
 
   /**
-   * Routes the user to Notification Access Settings Page, and
-   * reroutes onSuccess or onFailure
+   * Routes the user to Notification Access Settings Page, and reroutes onSuccess or onFailure
    *
    * @param onSuccess, called if notification is granted
    * @param onFailure, called if notification access is not granted
    */
-  fun requestNotificationAccess(
-    context: Context,
-    onSuccess: () -> Unit,
-    onFailure: (() -> Unit)?
-  ) {
+  fun requestNotificationAccess(context: Context, onSuccess: () -> Unit, onFailure: (() -> Unit)?) {
     CoroutineScope(Dispatchers.Main).launch {
-      val notificationGranted =
-        NotificationAccessUtils.requestNotificationAccess(context)
+      val notificationGranted = NotificationAccessUtils.requestNotificationAccess(context)
 
       if (notificationGranted) {
         onSuccess()
@@ -66,15 +53,15 @@ object NotificationAccessUtils {
   }
 
   /**
-   * Routes the user to Notification Access Settings Page, and
-   * continuously checks to see if permission is granted.
+   * Routes the user to Notification Access Settings Page, and continuously checks to see if
+   * permission is granted.
    *
    * @param context Context to be passed to [hasNotificationAccess]
    */
-  suspend fun requestNotificationAccess(
-    context: Context
-  ): Boolean {
-    if (hasNotificationAccess(context)) { return true }
+  suspend fun requestNotificationAccess(context: Context): Boolean {
+    if (hasNotificationAccess(context)) {
+      return true
+    }
     navigateToNotificationAccessSettings(context)
     return pollForNotificationAccessGrant(context)
   }
@@ -82,9 +69,7 @@ object NotificationAccessUtils {
   fun hasNotificationAccess(context: Context) =
     NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
 
-  private suspend fun pollForNotificationAccessGrant(
-    context: Context
-  ): Boolean {
+  private suspend fun pollForNotificationAccessGrant(context: Context): Boolean {
     return withContext(Dispatchers.Default) {
       for (i in 0..MAXIMUM_NOTIFICATION_ACCESS_ITERATIONS) {
         if (hasNotificationAccess(context)) break
@@ -95,29 +80,23 @@ object NotificationAccessUtils {
   }
 
   private fun navigateToNotificationAccessSettings(context: Context) =
-    context.startActivity(
-      getNotificationPermissionIntentWithHighlighted(context)
-    )
+    context.startActivity(getNotificationPermissionIntentWithHighlighted(context))
 
   /**
-   * Requests permission intent from [.getNotificationPermissionIntent], put extras to
-   * highlight the Notification Listener in notification settings.
+   * Requests permission intent from [.getNotificationPermissionIntent], put extras to highlight the
+   * Notification Listener in notification settings.
    *
    * Note that the highlighting feature **ONLY** works on P+.
    */
   @VisibleForTesting
   fun getNotificationPermissionIntentWithHighlighted(context: Context) =
-    notificationPermissionIntent
-      .apply {
-        putExtra(
-          EXTRA_SHOW_FRAGMENT_ARGS_KEY,
-          notificationPermissionHighlightBundle(context)
-        )
-      }
+    notificationPermissionIntent.apply {
+      putExtra(EXTRA_SHOW_FRAGMENT_ARGS_KEY, notificationPermissionHighlightBundle(context))
+    }
 
   /**
-   * Returns an Intent that is safe to call [Context.startActivity] on. The intent will launch
-   * the Android settings app's notification listener permission screen.
+   * Returns an Intent that is safe to call [Context.startActivity] on. The intent will launch the
+   * Android settings app's notification listener permission screen.
    *
    * Returns null if the notification listener permission activity could not be resolved.
    */
@@ -127,16 +106,8 @@ object NotificationAccessUtils {
     }
 
   private fun notificationPermissionHighlightBundle(context: Context) =
-    Bundle().apply {
-      putString(
-        EXTRA_FRAGMENT_ARG_KEY,
-        notificationListenerComponentName(context)
-      )
-    }
+    Bundle().apply { putString(EXTRA_FRAGMENT_ARG_KEY, notificationListenerComponentName(context)) }
 
   private fun notificationListenerComponentName(context: Context) =
-    ComponentName(
-      context,
-      NotificationListener::class.java
-    ).flattenToString()
+    ComponentName(context, NotificationListener::class.java).flattenToString()
 }

@@ -18,23 +18,25 @@ import com.google.android.encryptionrunner.Key
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
 import com.google.android.libraries.car.trustagent.blemessagestream.StreamMessage
 
-/**
- * A fake implementation of a [BleMessageStream].
- */
+/** A fake implementation of a [BleMessageStream]. */
 class FakeMessageStream() : MessageStream {
   val callbacks = mutableListOf<MessageStream.Callback>()
+  val sentMessages = mutableListOf<StreamMessage>()
+
+  var lastSentMessageId: Int = -1
 
   override var encryptionKey: Key? = FakeKey()
 
-  override fun sendMessage(streamMessage: StreamMessage) = 1
+  override fun sendMessage(streamMessage: StreamMessage): Int {
+    sentMessages.add(streamMessage)
+    return ++lastSentMessageId
+  }
 
   override fun registerMessageEventCallback(callback: MessageStream.Callback) {
     callbacks.add(callback)
   }
 
-  override fun unregisterMessageEventCallback(
-    callback: MessageStream.Callback
-  ) {
+  override fun unregisterMessageEventCallback(callback: MessageStream.Callback) {
     callbacks.remove(callback)
   }
 }

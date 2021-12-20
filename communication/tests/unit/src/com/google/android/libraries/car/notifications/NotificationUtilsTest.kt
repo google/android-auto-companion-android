@@ -159,24 +159,26 @@ class NotificationUtilsTest {
   @Test
   fun lastMessage_getsAppropriateMessage() {
     val style = MessagingStyle(Person.Builder().setName("user").build())
-    val firstMessage = MessagingStyle.Message(
-      "Text Message One",
-      Instant.now().toEpochMilli() + 100,
-      Person.Builder().setName("senderOne").build()
-    )
-    val lastMessage = MessagingStyle.Message(
-      "Text Message Two",
-      Instant.now().toEpochMilli() + 200,
-      Person.Builder().setName("senderTwo").build()
-    )
+    val firstMessage =
+      MessagingStyle.Message(
+        "Text Message One",
+        Instant.now().toEpochMilli() + 100,
+        Person.Builder().setName("senderOne").build()
+      )
+    val lastMessage =
+      MessagingStyle.Message(
+        "Text Message Two",
+        Instant.now().toEpochMilli() + 200,
+        Person.Builder().setName("senderTwo").build()
+      )
     style.addMessage(lastMessage)
     style.addMessage(firstMessage)
     assertThat(style.lastMessage).isEqualTo(lastMessage)
   }
 
   /**
-   * Default functionality is a valid message [StatusBarNotification].
-   * To make invalid, you may customize the input.
+   * Default functionality is a valid message [StatusBarNotification]. To make invalid, you may
+   * customize the input.
    */
   private fun createSBN(
     hasMessagingStyle: Boolean = true,

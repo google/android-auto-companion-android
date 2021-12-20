@@ -16,9 +16,16 @@ package com.google.android.libraries.car.trustagent
 
 import android.bluetooth.BluetoothDevice
 import android.content.Context
+import com.google.android.companionprotos.CapabilitiesExchangeProto.CapabilitiesExchange.OobChannelType
+import com.google.android.companionprotos.OperationProto.OperationType
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothConnectionManager
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
+import com.google.android.libraries.car.trustagent.blemessagestream.StreamMessage
+import com.google.android.libraries.car.trustagent.util.loge
+import com.google.android.libraries.car.trustagent.util.logi
+import com.google.android.libraries.car.trustagent.util.uuidToBytes
 import java.util.UUID
+import javax.crypto.SecretKey
 
 /** Represents a car that is ready to be associated (first time) or re-connected with. */
 internal interface PendingCar {
@@ -29,13 +36,6 @@ internal interface PendingCar {
    */
   val device: BluetoothDevice
 
-  /**
-   * Whether this pending car is performing association handshake.
-   *
-   * If false, this object will attempt to reconnect.
-   */
-  val isAssociating: Boolean
-
   var callback: Callback?
 
   /**
@@ -43,9 +43,9 @@ internal interface PendingCar {
    *
    * Successful connection will invoke [Callback.onConnected].
    *
-   * If [isAssociating], [Callback.onAuthStringAvailable] will be invoked for out-of-band
-   * verification. If not, i.e. reconnection, [Callback.onConnectionFailed] will be invoked if the
-   * previous session could not be found, and connection will be stopped.
+   * If the implmentation is performing association, [Callback.onAuthStringAvailable] should be
+   * invoked for out-of-band verification. If not, i.e. reconnection, [Callback.onConnectionFailed]
+   * should be invoked if the previous session could not be found, and connection will be stopped.
    */
   fun connect(advertisedData: ByteArray? = null)
 
@@ -76,6 +76,9 @@ internal interface PendingCar {
   }
 
   companion object {
+    // Internal to expose to the extension methods in this file.
+    internal const val TAG = "PendingCar"
+
     /** Creates a [PendingCar] to connect to. */
     internal fun create(
       securityVersion: Int,
@@ -85,31 +88,110 @@ internal interface PendingCar {
       associatedCarManager: AssociatedCarManager,
       device: BluetoothDevice,
       bluetoothManager: BluetoothConnectionManager,
-      oobConnectionManager: OobConnectionManager? = null
-    ): PendingCar =
-      when (securityVersion) {
-        // Version 2 and 3 go through the same handshake. The difference being version 3 added
-        // capability exchange, which has already happened before this PendingCar is created.
-        2,
-        3 ->
-          if (isAssociating && oobConnectionManager != null) {
-            PendingCarV2OobAssociation(
-              context,
-              stream,
-              associatedCarManager,
-              device,
-              bluetoothManager,
-              oobConnectionManager
-            )
-          } else if (isAssociating && oobConnectionManager == null) {
-            PendingCarV2Association(context, stream, associatedCarManager, device, bluetoothManager)
-          } else {
+      oobChannelTypes: List<OobChannelType>,
+      oobData: OobData?
+    ): PendingCar {
+      if (!isAssociating) {
+        return when (securityVersion) {
+          // Version 2/3/4 share the same flow for reconnection.
+          in 2..4 ->
             PendingCarV2Reconnection(stream, associatedCarManager, device, bluetoothManager)
+          else -> {
+            // Version 1 is no longer supported.
+            throw IllegalArgumentException("Unsupported security version: $securityVersion.")
           }
-        // Version 1 is no longer supported.
+        }
+      }
+
+      return when (securityVersion) {
+        2 ->
+          PendingCarV2Association(context, stream, associatedCarManager, device, bluetoothManager)
+        3 ->
+          PendingCarV3Association(
+            context,
+            stream,
+            associatedCarManager,
+            device,
+            bluetoothManager,
+            oobChannelTypes,
+            oobData
+          )
+        4 -> {
+          PendingCarV4Association(
+            context,
+            stream,
+            associatedCarManager,
+            device,
+            bluetoothManager,
+            oobData
+          )
+        }
         else -> {
+          // Version 1 is no longer supported.
           throw IllegalArgumentException("Unsupported security version: $securityVersion.")
         }
       }
+    }
+
+    /**
+     * Creates an implementation of [BluetoothConnectionManager.ConnectionCallback].
+     *
+     * The created callback is intended for PendingCar implementations to listen to connection
+     * events.
+     *
+     * For all connection events, i.e. connected/disconnected/connection failure, the created
+     * callback always disconnects the PendingCar and invokes
+     * [PendingCar.Callback.onConnectionFailed], because during connection phase the connection is
+     * expected to remain unchanged.
+     */
+    internal fun createBluetoothConnectionManagerCallback(
+      pendingCar: PendingCar
+    ): BluetoothConnectionManager.ConnectionCallback {
+      return object : BluetoothConnectionManager.ConnectionCallback {
+        override fun onConnected() {
+          loge(TAG, "Unexpected gatt callback: onConnected. Disconnecting.")
+          pendingCar.disconnect()
+          pendingCar.callback?.onConnectionFailed(pendingCar)
+        }
+
+        override fun onConnectionFailed() {
+          loge(TAG, "Unexpected gatt callback: onConnectionFailed. Disconnecting.")
+          pendingCar.disconnect()
+          pendingCar.callback?.onConnectionFailed(pendingCar)
+        }
+
+        override fun onDisconnected() {
+          // Mainly rely on disconnect() to clean up the state.
+          loge(TAG, "Disconnected while attempting to establish connection.")
+
+          pendingCar.disconnect()
+          pendingCar.callback?.onConnectionFailed(pendingCar)
+        }
+      }
+    }
   }
+}
+
+/**
+ * Sends device ID and secret key as a message over [messageStream].
+ *
+ * Returns the message ID of sent message.
+ */
+internal fun MessageStream.send(
+  deviceId: UUID,
+  secretKey: SecretKey,
+): Int {
+  val payload = uuidToBytes(deviceId) + secretKey.encoded
+  val messageId =
+    sendMessage(
+      StreamMessage(
+        payload,
+        operation = OperationType.ENCRYPTION_HANDSHAKE,
+        isPayloadEncrypted = true,
+        originalMessageSize = 0,
+        recipient = null
+      )
+    )
+  logi(PendingCar.TAG, "Sent deviceId and secret key. Message Id: $messageId")
+  return messageId
 }

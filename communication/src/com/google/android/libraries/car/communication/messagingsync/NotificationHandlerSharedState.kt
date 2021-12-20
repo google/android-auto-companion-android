@@ -14,18 +14,18 @@
 
 package com.google.android.libraries.car.communication.messagingsync
 
-import androidx.core.app.NotificationCompat.MessagingStyle.Message
 import android.util.LruCache
+import androidx.core.app.NotificationCompat.MessagingStyle.Message
 
 /**
- * Hold state that needs to be shared across all [MessagingNotificationHandler].
- * Currently there's one handler per car connection.
- * Any state that needs to be shared across all car connections can reside here.
+ * Hold state that needs to be shared across all [MessagingNotificationHandler]. Currently there's
+ * one handler per car connection. Any state that needs to be shared across all car connections can
+ * reside here.
  */
 internal data class NotificationHandlerSharedState(
   /**
-   * Map from the [android.service.notification.StatusBarNotification.getKey]
-   * of a conversation notification with the user's latest reply message to this conversation.
+   * Map from the [android.service.notification.StatusBarNotification.getKey] of a conversation
+   * notification with the user's latest reply message to this conversation.
    */
   val replyMessages: LruCache<String, Message> = LruCache(MAX_REPLY_CACHE_SIZE)
 ) {

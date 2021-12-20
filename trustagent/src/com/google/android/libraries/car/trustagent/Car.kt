@@ -51,7 +51,7 @@ internal constructor(
   private val bluetoothManager: BluetoothConnectionManager,
   internal open val messageStream: MessageStream,
   @GuardedBy("lock")
-  @VisibleForTesting
+  @get:VisibleForTesting
   // Only keep this var in this class so it can be passed through callback.
   internal open val identificationKey: SecretKey,
   open val deviceId: UUID,

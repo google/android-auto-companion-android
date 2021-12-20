@@ -64,8 +64,7 @@ class MessagingNotificationHandlerTest {
   private lateinit var connectionTime: Instant
   private lateinit var handler: MessagingNotificationHandler
 
-  @get:Rule
-  var coroutinesTestRule = CoroutineTestRule()
+  @get:Rule var coroutinesTestRule = CoroutineTestRule()
 
   @Before
   fun setup() {
@@ -152,13 +151,15 @@ class MessagingNotificationHandlerTest {
   fun onNotificationReceived_sameThread() {
     val sbn = createSBN()
     handler.onNotificationReceived(sbn)
-    val anotherSBN = createSBN(
-      postSpecificMessage = NotificationCompat.MessagingStyle.Message(
-        "Another message in the same thread",
-        connectionTime.toEpochMilli() + 300,
-        Person.Builder().setName("senderName").build()
+    val anotherSBN =
+      createSBN(
+        postSpecificMessage =
+          NotificationCompat.MessagingStyle.Message(
+            "Another message in the same thread",
+            connectionTime.toEpochMilli() + 300,
+            Person.Builder().setName("senderName").build()
+          )
       )
-    )
     handler.onNotificationReceived(anotherSBN)
     val byteArrayCaptor = argumentCaptor<ByteArray>()
     val carIdCaptor = argumentCaptor<UUID>()
@@ -275,10 +276,7 @@ class MessagingNotificationHandlerTest {
     verify(sendMessage, never()).invoke(any(), any())
   }
 
-  /**
-   * Default functionality is a valid message SBN.
-   * To make invalid, you may customize the input.
-   */
+  /** Default functionality is a valid message SBN. To make invalid, you may customize the input. */
   private fun createSBN(
     hasMessagingStyle: Boolean = true,
     isOldMessage: Boolean = false,
@@ -322,9 +320,7 @@ class MessagingNotificationHandlerTest {
         NotificationMsg.Action.newBuilder()
           .setActionName(NotificationMsg.Action.ActionName.REPLY)
           .addMapEntry(
-            NotificationMsg.MapEntry.newBuilder()
-              .setKey("REPLY")
-              .setValue("my response")
+            NotificationMsg.MapEntry.newBuilder().setKey("REPLY").setValue("my response")
           )
       )
       .build()

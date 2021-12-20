@@ -418,34 +418,6 @@ internal constructor(
   }
 
   /**
-   * Begins an association using the configuration in the given [request].
-   *
-   * Progress is notified by [AssociationCallback].
-   */
-  internal open fun associate(request: AssociationRequest) {
-    val deviceToPair: Parcelable? =
-      request.intent.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
-    val discoveredCar =
-      when (deviceToPair) {
-        is BluetoothDevice ->
-          DiscoveredCar(
-            device = deviceToPair,
-            name = deviceToPair.name,
-            gattServiceUuid = associationServiceUuid,
-            sppServiceUuid = sppServiceUuid
-          )
-        is ScanResult -> deviceToPair.toDiscoveredCar()
-        else -> null
-      }
-    if (discoveredCar == null) {
-      loge(TAG, "Found unrecogonized device, ignore.")
-      return
-    }
-    currentPendingCdmDevice = discoveredCar.device
-    associate(discoveredCar, request.oobData)
-  }
-
-  /**
    * Stops any ongoing discovery scans and returns `true` if this request was successful.
    *
    * If Bluetooth is off when this method is called, this request might not stop correctly on
@@ -478,27 +450,48 @@ internal constructor(
    * Progress is notified by [AssociationCallback].
    */
   fun associate(discoveredCar: DiscoveredCar) {
-    associate(discoveredCar, oobData = null)
+    associateInternal(discoveredCar, oobData = null)
   }
 
-  private fun associate(discoveredCar: DiscoveredCar, oobData: OobData?) {
-    CoroutineScope(coroutineContext).launch {
-      if (!checkPermissionsForBluetoothConnection(context)) {
-        loge(TAG, "Missing required permission. Ignore association request.")
-        return@launch
+  /**
+   * Begins an association using the configuration in the given [request].
+   *
+   * Progress is notified by [AssociationCallback].
+   */
+  internal open fun associate(request: AssociationRequest) {
+    val deviceToPair: Parcelable? =
+      request.intent.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
+    val discoveredCar =
+      when (deviceToPair) {
+        is BluetoothDevice ->
+          DiscoveredCar(
+            device = deviceToPair,
+            name = deviceToPair.name,
+            gattServiceUuid = associationServiceUuid,
+            sppServiceUuid = sppServiceUuid
+          )
+        is ScanResult -> deviceToPair.toDiscoveredCar()
+        else -> null
       }
-      stopDiscovery()
-      stopSppDiscovery()
+    if (discoveredCar == null) {
+      loge(TAG, "Found unrecogonized device, ignore.")
+      return
+    }
+    currentPendingCdmDevice = discoveredCar.device
+    associateInternal(discoveredCar, request.oobData)
+  }
 
-      // Establish connection with discovered car over GATT/SPP.
-      val bluetoothManagers = discoveredCar.toBluetoothConnectionManagers(context)
-      val bluetoothManager =
-        bluetoothManagers.firstOrNull { manager ->
-          val connectionResult = manager.connectToDevice()
-          logi(TAG, "The result of the connection attempt with $manager is $connectionResult")
+  private fun associateInternal(discoveredCar: DiscoveredCar, oobData: OobData?) {
+    if (!checkPermissionsForBluetoothConnection(context)) {
+      loge(TAG, "Missing required permission. Ignore association request.")
+      return
+    }
 
-          connectionResult
-        }
+    stopDiscovery()
+    stopSppDiscovery()
+
+    CoroutineScope(coroutineContext).launch {
+      val bluetoothManager = connectBluetooth(discoveredCar)
       if (bluetoothManager == null) {
         loge(TAG, "Could not establish connection.")
         associationCallbacks.forEach { it.onAssociationFailed() }
@@ -507,21 +500,11 @@ internal constructor(
 
       associationCallbacks.forEach { it.onAssociationStart() }
 
-      // Attempt to use OOB association over RFCOMM when oobData is not available. Otherwise,
-      // skip RFCOMM because before security V4, IHU will stuck at establishing RFCOMM channel while
-      // mobile sends the encryption init message, which will be ignored by IHU.
-      val oobChannelTypes = buildList {
-        if (oobData == null) {
-          add(OobChannelType.BT_RFCOMM)
-        } else {
-          add(OobChannelType.PRE_ASSOCIATION)
-        }
-      }
-      // Resolve message and security version.
+      // Resolve message and security version; also exchange capability based on security version.
       val resolvedConnection =
-        ConnectionResolver.resolve(bluetoothManager, isAssociating = true, oobChannelTypes)
+        ConnectionResolver.resolve(bluetoothManager, oobData, isAssociating = true)
       if (resolvedConnection == null) {
-        loge(TAG, "Could not resolve version over $bluetoothManager.")
+        loge(TAG, "Could not resolve connection over $bluetoothManager.")
         associationCallbacks.forEach { it.onAssociationFailed() }
         return@launch
       }
@@ -529,20 +512,10 @@ internal constructor(
       // Locally construct a message stream based on message version.
       val stream = MessageStream.create(resolvedConnection.messageVersion, bluetoothManager)
       if (stream == null) {
-        loge(TAG, "Resolved version is $resolvedConnection but could not create stream.")
+        loge(TAG, "Resolved connection is $resolvedConnection but could not create stream.")
         associationCallbacks.forEach { it.onAssociationFailed() }
         return@launch
       }
-
-      // Start OOB exchange to receive an OobConnectionManager.
-      val oobChannelManager =
-        OobChannelManager.create(
-          resolvedConnection.oobChannels,
-          oobData,
-          resolvedConnection.securityVersion
-        )
-      val oobConnectionManager =
-        oobChannelManager.readOobData()?.let { OobConnectionManager.create(it) }
 
       currentPendingCar =
         startConnection(
@@ -550,8 +523,19 @@ internal constructor(
           stream,
           discoveredCar.device,
           bluetoothManager,
-          oobConnectionManager,
+          resolvedConnection.oobChannels,
+          oobData
         )
+    }
+  }
+
+  /** Establishes connection with discovered car over GATT/SPP. */
+  private suspend fun connectBluetooth(discoveredCar: DiscoveredCar): BluetoothConnectionManager? {
+    val bluetoothManagers = discoveredCar.toBluetoothConnectionManagers(context)
+    return bluetoothManagers.firstOrNull { manager ->
+      manager.connectToDevice().also {
+        logi(TAG, "The result of the connection attempt with $manager is $this.")
+      }
     }
   }
 
@@ -628,7 +612,8 @@ internal constructor(
     stream: MessageStream,
     device: BluetoothDevice,
     bluetoothManager: BluetoothConnectionManager,
-    oobConnectionManager: OobConnectionManager?
+    oobChannelTypes: List<OobChannelType>,
+    oobData: OobData?
   ): PendingCar {
     return PendingCar.create(
         securityVersion,
@@ -638,7 +623,8 @@ internal constructor(
         associatedCarManager = associatedCarManager,
         device = device,
         bluetoothManager = bluetoothManager,
-        oobConnectionManager = oobConnectionManager
+        oobChannelTypes = oobChannelTypes,
+        oobData = oobData
       )
       .apply {
         callback = pendingCarCallback

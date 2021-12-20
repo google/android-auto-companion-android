@@ -205,11 +205,19 @@ internal class EncryptionRunnerManager(
       reset()
       return
     }
-    logi(TAG, "Requiring display of verification code: $verificationCode")
+
+    val fullVerificationCode = message.fullVerificationCode
+    if (fullVerificationCode == null) {
+      loge(TAG, "Unexpected. Full verification code is null. Reset.")
+      callback?.onEncryptionFailure(FailureReason.NO_VERIFICATION_CODE)
+      reset()
+      return
+    }
 
     // Attempting to establish a new encryption.
     // Waiting for user to verify on server side; expect confirmation signal.
-    callback?.onAuthStringAvailable(verificationCode)
+    logi(TAG, "Requiring display of verification code: $verificationCode")
+    callback?.onAuthStringAvailable(verificationCode, fullVerificationCode)
   }
 
   private fun notifyOobAuthTokenAvailable(message: HandshakeMessage) {
@@ -302,8 +310,11 @@ internal class EncryptionRunnerManager(
     /**
      * Invoked when a verification string should be displayed to user. This string should match the
      * one displayed on server side.
+     *
+     * [oobToken] is the full version of the [authString]. It is the same message returned by
+     * [onOobAuthTokenAvailable] for out-of-band confirmation.
      */
-    fun onAuthStringAvailable(authString: String)
+    fun onAuthStringAvailable(authString: String, oobToken: ByteArray)
 
     /**
      * Invoked when the device should listen for an incoming message and decrypt it using a key that

@@ -84,7 +84,7 @@ class EncryptionRunnerManagerTest {
     initEncryption()
     respondToClientInitMessage()
 
-    verify(mockEncryptionCallback).onAuthStringAvailable(any())
+    verify(mockEncryptionCallback).onAuthStringAvailable(any(), any())
   }
 
   @Test
@@ -164,9 +164,7 @@ class EncryptionRunnerManagerTest {
       val payload = lastValue.payload
       Log.i(TAG, "respondToClientInitMessage: ${payload.toString(Charsets.UTF_8)}")
       val message = serverRunner.respondToInitRequest(payload)
-      streamCallbacks.forEach {
-        it.onMessageReceived(createStreamMessage(message.nextMessage!!))
-      }
+      streamCallbacks.forEach { it.onMessageReceived(createStreamMessage(message.nextMessage!!)) }
     }
   }
 
@@ -196,12 +194,11 @@ class EncryptionRunnerManagerTest {
     argumentCaptor<StreamMessage>().apply {
       verify(mockV2Stream, times(3)).sendMessage(capture())
 
-      val message = serverRunner.authenticateReconnection(lastValue.payload, previousKey).also {
-        assertThat(it.handshakeState).isEqualTo(HandshakeState.FINISHED)
-      }
-      streamCallbacks.forEach {
-        it.onMessageReceived(createStreamMessage(message.nextMessage!!))
-      }
+      val message =
+        serverRunner.authenticateReconnection(lastValue.payload, previousKey).also {
+          assertThat(it.handshakeState).isEqualTo(HandshakeState.FINISHED)
+        }
+      streamCallbacks.forEach { it.onMessageReceived(createStreamMessage(message.nextMessage!!)) }
     }
   }
 

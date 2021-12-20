@@ -26,8 +26,8 @@ import kotlin.coroutines.suspendCoroutine
  * callbacks registration.
  */
 abstract class BluetoothConnectionManager() {
-  internal val connectionCallbacks = mutableListOf<ConnectionCallback>()
-  internal val messageCallbacks = mutableListOf<MessageCallback>()
+  internal open val connectionCallbacks = mutableListOf<ConnectionCallback>()
+  internal open val messageCallbacks = mutableListOf<MessageCallback>()
 
   abstract val maxWriteSize: Int
   abstract val bluetoothDevice: BluetoothDevice

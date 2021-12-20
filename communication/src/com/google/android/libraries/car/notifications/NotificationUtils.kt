@@ -17,9 +17,7 @@ package com.google.android.libraries.car.notifications
 import android.app.Notification
 import androidx.core.app.NotificationCompat
 
-/**
- * Notification Helper extension methods
- */
+/** Notification Helper extension methods */
 
 /**
  * Get Action based on the semantic action
@@ -30,15 +28,11 @@ import androidx.core.app.NotificationCompat
 private fun Notification.getAction(
   @NotificationCompat.Action.SemanticAction semanticAction: Int
 ): NotificationCompat.Action? =
-  getVisibleAndInvisibleActions().firstOrNull {
-    it.semanticAction == semanticAction
-  }
+  getVisibleAndInvisibleActions().firstOrNull { it.semanticAction == semanticAction }
 
 private fun Notification.getVisibleAndInvisibleActions(): List<NotificationCompat.Action> {
   val list = actions ?: arrayOf<Notification.Action>()
-  return list.indices.mapNotNull {
-    NotificationCompat.getAction(this, it)
-  }.toMutableList().also {
+  return list.indices.mapNotNull { NotificationCompat.getAction(this, it) }.toMutableList().also {
     it.addAll(NotificationCompat.getInvisibleActions(this))
   }
 }

@@ -14,6 +14,7 @@ import com.google.android.connecteddevice.calendarsync.common.CommonLogger;
 import com.google.android.connecteddevice.calendarsync.common.PlatformContentDelegate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.errorprone.annotations.CheckReturnValue;
 import com.google.protobuf.MessageLite;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,7 +23,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
-import javax.annotation.CheckReturnValue;
 import javax.annotation.Nullable;
 
 /**
