@@ -71,7 +71,7 @@ internal interface AssociatedCarDao {
   @Update(entity = AssociatedCarEntity::class) suspend fun updateName(car: AssociatedCarName): Int
 
   /**
-   * Updates the encryption key that matches the given [car] and returns the number of entires that
+   * Updates the encryption key that matches the given [car] and returns the number of entries that
    * were updated.
    */
   @Update(entity = AssociatedCarEntity::class)

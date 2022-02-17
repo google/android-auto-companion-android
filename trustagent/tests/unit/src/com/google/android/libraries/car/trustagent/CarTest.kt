@@ -318,7 +318,7 @@ class CarTest {
   @Test
   fun testQueryRecieved_invokesCallback() {
     val recipient = UUID.fromString("e284f45d-666f-479f-bd48-b8be0283977e")
-
+    val sender = UUID.fromString("64ed652b-b706-4684-a8bc-0dbc17ee452d")
     val callback: Car.Callback = mock()
     car.setCallback(callback, recipient)
 
@@ -327,7 +327,7 @@ class CarTest {
 
     val streamMessage =
       StreamMessage(
-        payload = query.toProtoByteArray(queryId, recipient),
+        payload = query.toProtoByteArray(queryId, sender),
         operation = OperationType.QUERY,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
@@ -336,7 +336,7 @@ class CarTest {
 
     car.streamForwardingMessageCallback.onMessageReceived(streamMessage)
 
-    verify(callback).onQueryReceived(queryId, query)
+    verify(callback).onQueryReceived(queryId, sender, query)
   }
 
   @Test
@@ -360,17 +360,18 @@ class CarTest {
 
     car.streamForwardingMessageCallback.onMessageReceived(streamMessage)
 
-    verify(callback, never()).onQueryReceived(any(), any())
+    verify(callback, never()).onQueryReceived(any(), any(), any())
   }
 
   @Test
   fun testQueryReceived_deliveredWhenCallbackRegistered() {
     val recipient = UUID.fromString("e284f45d-666f-479f-bd48-b8be0283977e")
+    val sender = UUID.fromString("64ed652b-b706-4684-a8bc-0dbc17ee452d")
     val query = Query("request".toByteArray(), "parameters".toByteArray())
     val queryId = 13
     val streamMessage =
       StreamMessage(
-        payload = query.toProtoByteArray(queryId, recipient),
+        payload = query.toProtoByteArray(queryId, sender),
         operation = OperationType.QUERY,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
@@ -381,18 +382,19 @@ class CarTest {
     val callback: Car.Callback = mock()
     car.setCallback(callback, recipient)
 
-    verify(callback).onQueryReceived(queryId, query)
+    verify(callback).onQueryReceived(queryId, sender, query)
   }
 
   @Test
   fun testQueryReceived_deliveredInFifoOrder() {
     val recipient = UUID.fromString("e284f45d-666f-479f-bd48-b8be0283977e")
 
+    val sender = UUID.fromString("81a0763d-f7f5-4b7d-ab01-09a4e45257c3")
     val query1 = Query("request1".toByteArray(), "parameters".toByteArray())
     val queryId1 = 13
     car.streamForwardingMessageCallback.onMessageReceived(
       StreamMessage(
-        payload = query1.toProtoByteArray(queryId1, recipient),
+        payload = query1.toProtoByteArray(queryId1, sender),
         operation = OperationType.QUERY,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
@@ -400,11 +402,12 @@ class CarTest {
       )
     )
 
+    val sender2 = UUID.fromString("20a4af97-5647-4176-9e4f-dfc0dc5b93a9")
     val query2 = Query("request2".toByteArray(), "parameters".toByteArray())
     val queryId2 = 14
     car.streamForwardingMessageCallback.onMessageReceived(
       StreamMessage(
-        payload = query2.toProtoByteArray(queryId2, recipient),
+        payload = query2.toProtoByteArray(queryId2, sender2),
         operation = OperationType.QUERY,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
@@ -416,8 +419,8 @@ class CarTest {
     car.setCallback(callback, recipient)
 
     inOrder(callback).apply {
-      verify(callback).onQueryReceived(queryId1, query1)
-      verify(callback).onQueryReceived(queryId2, query2)
+      verify(callback).onQueryReceived(queryId1, sender, query1)
+      verify(callback).onQueryReceived(queryId2, sender2, query2)
     }
   }
 }

@@ -67,12 +67,12 @@ dependencies {
     implementation "androidx.annotation:annotation:1.2.0"
     implementation "com.google.guava:guava:30.0-android"
     implementation "com.google.protobuf:protobuf-java:3.10.0"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.4.1"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.1"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.4.1"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.6.0"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation project(path: ":libs:trustagent")
-    implementation project(path: ":libs:communicationproto")
+    implementation project(path: ":android-auto-companion-android:trustagent")
+    implementation project(path: ":android-auto-companion-android:communicationproto")
 
     testImplementation "androidx.arch.core:core-testing:2.1.0"
     testImplementation "androidx.test.ext:junit:1.1.2"

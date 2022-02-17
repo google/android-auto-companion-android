@@ -24,6 +24,7 @@ import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothCon
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
 import com.google.android.libraries.car.trustagent.blemessagestream.SppManager
 import com.google.android.libraries.car.trustagent.blemessagestream.StreamMessage
+import com.google.android.libraries.car.trustagent.util.bytesToUuid
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import com.google.protobuf.InvalidProtocolBufferException
@@ -269,7 +270,7 @@ internal constructor(
         while (queryProtos.isNotEmpty()) {
           queryProtos.poll()?.let {
             logi(TAG, "Dispatching stored query ${it.id} to $recipient.")
-            callback.onQueryReceived(it.id, it.toQuery())
+            callback.onQueryReceived(it.id, bytesToUuid(it.sender.toByteArray()), it.toQuery())
           }
         }
       }
@@ -327,7 +328,11 @@ internal constructor(
 
     lock.withLock {
       if (recipient in callbacks) {
-        callbacks[recipient]?.onQueryReceived(queryProto.id, queryProto.toQuery())
+        callbacks[recipient]?.onQueryReceived(
+          queryProto.id,
+          bytesToUuid(queryProto.sender.toByteArray()),
+          queryProto.toQuery()
+        )
       } else {
         logi(TAG, "Received query for $recipient but no registered callback. Saving query.")
         storeUnclaimedQuery(recipient, queryProto)
@@ -355,7 +360,7 @@ internal constructor(
       loge(
         TAG,
         "Received query response for query id ${queryResponseProto.queryId}, " +
-          "but no registered hander. Ignoring."
+          "but no registered handler. Ignoring."
       )
       return
     }
@@ -396,9 +401,10 @@ internal constructor(
      * Invoked when a query has been received from a car.
      *
      * The given [queryId] should be later used to respond to query. The formatting of the query
-     * `request` and `parameters` are feature defined and sent as-is from the car.
+     * `request` and `parameters` are feature defined and sent as-is from the car. The response
+     * should be sent to the specified [sender].
      */
-    fun onQueryReceived(queryId: Int, query: Query)
+    fun onQueryReceived(queryId: Int, sender: UUID, query: Query)
 
     /** Invoked when car has disconnected. This object should now be discarded. */
     fun onDisconnected()

@@ -103,7 +103,7 @@ internal class VersionResolver(private val manager: BluetoothConnectionManager) 
      * Resolves version via [manager].
      *
      * Returns [ResolvedVersion] based on the message version of IHU; `null` if local and remote
-     * versions are incompatible or an error occured.
+     * versions are incompatible or an error occurred.
      */
     suspend fun resolve(manager: BluetoothConnectionManager): ResolvedVersion? {
       val resolver = VersionResolver(manager)

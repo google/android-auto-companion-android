@@ -52,7 +52,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * This class handles the association flow defined by security version V4.
  *
  * V4 supports out-of-band association.
- * - phone asynchronousnly reads out-of-band data by starting all channels;
+ * - phone asynchronously reads out-of-band data by starting all channels;
  * - phone-IHU perform UKEY2 encryption handshake;
  * - phone receives UKEY2 callback onAuthStringAvailable();
  * - phone checks whether it has received OOB data;
@@ -256,6 +256,7 @@ internal constructor(
     require(advertisedData == null) {
       "Expected parameter advertisedData to be null; actual ${advertisedData?.toHexString()}."
     }
+    logi(TAG, "Starting connection.")
 
     // Start a coroutine to read OOB data asynchronously, in parallel with encryption handshake.
     // After the encryption finishes the handshake, it need a way to confirm the encryption.

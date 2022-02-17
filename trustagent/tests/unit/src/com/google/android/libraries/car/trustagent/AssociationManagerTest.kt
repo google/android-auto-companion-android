@@ -19,8 +19,6 @@ import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
-import android.bluetooth.le.ScanResult
-import android.bluetooth.le.ScanSettings
 import android.companion.AssociationRequest as CdmAssociationRequest
 import android.companion.BluetoothDeviceFilter
 import android.companion.BluetoothLeDeviceFilter
@@ -44,6 +42,7 @@ import com.google.common.util.concurrent.MoreExecutors.directExecutor
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.argumentCaptor
 import com.nhaarman.mockitokotlin2.doReturn
+import com.nhaarman.mockitokotlin2.inOrder
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.never
 import com.nhaarman.mockitokotlin2.spy
@@ -97,6 +96,7 @@ class AssociationManagerTest {
   private lateinit var associatedCarManager: AssociatedCarManager
   private lateinit var discoveryCallback: AssociationManager.DiscoveryCallback
   private lateinit var associationCallback: AssociationManager.AssociationCallback
+  private lateinit var disassociationCallback: AssociationManager.DisassociationCallback
   private lateinit var car: Car
   private lateinit var bluetoothGattManager: BluetoothGattManager
   private lateinit var associationHandler: TestAssociationHandler
@@ -117,6 +117,7 @@ class AssociationManagerTest {
     bleManager = spy(FakeBleManager())
     discoveryCallback = mock()
     associationCallback = mock()
+    disassociationCallback = mock()
     bluetoothGattManager = mock { on { bluetoothDevice } doReturn TEST_BLUETOOTH_DEVICE }
 
     car = Car(bluetoothGattManager, TEST_STREAM, TEST_IDENTIFICATION_KEY, TEST_DEVICE_ID)
@@ -125,6 +126,7 @@ class AssociationManagerTest {
       AssociationManager(context, associatedCarManager, bleManager).apply {
         registerDiscoveryCallback(discoveryCallback)
         registerAssociationCallback(associationCallback)
+        registerDisassociationCallback(disassociationCallback)
       }
 
     associationHandler =
@@ -257,11 +259,18 @@ class AssociationManagerTest {
   }
 
   @Test
+  fun startSppDiscovery_bluetoothDisabled_returnsFalse() {
+    bleManager.isEnabled = false
+
+    assertThat(associationManager.startSppDiscovery()).isFalse()
+    assertThat(associationManager.isSppDiscoveryStarted).isFalse()
+  }
+
+  @Test
   fun startSppDiscovery_startedSuccessfully_updateFlag() {
-    BluetoothAdapter.getDefaultAdapter().enable()
+    bleManager.isEnabled = true
 
-    associationManager.startSppDiscovery()
-
+    assertThat(associationManager.startSppDiscovery()).isTrue()
     assertThat(associationManager.isSppDiscoveryStarted).isTrue()
   }
 
@@ -295,7 +304,7 @@ class AssociationManagerTest {
 
   @Test
   fun associate_stopSppDiscovery() {
-    associationManager.startSppDiscovery()
+    assertThat(associationManager.startSppDiscovery()).isTrue()
 
     associationManager.coroutineContext = testDispatcher
     val deviceName = SHORT_LOCAL_NAME
@@ -318,7 +327,7 @@ class AssociationManagerTest {
 
   @Test
   fun clearCurrentAssociation_stopSppDiscovery() {
-    associationManager.startSppDiscovery()
+    assertThat(associationManager.startSppDiscovery()).isTrue()
 
     associationManager.clearCurrentAssociation()
 
@@ -429,44 +438,32 @@ class AssociationManagerTest {
     assertThat(filters.any { it is BluetoothLeDeviceFilter }).isTrue()
   }
 
-  private fun ByteArray.toHexString(): String {
-    return this.joinToString("") { String.format("%02X", it) }
+  @Test
+  fun testDeviceIdReceived_notifiesCallback() {
+    associationManager.pendingCarCallback.onDeviceIdReceived(TEST_DEVICE_ID)
+
+    verify(disassociationCallback, never()).onCarDisassociated(TEST_DEVICE_ID)
+    verify(associationCallback).onDeviceIdReceived(TEST_DEVICE_ID)
   }
 
-  /** A fake implementation of a [BleManager] that allows its return values to be set. */
-  open class FakeBleManager() : BleManager {
-    override var isEnabled = true
+  @Test
+  fun testDeviceIdReceived_previouslyAssociated_issuesDisassocationCallback() {
+    runBlocking {
+      // Simulate that the car has already been associated.
+      associatedCarManager.add(car)
 
-    private var callback: ScanCallback? = null
+      // Then, receiving the same device ID again.
+      associationManager.pendingCarCallback.onDeviceIdReceived(TEST_DEVICE_ID)
 
-    /** Set to determine the return result of [startScan]. */
-    var startScanSucceeds = true
-
-    override fun startScan(
-      filters: List<ScanFilter>,
-      settings: ScanSettings,
-      callback: ScanCallback
-    ): Boolean {
-      this.callback = callback
-      return startScanSucceeds
+      // The disassociation callback should be issued first.
+      val order = inOrder(disassociationCallback, associationCallback)
+      order.verify(disassociationCallback).onCarDisassociated(TEST_DEVICE_ID)
+      order.verify(associationCallback).onDeviceIdReceived(TEST_DEVICE_ID)
     }
+  }
 
-    override fun stopScan(callback: ScanCallback): Boolean {
-      if (this.callback == callback) {
-        this.callback = null
-        return true
-      }
-
-      return false
-    }
-
-    /**
-     * Triggers [ScanCallback.onScanResult] with the given [result] on a `callback` that is passed
-     * to a call of [startScan].
-     */
-    fun triggerOnScanResult(result: ScanResult?) {
-      callback?.onScanResult(ScanSettings.CALLBACK_TYPE_FIRST_MATCH, result)
-    }
+  private fun ByteArray.toHexString(): String {
+    return this.joinToString("") { String.format("%02X", it) }
   }
 
   open class TestAssociationHandler() : AssociationHandler {

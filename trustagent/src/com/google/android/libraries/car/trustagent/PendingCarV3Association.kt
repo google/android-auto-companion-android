@@ -188,6 +188,7 @@ internal constructor(
     require(advertisedData == null) {
       "Expected parameter advertisedData to be null; actual ${advertisedData?.toHexString()}."
     }
+    logi(TAG, "Starting connection.")
 
     coroutineScope.launch {
       if (resolvedOobChannelTypes.isNotEmpty()) {

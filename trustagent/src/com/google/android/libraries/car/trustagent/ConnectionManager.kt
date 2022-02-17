@@ -173,6 +173,8 @@ internal constructor(
     pendingIntent: PendingIntent?,
     scanCallback: ScanCallback?
   ): Boolean {
+    logi(TAG, "Scanning associated cars for reconnection.")
+
     require(pendingIntent == null || scanCallback == null) {
       "At most one of pendingIntent or scanCallback can be set."
     }
@@ -183,6 +185,7 @@ internal constructor(
     }
 
     // Ensure there is only ever one scan happening at a time.
+    logi(TAG, "Stopping existing scanning.")
     stop()
 
     if (!bluetoothAdapter.isEnabled()) {

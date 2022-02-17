@@ -559,7 +559,7 @@ open class BluetoothGattManager(
   private fun handleSkipMtuCallback() {
     logw(
       TAG,
-      "Did not receive onMtuChanged() callback in alloted time; setting maxWriteSize based " +
+      "Did not receive onMtuChanged() callback in allotted time; setting maxWriteSize based " +
         "on requested $defaultMtu."
     )
     maxWriteSize = defaultMtu - ATT_PAYLOAD_RESERVED_BYTES

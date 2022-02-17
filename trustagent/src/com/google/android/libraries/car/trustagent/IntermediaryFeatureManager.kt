@@ -14,10 +14,13 @@
 
 package com.google.android.libraries.car.trustagent
 
+import com.google.android.libraries.car.trustagent.api.PublicApi
+
 /**
- * Interface manages the intermidiary state of feature setup between association is done and
+ * Interface manages the intermediary state of feature setup between association is done and
  * association information is shown to the user.
  */
+@PublicApi
 interface IntermediaryFeatureManager {
   /**
    * [listener] should be notified when the feature finished the SUW setup flow.
@@ -27,6 +30,7 @@ interface IntermediaryFeatureManager {
   fun setOnCompletedListener(listener: OnCompletedListener?)
 
   /** Listener which listens to feature setup event. */
+  @PublicApi
   fun interface OnCompletedListener {
     /**
      * Will be invoked when the feature completes the work and passed the result [isSuccess] to

@@ -37,7 +37,7 @@ import java.util.zip.Inflater
  */
 interface MessageStream {
 
-  /** Encryption key used to encrypt/decrpt data over this stream. */
+  /** Encryption key used to encrypt/decrypt data over this stream. */
   var encryptionKey: Key?
 
   /**

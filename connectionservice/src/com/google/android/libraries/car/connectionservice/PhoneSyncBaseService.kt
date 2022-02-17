@@ -386,7 +386,7 @@ abstract class PhoneSyncBaseService : FeatureManagerService() {
 
       override fun onMessageSent(messageId: Int) {}
 
-      override fun onQueryReceived(queryId: Int, query: Query) {}
+      override fun onQueryReceived(queryId: Int, sender: UUID, query: Query) {}
 
       override fun onDisconnected() {
         val deviceId = car.deviceId

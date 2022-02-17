@@ -36,6 +36,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
+private val SENDER_ID = UUID.fromString("ac3be440-c193-4960-a154-ed10c51045f0")
 private val FEATURE_ID = UUID.fromString("c673cad8-59b9-4f86-bb5a-13d115e2ce26")
 private val CAR_ID = UUID.fromString("b9592993-2f53-40a8-8b87-e218e592c165")
 private val OTHER_CAR_ID = UUID.fromString("829466cd-3321-4af5-ac6b-9d7e175d76dc")
@@ -160,7 +161,7 @@ class FeatureManagerTest {
     featureManger.notifyCarConnected(car)
 
     val callback = captureCallback(car)
-    callback.onQueryReceived(queryId = 13, query)
+    callback.onQueryReceived(queryId = 13, sender = SENDER_ID, query)
 
     verify(featureManger).onQueryReceived(eq(query), eq(CAR_ID), any())
   }
@@ -173,7 +174,7 @@ class FeatureManagerTest {
     val queryId = 13
     val query = Query("request".toByteArray(), parameters = null)
     val callback = captureCallback(car)
-    callback.onQueryReceived(queryId, query)
+    callback.onQueryReceived(queryId, SENDER_ID, query)
 
     val handlerCaptor = argumentCaptor<(Boolean, ByteArray) -> Unit>()
     verify(featureManger).onQueryReceived(eq(query), eq(CAR_ID), handlerCaptor.capture())
@@ -185,7 +186,7 @@ class FeatureManagerTest {
     responseHandler(isSuccessful, response)
 
     val expectedQueryResponse = QueryResponse(queryId, isSuccessful, response)
-    verify(car).sendQueryResponse(expectedQueryResponse, FEATURE_ID)
+    verify(car).sendQueryResponse(expectedQueryResponse, SENDER_ID)
     verify(otherCar, never()).sendQueryResponse(any(), any())
   }
 

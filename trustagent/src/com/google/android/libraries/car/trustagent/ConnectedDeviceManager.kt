@@ -225,6 +225,7 @@ class ConnectedDeviceManager(
   internal val companionDeviceManagerCallback =
     object : CompanionDeviceManager.Callback() {
       override fun onDeviceFound(chooserLauncher: IntentSender) {
+        logi(TAG, "Received $chooserLauncher from CompanionDeviceManager.")
         callbacks.forEach { it.onDeviceDiscovered(chooserLauncher) }
       }
 
@@ -319,7 +320,7 @@ class ConnectedDeviceManager(
   }
 
   // TODO(b/182827383): Remove default overrides when b/138957824 is resolved.
-  // Thses empty overrides are currently required by granular.
+  // These empty overrides are currently required by granular.
   override fun onResume(owner: LifecycleOwner) {}
   override fun onPause(owner: LifecycleOwner) {}
   override fun onStart(owner: LifecycleOwner) {}
@@ -329,11 +330,14 @@ class ConnectedDeviceManager(
    * Starts the [CompanionDeviceManager] discovery for association.
    *
    * Ensure that Bluetooth is enabled before calling this method. If this method is called while
-   * Bluetooth is off, then this method will do nothing and return `false`.
+   * Bluetooth is off, then this method will do nothing and return `false`. This method will also
+   * fail if the proper scanning permissions are not granted. In this case, `false` will also be
+   * returned.
    *
    * @param[request] Parameters that modify this discovery call.
    */
   fun startDiscovery(request: DiscoveryRequest): Boolean {
+    logi(TAG, "StartDiscovery with $request.")
     return associationManager.startCdmDiscovery(request, companionDeviceManagerCallback)
   }
 
@@ -350,6 +354,7 @@ class ConnectedDeviceManager(
    * completes, i.e. [Callback.onAssociated] or [Callback.onAssociationFailed].
    */
   fun associate(request: AssociationRequest) {
+    logi(TAG, "Associate with $request.")
     if (ongoingAssociation != null) {
       logw(TAG, "Currently attempting to associate with $ongoingAssociation. Ignored.")
       return
@@ -408,13 +413,16 @@ class ConnectedDeviceManager(
    * by [lifecycle] onCreate().
    */
   fun start() {
+    logi(TAG, "Starting reconnection.")
     if (!isStarted) {
+      isStarted = true
+
       // No need to register receiver for multiple times.
+      logi(TAG, "Registering BroadcastReceiver for SPP.")
       context.registerReceiver(
         startSppBroadcastReceiver,
         IntentFilter(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
       )
-      isStarted = true
     }
     // The following logic will be executed as long as a reconnection attempt is needed.
     coroutineScope.launch {
@@ -552,7 +560,7 @@ class ConnectedDeviceManager(
 
         override fun onMessageReceived(data: ByteArray) {}
 
-        override fun onQueryReceived(queryId: Int, query: Query) {}
+        override fun onQueryReceived(queryId: Int, sender: UUID, query: Query) {}
       }
 
     car.setCallback(callback, RECIPIENT_ID)

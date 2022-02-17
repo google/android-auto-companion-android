@@ -197,9 +197,9 @@ abstract class FeatureManager {
         this@FeatureManager.onMessageSent(messageId, car.deviceId)
       }
 
-      override fun onQueryReceived(queryId: Int, query: Query) {
+      override fun onQueryReceived(queryId: Int, sender: UUID, query: Query) {
         this@FeatureManager.onQueryReceived(query, car.deviceId) { isSuccessful, response ->
-          car.sendQueryResponse(QueryResponse(queryId, isSuccessful, response), featureId)
+          car.sendQueryResponse(QueryResponse(queryId, isSuccessful, response), sender)
         }
       }
 

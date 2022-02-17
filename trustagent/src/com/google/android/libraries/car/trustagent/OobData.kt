@@ -15,6 +15,7 @@
 package com.google.android.libraries.car.trustagent
 
 import com.google.android.companionprotos.OutOfBandAssociationToken
+import java.util.Objects
 
 private const val NONCE_LENGTH_BYTES = 12
 internal const val DATA_LENGTH_BYTES = NONCE_LENGTH_BYTES * 2 + 16
@@ -50,4 +51,15 @@ data class OobData(
   val encryptionKey: ByteArray,
   val ihuIv: ByteArray,
   val mobileIv: ByteArray,
-)
+) {
+  override fun equals(other: Any?): Boolean {
+    if (this === other) return true
+    if (other !is OobData) return false
+
+    return encryptionKey contentEquals other.encryptionKey &&
+      ihuIv contentEquals other.ihuIv &&
+      mobileIv contentEquals other.mobileIv
+  }
+
+  override fun hashCode() = Objects.hash(encryptionKey, ihuIv, mobileIv)
+}

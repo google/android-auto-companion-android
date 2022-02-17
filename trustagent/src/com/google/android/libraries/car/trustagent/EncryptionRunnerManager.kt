@@ -81,7 +81,7 @@ internal class EncryptionRunnerManager(
       override fun onMessageReceived(streamMessage: StreamMessage) {
         // Only accept message of operation type ENCRYPTION_HANDSHAKE.
         // NOTE: in version 1 IHU could send a handshake message of operation type CLIENT_MESSAGE.
-        // V1 is no longer suported. Refer to b/145764386 for more info.
+        // V1 is no longer supported. Refer to b/145764386 for more info.
         if (streamMessage.operation != OperationType.ENCRYPTION_HANDSHAKE) {
           logi(TAG, "Received message with non-encryption-handshake op. Ignoring.")
           return

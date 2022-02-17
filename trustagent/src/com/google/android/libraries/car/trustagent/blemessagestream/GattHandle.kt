@@ -101,14 +101,14 @@ interface GattHandle {
 
   /**
    * Issues a request to set the connection `priority` and returns 'true' if the operation was
-   * initiated succesfully.
+   * initiated successfully.
    */
   fun requestConnectionPriority(priority: Int): Boolean
 
   /**
    * Writes the value of [descriptor] to the remote [device].
    *
-   * Returns `true` if the operation was initiated succesfully; the [callback] set on this handle
+   * Returns `true` if the operation was initiated successfully; the [callback] set on this handle
    * will be notified of the result of the write.
    */
   fun writeDescriptor(descriptor: BluetoothGattDescriptor): Boolean

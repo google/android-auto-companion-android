@@ -43,7 +43,7 @@ internal interface PendingCar {
    *
    * Successful connection will invoke [Callback.onConnected].
    *
-   * If the implmentation is performing association, [Callback.onAuthStringAvailable] should be
+   * If the implementation is performing association, [Callback.onAuthStringAvailable] should be
    * invoked for out-of-band verification. If not, i.e. reconnection, [Callback.onConnectionFailed]
    * should be invoked if the previous session could not be found, and connection will be stopped.
    */

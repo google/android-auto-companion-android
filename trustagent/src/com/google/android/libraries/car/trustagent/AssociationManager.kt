@@ -65,7 +65,7 @@ import kotlinx.coroutines.launch
 /**
  * Manages the process of associating the current device with a car, including
  * - discovering a car that is ready to be associated with;
- * - initiating the association and notifying callbacks that require user interactin.
+ * - initiating the association and notifying callbacks that require user interaction.
  */
 @PublicApi
 @OptIn(kotlin.ExperimentalStdlibApi::class)
@@ -234,7 +234,7 @@ internal constructor(
    * Bluetooth is off, then this method will do nothing and return `false`. [isBluetoothEnabled] can
    * be used as a shortcut for checking this state.
    *
-   * @param namePerfix May be added to the beginning of the advertised names of cars that are found.
+   * @param namePrefix May be added to the beginning of the advertised names of cars that are found.
    * This will be added only when doing so matches the advertisement name the car is currently
    * displaying.
    */
@@ -253,7 +253,7 @@ internal constructor(
    * @param filterService UUID used for discovery. This parameter takes precedence over the value
    * that is specified via resource overlay as R.string.car_association_service_uuid.
    *
-   * @param namePerfix May be added to the beginning of the advertised names of cars that are found.
+   * @param namePrefix May be added to the beginning of the advertised names of cars that are found.
    * This will be added only when doing so matches the advertisement name the car is currently
    * displaying.
    */
@@ -306,6 +306,9 @@ internal constructor(
    * Bluetooth is off, then this method will do nothing and return `false`. [isBluetoothEnabled] can
    * be used as a shortcut for checking this state.
    *
+   * This method also requires that the proper scanning permissions be granted. If they are not,
+   * then this method will fail and return `false`.
+   *
    * @param request Parameters that modify this discovery call.
    * @param callback Callback to be notified of success and failure events.
    */
@@ -313,10 +316,18 @@ internal constructor(
     request: DiscoveryRequest,
     callback: CompanionDeviceManager.Callback,
   ): Boolean {
+    logi(TAG, "Starting CDM discovery with $request.")
+
     if (!isBluetoothEnabled) {
       loge(TAG, "Request to start discovery to associate, but Bluetooth is not enabled.")
       return false
     }
+
+    if (!checkPermissionsForBleScanner(context)) {
+      loge(TAG, "Request to start discovery to association, but missing required permissions.")
+      return false
+    }
+
     request.associationUuid?.let {
       logi(TAG, "Starting discovery with association UUID specified by request: $it")
       associationServiceUuid = it
@@ -390,20 +401,29 @@ internal constructor(
    * Results will be received through [DiscoveryCallback].
    *
    * Returns `true` if the discovery was initiated successfully; `false` otherwise, for example,
-   * when Bluetooth is off. [isBluetoothEnabled] can be used to check the Bluetooth adapter state as
-   * a shortcut.
+   * if Bluetooth is off or the current scanning permissions are not granted. [isBluetoothEnabled]
+   * can be used to check the Bluetooth adapter state.
    */
   @SuppressLint("MissingPermission")
   fun startSppDiscovery(): Boolean {
-    isSppDiscoveryStarted = true
+    stopSppDiscovery()
+
     if (!isBluetoothEnabled) {
       loge(TAG, "Request to start discovery, but Bluetooth is not enabled.")
       return false
     }
 
+    if (!checkPermissionsForBluetoothConnection(context)) {
+      loge(TAG, "Request to start SPP discovery, but Bluetooth permission not granted.")
+      return false
+    }
+
+    isSppDiscoveryStarted = true
+
     if (bluetoothAdapter.isDiscovering) {
       bluetoothAdapter.cancelDiscovery()
     }
+
     // Register for broadcasts when a device is discovered
     val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
     context.registerReceiver(discoveredBluetoothDeviceReceiver, filter)
@@ -433,7 +453,12 @@ internal constructor(
     return false
   }
 
-  /** Stops SPP discovery and returns `true` if this request was successful. */
+  /**
+   * Stops SPP discovery and returns `true` if this request was successful.
+   *
+   * Bluetooth permissions are required to call this method. If permissions not granted, then this
+   * method will not be able to cancel discovery and `false` will be returned.
+   */
   @SuppressLint("MissingPermission")
   fun stopSppDiscovery(): Boolean {
     logd(TAG, "Stop SPP discovery.")
@@ -441,7 +466,15 @@ internal constructor(
       context.unregisterReceiver(discoveredBluetoothDeviceReceiver)
       isSppDiscoveryStarted = false
     }
-    return bluetoothAdapter.cancelDiscovery()
+
+    // BLE permissions are required for this call or calling `cancelDiscovery` will throw an
+    // exception.
+    if (checkPermissionsForBleScanner(context)) {
+      return bluetoothAdapter.cancelDiscovery()
+    }
+
+    logw(TAG, "Request to stop SPP discovery, but Bluetooth permission not granted.")
+    return false
   }
 
   /**
@@ -459,6 +492,7 @@ internal constructor(
    * Progress is notified by [AssociationCallback].
    */
   internal open fun associate(request: AssociationRequest) {
+    logi(TAG, "Starting association with $request.")
     val deviceToPair: Parcelable? =
       request.intent.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
     val discoveredCar =
@@ -482,50 +516,71 @@ internal constructor(
   }
 
   private fun associateInternal(discoveredCar: DiscoveredCar, oobData: OobData?) {
+    logi(TAG, "Starting association with $discoveredCar and $oobData.")
     if (!checkPermissionsForBluetoothConnection(context)) {
-      loge(TAG, "Missing required permission. Ignore association request.")
+      loge(
+        TAG,
+        "Missing required permissions to start association. Notifying callbacks of error."
+      )
+
+      notifyCallbacksOfFailedAssociation()
       return
     }
 
+    logi(TAG, "Stopping discovery for association.")
     stopDiscovery()
     stopSppDiscovery()
 
-    CoroutineScope(coroutineContext).launch {
-      val bluetoothManager = connectBluetooth(discoveredCar)
-      if (bluetoothManager == null) {
-        loge(TAG, "Could not establish connection.")
-        associationCallbacks.forEach { it.onAssociationFailed() }
-        return@launch
-      }
+    CoroutineScope(coroutineContext).launch { startConnection(discoveredCar, oobData) }
+  }
 
-      associationCallbacks.forEach { it.onAssociationStart() }
+  private suspend fun startConnection(discoveredCar: DiscoveredCar, oobData: OobData?) {
+    logi(TAG, "Connecting to $discoveredCar.")
 
-      // Resolve message and security version; also exchange capability based on security version.
-      val resolvedConnection =
-        ConnectionResolver.resolve(bluetoothManager, oobData, isAssociating = true)
-      if (resolvedConnection == null) {
-        loge(TAG, "Could not resolve connection over $bluetoothManager.")
-        associationCallbacks.forEach { it.onAssociationFailed() }
-        return@launch
-      }
+    val bluetoothManager = connectBluetooth(discoveredCar)
+    if (bluetoothManager == null) {
+      loge(TAG, "Could not establish connection.")
+      notifyCallbacksOfFailedAssociation()
+      return
+    }
 
-      // Locally construct a message stream based on message version.
-      val stream = MessageStream.create(resolvedConnection.messageVersion, bluetoothManager)
-      if (stream == null) {
-        loge(TAG, "Resolved connection is $resolvedConnection but could not create stream.")
-        associationCallbacks.forEach { it.onAssociationFailed() }
-        return@launch
-      }
+    for (callback in associationCallbacks) {
+      callback.onAssociationStart()
+    }
 
-      currentPendingCar =
-        startConnection(
-          resolvedConnection.securityVersion,
-          stream,
-          discoveredCar.device,
-          bluetoothManager,
-          resolvedConnection.oobChannels,
-          oobData
-        )
+    // Resolve message and security version; also exchange capability based on security version.
+    logi(TAG, "Resolving connection with $bluetoothManager.")
+    val resolvedConnection =
+      ConnectionResolver.resolve(bluetoothManager, oobData, isAssociating = true)
+    if (resolvedConnection == null) {
+      loge(TAG, "Could not resolve connection over $bluetoothManager.")
+      notifyCallbacksOfFailedAssociation()
+      return
+    }
+
+    // Locally construct a message stream based on message version.
+    val stream = MessageStream.create(resolvedConnection.messageVersion, bluetoothManager)
+    if (stream == null) {
+      loge(TAG, "Resolved connection is $resolvedConnection but could not create stream.")
+      notifyCallbacksOfFailedAssociation()
+      return
+    }
+
+    currentPendingCar =
+      createPendingCar(
+        resolvedConnection.securityVersion,
+        stream,
+        discoveredCar.device,
+        bluetoothManager,
+        resolvedConnection.oobChannels,
+        oobData
+      )
+    currentPendingCar?.connect()
+  }
+
+  private fun notifyCallbacksOfFailedAssociation() {
+    for (callback in associationCallbacks) {
+      callback.onAssociationFailed()
     }
   }
 
@@ -607,7 +662,7 @@ internal constructor(
   open fun renameCar(deviceId: UUID, name: String): ListenableFuture<Boolean> =
     CoroutineScope(backgroundContext).future { associatedCarManager.rename(deviceId, name) }
 
-  private fun startConnection(
+  private fun createPendingCar(
     securityVersion: Int,
     stream: MessageStream,
     device: BluetoothDevice,
@@ -626,10 +681,7 @@ internal constructor(
         oobChannelTypes = oobChannelTypes,
         oobData = oobData
       )
-      .apply {
-        callback = pendingCarCallback
-        connect()
-      }
+      .apply { callback = pendingCarCallback }
   }
 
   private val scanCallback =
@@ -712,11 +764,29 @@ internal constructor(
 
   private fun ByteArray.toHexString() = joinToString("") { String.format("%02X", it) }
 
+  private suspend fun notifyCallbacksOfDeviceId(deviceId: UUID) {
+    // Check if the user is associating an already associated car. In this case, issue a
+    // disassociation first so that features can clear data if necessary.
+    if (associatedCarManager.loadIsAssociated(deviceId)) {
+      logi(TAG, "Associating an already associated car. Issuing disassociation callback first.")
+
+      for (callback in disassociationCallbacks) {
+        callback.onCarDisassociated(deviceId)
+      }
+    }
+
+    for (callback in associationCallbacks) {
+      callback.onDeviceIdReceived(deviceId)
+    }
+  }
+
   @VisibleForTesting
   internal val pendingCarCallback =
     object : PendingCar.Callback {
       override fun onDeviceIdReceived(deviceId: UUID) {
-        associationCallbacks.forEach { it.onDeviceIdReceived(deviceId) }
+        logi(TAG, "Received device ID from car: $deviceId. Notifying callbacks")
+
+        CoroutineScope(coroutineContext).launch { notifyCallbacksOfDeviceId(deviceId) }
       }
 
       override fun onAuthStringAvailable(authString: String) {
@@ -732,13 +802,13 @@ internal constructor(
             associationCallbacks.forEach { it.onAssociated(car) }
           } else {
             loge(TAG, "Could not add $car as an associated car. Notifying callback")
-            associationCallbacks.forEach { it.onAssociationFailed() }
+            notifyCallbacksOfFailedAssociation()
           }
         }
       }
 
       override fun onConnectionFailed(pendingCar: PendingCar) {
-        associationCallbacks.forEach { it.onAssociationFailed() }
+        notifyCallbacksOfFailedAssociation()
       }
     }
 

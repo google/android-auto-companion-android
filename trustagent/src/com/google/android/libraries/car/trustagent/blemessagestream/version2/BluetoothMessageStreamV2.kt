@@ -169,7 +169,7 @@ class BluetoothMessageStreamV2(
 
   /** Write the next message in the [messageQueue]. */
   private fun writeNextMessageInQueue() {
-    if (!writeInProgress.compareAndSet(/* expected= */ false, /* upate= */ true)) {
+    if (!writeInProgress.compareAndSet(/* expected= */ false, /* update= */ true)) {
       // If writeInProgress does not match expected value - false, (obviously) it is true.
       logw(
         TAG,

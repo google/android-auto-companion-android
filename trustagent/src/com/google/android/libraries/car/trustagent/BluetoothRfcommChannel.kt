@@ -106,7 +106,7 @@ class BluetoothRfcommChannel(
 
     if (bluetoothAdapter.getBondedDevices().isEmpty()) {
       logi(TAG, "No Bluetooth devices are bonded, so will not attempt to accept Bluetooth socket.")
-      // No need to clean up because we cannot estalish any connection.
+      // No need to clean up because we cannot establish any connection.
       return null
     }
 

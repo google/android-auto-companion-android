@@ -79,7 +79,7 @@ internal class CapabilityResolver(private val manager: BluetoothConnectionManage
      * Resolves capability via [manager].
      *
      * Returns the supported OOB channels with the remote device; empty list if local and remote
-     * device are incompatible or an error occured.
+     * device are incompatible or an error occurred.
      */
     suspend fun resolve(
       manager: BluetoothConnectionManager,
