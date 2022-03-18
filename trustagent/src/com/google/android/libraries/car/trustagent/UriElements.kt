@@ -18,6 +18,7 @@ import android.net.Uri
 import android.util.Base64
 import androidx.annotation.VisibleForTesting
 import com.google.android.companionprotos.OutOfBandAssociationData
+import com.google.android.libraries.car.trustagent.api.PublicApi
 import com.google.android.libraries.car.trustagent.util.loge
 
 /**
@@ -27,12 +28,14 @@ import com.google.android.libraries.car.trustagent.util.loge
  * @property deviceIdentifier the data that identifies the device during discovery.
  * @property queries list of customized queries which is retrieved from the original uri.
  */
+@PublicApi
 data class UriElements
 private constructor(
   val oobData: OobData?,
   val deviceIdentifier: ByteArray?,
   val queries: Map<String, String?>
 ) {
+  @PublicApi
   companion object {
     private const val TAG = "UriElements"
     /**

@@ -7,4 +7,4 @@ code for which is contained with the `ios` and `android` directories
 respectively.
 
 For usage instructions, follow the
-[Phone SDK Integration Guide](https://docs.partner.android.com/gas/integrate/companion_app/cd_phone_sdk). NOTE: accessing the link requires an Android partner account, otherwise it will return 404. 
+[Phone SDK Integration Guide](https://docs.partner.android.com/gas/integrate/companion_app/cd_phone_sdk).

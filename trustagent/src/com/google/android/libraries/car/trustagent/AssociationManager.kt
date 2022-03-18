@@ -588,9 +588,9 @@ internal constructor(
   private suspend fun connectBluetooth(discoveredCar: DiscoveredCar): BluetoothConnectionManager? {
     val bluetoothManagers = discoveredCar.toBluetoothConnectionManagers(context)
     return bluetoothManagers.firstOrNull { manager ->
-      manager.connectToDevice().also {
-        logi(TAG, "The result of the connection attempt with $manager is $this.")
-      }
+      val connectionResult = manager.connectToDevice()
+      logi(TAG, "The result of the connection attempt with $manager is $connectionResult.")
+      connectionResult
     }
   }
 
