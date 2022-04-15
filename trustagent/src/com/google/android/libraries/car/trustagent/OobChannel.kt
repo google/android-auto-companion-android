@@ -14,6 +14,8 @@
 
 package com.google.android.libraries.car.trustagent
 
+import android.bluetooth.BluetoothDevice
+
 /**
  * A channel that can handle out-of-band verification for establishing a secure connection with a
  * remote vehicle.
@@ -23,12 +25,12 @@ interface OobChannel {
   var callback: Callback?
 
   /**
-   * Attempts to connect to an out of band-capable device and initiate data exchange.
+   * Attempts to connect to an out of band-capable [device] and initiate data exchange.
    *
-   * The phone should receive the out of band data sent by the IHU. If it successfully receives the
-   * data, [Callback.onSuccess] will be invoked.
+   * The phone should receive the out of band data sent by the remote [device]. If it successfully
+   * receives the data, [Callback.onSuccess] will be invoked.
    */
-  fun startOobDataExchange()
+  fun startOobDataExchange(device: BluetoothDevice)
 
   /**
    * Cancels the out of band discovery and data exchange, typically due to a user action.

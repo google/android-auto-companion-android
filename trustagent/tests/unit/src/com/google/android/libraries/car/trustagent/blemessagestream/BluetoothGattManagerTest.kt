@@ -38,8 +38,9 @@ import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.TestCoroutineDispatcher
-import kotlinx.coroutines.test.TestCoroutineScope
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -62,7 +63,7 @@ private val ADVERTISE_DATA = "beef".encodeToByteArray()
 class BluetoothGattManagerTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
   private val testDispatcher = TestCoroutineDispatcher()
-  private val testScope = TestCoroutineScope(testDispatcher)
+  private val testScope = TestScope(testDispatcher)
 
   private lateinit var bluetoothDevice: BluetoothDevice
   private lateinit var manager: BluetoothGattManager
@@ -87,44 +88,42 @@ class BluetoothGattManagerTest {
     bluetoothAdapter = bluetoothManager.adapter
     bluetoothAdapter.enable()
 
-    writeCharacteristic = BluetoothGattCharacteristic(
-      WRITE_UUID, /* properties= */ 0, /* permissions= */ 0
-    )
-    readCharacteristic = BluetoothGattCharacteristic(
-      READ_UUID, /* properties= */ 0, /* permissions= */ 0
-    )
-    advertiseDataCharacteristic = BluetoothGattCharacteristic(
-      ADVERTISE_DATA_UUID, /* properties= */ 0, /* permissions= */ 0
-    ).apply {
-      value = ADVERTISE_DATA
-    }
+    writeCharacteristic =
+      BluetoothGattCharacteristic(WRITE_UUID, /* properties= */ 0, /* permissions= */ 0)
+    readCharacteristic =
+      BluetoothGattCharacteristic(READ_UUID, /* properties= */ 0, /* permissions= */ 0)
+    advertiseDataCharacteristic =
+      BluetoothGattCharacteristic(ADVERTISE_DATA_UUID, /* properties= */ 0, /* permissions= */ 0)
+        .apply { value = ADVERTISE_DATA }
 
-    containingService = BluetoothGattService(SERVICE_UUID, /* serviceType= */ 0).apply {
-      addCharacteristic(writeCharacteristic)
-      addCharacteristic(readCharacteristic)
-      addCharacteristic(advertiseDataCharacteristic)
-    }
+    containingService =
+      BluetoothGattService(SERVICE_UUID, /* serviceType= */ 0).apply {
+        addCharacteristic(writeCharacteristic)
+        addCharacteristic(readCharacteristic)
+        addCharacteristic(advertiseDataCharacteristic)
+      }
 
-    deviceNameCharacteristic = BluetoothGattCharacteristic(
-      BluetoothGattManager.DEVICE_NAME_UUID, /* properties= */ 0, /* permissions= */ 0
-    )
-    gapService = BluetoothGattService(
-      BluetoothGattManager.GENERIC_ACCESS_PROFILE_UUID, /* serviceType= */ 0
-    )
+    deviceNameCharacteristic =
+      BluetoothGattCharacteristic(
+        BluetoothGattManager.DEVICE_NAME_UUID,
+        /* properties= */ 0,
+        /* permissions= */ 0
+      )
+    gapService =
+      BluetoothGattService(BluetoothGattManager.GENERIC_ACCESS_PROFILE_UUID, /* serviceType= */ 0)
     gapService.addCharacteristic(deviceNameCharacteristic)
 
-    gattHandle = mock {
-      on { device } doReturn bluetoothDevice
-    }
+    gattHandle = mock { on { device } doReturn bluetoothDevice }
 
-    manager = BluetoothGattManager(
-      context,
-      gattHandle,
-      SERVICE_UUID,
-      clientWriteCharacteristicUuid = WRITE_UUID,
-      serverWriteCharacteristicUuid = READ_UUID,
-      advertiseDataCharacteristicUuid = ADVERTISE_DATA_UUID
-    )
+    manager =
+      BluetoothGattManager(
+        context,
+        gattHandle,
+        SERVICE_UUID,
+        clientWriteCharacteristicUuid = WRITE_UUID,
+        serverWriteCharacteristicUuid = READ_UUID,
+        advertiseDataCharacteristicUuid = ADVERTISE_DATA_UUID
+      )
 
     connectionCallback = mock()
     manager.registerConnectionCallback(connectionCallback)
@@ -228,13 +227,14 @@ class BluetoothGattManagerTest {
     BluetoothGattManager.setDefaultMtu(context, defaultMtu)
 
     // Create a new instance because MTU is loaded at construction.
-    manager = BluetoothGattManager(
-      context,
-      gattHandle,
-      SERVICE_UUID,
-      clientWriteCharacteristicUuid = WRITE_UUID,
-      serverWriteCharacteristicUuid = READ_UUID
-    )
+    manager =
+      BluetoothGattManager(
+        context,
+        gattHandle,
+        SERVICE_UUID,
+        clientWriteCharacteristicUuid = WRITE_UUID,
+        serverWriteCharacteristicUuid = READ_UUID
+      )
     manager.connect()
 
     shadowOf(Looper.getMainLooper()).idle()
@@ -390,10 +390,11 @@ class BluetoothGattManagerTest {
   fun testOnServiceDiscovered_enableCharacteristicNotification() {
     setUpValidGattHandle()
     // Additional setup to add descriptor.
-    val descriptor = BluetoothGattDescriptor(
-      BluetoothGattManager.CLIENT_CHARACTERISTIC_CONFIG_DESCRIPTOR,
-      BluetoothGattService.SERVICE_TYPE_PRIMARY
-    )
+    val descriptor =
+      BluetoothGattDescriptor(
+        BluetoothGattManager.CLIENT_CHARACTERISTIC_CONFIG_DESCRIPTOR,
+        BluetoothGattService.SERVICE_TYPE_PRIMARY
+      )
     containingService.getCharacteristic(READ_UUID).addDescriptor(descriptor)
 
     manager.connect()
@@ -439,10 +440,11 @@ class BluetoothGattManagerTest {
     setUpValidGattHandle()
     // Additional setup to add descriptor.
     // Adding descriptor also associates the descriptor back to the characteristic.
-    val descriptor = BluetoothGattDescriptor(
-      BluetoothGattManager.CLIENT_CHARACTERISTIC_CONFIG_DESCRIPTOR,
-      BluetoothGattService.SERVICE_TYPE_PRIMARY
-    )
+    val descriptor =
+      BluetoothGattDescriptor(
+        BluetoothGattManager.CLIENT_CHARACTERISTIC_CONFIG_DESCRIPTOR,
+        BluetoothGattService.SERVICE_TYPE_PRIMARY
+      )
     containingService.getCharacteristic(READ_UUID).addDescriptor(descriptor)
 
     manager.connect()
@@ -503,39 +505,38 @@ class BluetoothGattManagerTest {
   }
 
   @Test
-  fun testRetrieveAdvertisedData_success() = runBlockingTest {
-    setUpValidGattHandle()
-    manager.connect()
-    shadowOf(Looper.getMainLooper()).idle()
+  fun testRetrieveAdvertisedData_success() =
+    runTest(UnconfinedTestDispatcher()) {
+      setUpValidGattHandle()
+      manager.connect()
+      shadowOf(Looper.getMainLooper()).idle()
 
-    val deferredAdvertiseData = testScope.async {
-      manager.retrieveAdvertisedData()
+      val deferredAdvertiseData = testScope.async { manager.retrieveAdvertisedData() }
+      shadowOf(Looper.getMainLooper()).idle()
+
+      manager.gattCallback.onCharacteristicRead(
+        advertiseDataCharacteristic,
+        BluetoothGatt.GATT_SUCCESS
+      )
+
+      assertThat(deferredAdvertiseData.await() contentEquals ADVERTISE_DATA).isTrue()
     }
-    shadowOf(Looper.getMainLooper()).idle()
-
-    manager.gattCallback.onCharacteristicRead(
-      advertiseDataCharacteristic, BluetoothGatt.GATT_SUCCESS
-    )
-
-    assertThat(deferredAdvertiseData.await() contentEquals ADVERTISE_DATA).isTrue()
-  }
 
   @Test
-  fun testRetrieveAdvertisedData_missingCharacteristic_null() = runBlockingTest {
-    containingService.getCharacteristics().remove(advertiseDataCharacteristic)
+  fun testRetrieveAdvertisedData_missingCharacteristic_null() =
+    runTest(UnconfinedTestDispatcher()) {
+      containingService.getCharacteristics().remove(advertiseDataCharacteristic)
 
-    setUpValidGattHandle()
-    manager.connect()
-    shadowOf(Looper.getMainLooper()).idle()
+      setUpValidGattHandle()
+      manager.connect()
+      shadowOf(Looper.getMainLooper()).idle()
 
-    val deferredAdvertiseData = testScope.async {
-      manager.retrieveAdvertisedData()
+      val deferredAdvertiseData = testScope.async { manager.retrieveAdvertisedData() }
+      shadowOf(Looper.getMainLooper()).idle()
+
+      verify(gattHandle, never()).readCharacteristic(any())
+      assertThat(deferredAdvertiseData.await()).isNull()
     }
-    shadowOf(Looper.getMainLooper()).idle()
-
-    verify(gattHandle, never()).readCharacteristic(any())
-    assertThat(deferredAdvertiseData.await()).isNull()
-  }
 
   @Test
   fun testDisconnect_bluetoothEnabled_callsGattDisconnect() {

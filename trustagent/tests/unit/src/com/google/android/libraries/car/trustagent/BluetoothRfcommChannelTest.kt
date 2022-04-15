@@ -15,7 +15,9 @@
 package com.google.android.libraries.car.trustagent
 
 import android.bluetooth.BluetoothAdapter
-import android.os.Looper
+import android.bluetooth.BluetoothManager
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.google.android.companionprotos.outOfBandAssociationToken
 import com.google.android.libraries.car.trustagent.blemessagestream.SppManager
 import com.google.common.truth.Truth.assertThat
@@ -28,9 +30,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.SecureRandom
 import java.time.Duration
-import java.util.UUID
 import java.util.concurrent.Executors
-import javax.crypto.KeyGenerator
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -43,12 +43,16 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
-import org.robolectric.shadows.ShadowBluetoothDevice
 
 @ExperimentalCoroutinesApi
 @RunWith(RobolectricTestRunner::class)
 class BluetoothRfcommChannelTest {
-
+  private val context = ApplicationProvider.getApplicationContext<Context>()
+  private val testBluetoothDevice =
+    context
+      .getSystemService(BluetoothManager::class.java)
+      .adapter
+      .getRemoteDevice("00:11:22:33:AA:BB")
   private val testDispatcher = TestCoroutineDispatcher()
   private val backgroundContext: CoroutineDispatcher =
     Executors.newSingleThreadExecutor().asCoroutineDispatcher()
@@ -70,13 +74,9 @@ class BluetoothRfcommChannelTest {
 
   @Before
   fun setUp() {
-    // Duration of 1 second is arbitrary.
     bluetoothRfcommChannel =
-      BluetoothRfcommChannel(Duration.ofSeconds(1), true, testDispatcher).apply {
-        callback = mockCallback
-      }
-    shadowOf(BluetoothAdapter.getDefaultAdapter())
-      .setBondedDevices(setOf(ShadowBluetoothDevice.newInstance("00:11:22:AA:BB:CC")))
+      BluetoothRfcommChannel(true, testDispatcher).apply { callback = mockCallback }
+    shadowOf(BluetoothAdapter.getDefaultAdapter()).setBondedDevices(setOf(testBluetoothDevice))
   }
 
   @Test
@@ -88,73 +88,76 @@ class BluetoothRfcommChannelTest {
   @Test
   fun startOobDiscoveryAndDataExchange_rawBytes_success() {
     val bluetoothRfcommChannel =
-      BluetoothRfcommChannel(Duration.ofSeconds(1), false, testDispatcher).apply {
-        callback = mockCallback
-      }
+      BluetoothRfcommChannel(false, testDispatcher).apply { callback = mockCallback }
     startOobExchangeAndDiscovery(bluetoothRfcommChannel, testOobRawBytes)
     verify(mockCallback).onSuccess(any())
   }
 
   @Test
-  fun startOobDiscoveryAndDataExchange_stopConnectionDuringAccept() {
+  fun startOobDiscoveryAndDataExchange_stopOobExchangeDuringConnection() {
     val oobDiscovery =
-      CoroutineScope(backgroundContext).launch { bluetoothRfcommChannel.startOobDataExchange() }
+      CoroutineScope(backgroundContext).launch {
+        // startOobDataExchange blocks, so run it as a background job.
+        bluetoothRfcommChannel.startOobDataExchange(testBluetoothDevice)
+      }
 
-    while (bluetoothRfcommChannel.bluetoothServerSocket == null) {
+    // bluetoothSocket not being null means the background thread is about to establish connection.
+    while (bluetoothRfcommChannel.bluetoothSocket == null) {
       Thread.sleep(Duration.ofMillis(100L).toMillis())
     }
-
+    shadowOf(bluetoothRfcommChannel.bluetoothSocket)?.getInputStreamFeeder()?.close()
     bluetoothRfcommChannel.stopOobDataExchange()
 
-    runBlocking { oobDiscovery.join() }
-
-    assertThat(bluetoothRfcommChannel.bluetoothServerSocket).isNull()
     assertThat(bluetoothRfcommChannel.bluetoothSocket).isNull()
-    verifyZeroInteractions(mockCallback)
+
+    runBlocking {
+      oobDiscovery.join()
+      verifyZeroInteractions(mockCallback)
+    }
   }
 
   @Test
   fun startOobDiscoveryAndDattaExchange_noBondedDevices() {
     shadowOf(BluetoothAdapter.getDefaultAdapter()).setBondedDevices(emptySet())
     runBlocking {
-      bluetoothRfcommChannel.startOobDataExchange()
+      bluetoothRfcommChannel.startOobDataExchange(testBluetoothDevice)
 
       verify(mockCallback).onFailure()
     }
   }
 
   @Test
-  fun startOobDiscoveryAndDataExchange_acceptSocketFails() {
-    runBlocking {
-      bluetoothRfcommChannel.startOobDataExchange()
-      // There is no remote device to connect to, so bluetoothServerSocket.accept will time out.
-      shadowOf(Looper.getMainLooper()).runToEndOfTasks()
+  fun startOobDiscoveryAndDataExchange_readOobDataFails() {
+    val oobDiscovery =
+      CoroutineScope(backgroundContext).launch {
+        // startOobDataExchange blocks, so run it as a background job.
+        bluetoothRfcommChannel.startOobDataExchange(testBluetoothDevice)
+      }
 
+    // bluetoothSocket not being null means the background thread is about to establish connection.
+    while (bluetoothRfcommChannel.bluetoothSocket == null) {
+      Thread.sleep(Duration.ofMillis(100L).toMillis())
+    }
+
+    shadowOf(bluetoothRfcommChannel.bluetoothSocket)?.getInputStreamFeeder()?.close()
+
+    runBlocking {
+      oobDiscovery.join()
       verify(mockCallback).onFailure()
     }
   }
 
   private fun startOobExchangeAndDiscovery(channel: BluetoothRfcommChannel, oobData: ByteArray) {
     // startOobDataExchange blocks, so run it as a background job.
-    val oobDiscovery = CoroutineScope(backgroundContext).launch { channel.startOobDataExchange() }
+    val oobDiscovery =
+      CoroutineScope(backgroundContext).launch { channel.startOobDataExchange(testBluetoothDevice) }
 
-    // bluetoothServerSocket not being null means the background thread is about to accept sockets.
-    while (channel.bluetoothServerSocket == null) {
-      Thread.sleep(Duration.ofMillis(100L).toMillis())
-    }
-
-    // Connect the socket.
-    shadowOf(channel.bluetoothServerSocket)?.let {
-      val bluetoothDevice = ShadowBluetoothDevice.newInstance("00:11:22:AA:BB:CC")
-      shadowOf(bluetoothDevice).setName("bluetoothDevice")
-      it.deviceConnected(bluetoothDevice)
-    }
-
-    // Write OOB data.
+    // bluetoothSocket not being null means the background thread is about to establish connection.
     while (channel.bluetoothSocket == null) {
       Thread.sleep(Duration.ofMillis(100L).toMillis())
     }
 
+    // Write OOB data.
     shadowOf(channel.bluetoothSocket)?.let {
       val outputStream = it.getInputStreamFeeder()
       outputStream.write(
@@ -171,11 +174,6 @@ class BluetoothRfcommChannelTest {
   }
 
   companion object {
-    // Randomly generated value.
-    private val GATT_UUID = UUID.fromString("99dc5e5f-5dd1-49bb-8c28-5579ba43d1a9")
-    private val SPP_UUID = UUID.fromString("7bf92b05-ff1b-47a2-8a2b-d2542537a499")
-    private val TEST_KEY = KeyGenerator.getInstance("AES").generateKey()
-
     // The actual length of these bytes doesn't matter to this class.
     private const val TOKEN_SIZE = 5
   }

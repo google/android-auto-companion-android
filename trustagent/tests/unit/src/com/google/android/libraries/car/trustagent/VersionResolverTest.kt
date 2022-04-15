@@ -26,7 +26,8 @@ import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.verify
 import com.nhaarman.mockitokotlin2.whenever
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,43 +56,46 @@ class VersionResolverTest {
   }
 
   @Test
-  fun exchangeVersion_sendsLocalVersion() = runBlockingTest {
-    val localVersion = VersionResolver.makeVersionExchange()
-    whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
-      .thenAnswer {
-        val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
-        // Okay to callback with anything. This test only cares about what is sent out.
-        callback.onMessageReceived(localVersion.toByteArray())
-      }
+  fun exchangeVersion_sendsLocalVersion() =
+    runTest(UnconfinedTestDispatcher()) {
+      val localVersion = VersionResolver.makeVersionExchange()
+      whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
+        .thenAnswer {
+          val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
+          // Okay to callback with anything. This test only cares about what is sent out.
+          callback.onMessageReceived(localVersion.toByteArray())
+        }
 
-    resolver.exchangeVersion()
+      resolver.exchangeVersion()
 
-    verify(mockGatt).sendMessage(localVersion.toByteArray())
-  }
-
-  @Test
-  fun exchangeVersion_returnsRemoteVersion() = runBlockingTest {
-    val remoteVersion = VersionResolver.makeVersionExchange(maxMessagingVersion = 10)
-    // ArgumentCaptor does not work with suspendCoroutine to capture callback.
-    // Configure the mock ahead of invoking the suspend fun.
-    // See https://github.com/Kotlin/kotlinx.coroutines/issues/514
-    whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
-      .thenAnswer {
-        val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
-        callback.onMessageReceived(remoteVersion.toByteArray())
-      }
-
-    val result = resolver.exchangeVersion()
-
-    assertThat(result).isEqualTo(remoteVersion)
-  }
+      verify(mockGatt).sendMessage(localVersion.toByteArray())
+    }
 
   @Test
-  fun exchangeVersion_returnsNullIfCouldNotSendMessage() = runBlockingTest {
-    whenever(mockGatt.sendMessage(any())).thenReturn(false)
+  fun exchangeVersion_returnsRemoteVersion() =
+    runTest(UnconfinedTestDispatcher()) {
+      val remoteVersion = VersionResolver.makeVersionExchange(maxMessagingVersion = 10)
+      // ArgumentCaptor does not work with suspendCoroutine to capture callback.
+      // Configure the mock ahead of invoking the suspend fun.
+      // See https://github.com/Kotlin/kotlinx.coroutines/issues/514
+      whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
+        .thenAnswer {
+          val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
+          callback.onMessageReceived(remoteVersion.toByteArray())
+        }
 
-    assertThat(resolver.exchangeVersion()).isNull()
-  }
+      val result = resolver.exchangeVersion()
+
+      assertThat(result).isEqualTo(remoteVersion)
+    }
+
+  @Test
+  fun exchangeVersion_returnsNullIfCouldNotSendMessage() =
+    runTest(UnconfinedTestDispatcher()) {
+      whenever(mockGatt.sendMessage(any())).thenReturn(false)
+
+      assertThat(resolver.exchangeVersion()).isNull()
+    }
 
   @Test
   fun resolveVersion_returnsMaxSupportedVersion() {

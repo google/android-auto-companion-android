@@ -16,7 +16,7 @@ package com.google.android.libraries.car.trustagent
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothServerSocket
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import androidx.annotation.GuardedBy
 import com.google.android.companionprotos.OutOfBandAssociationToken
@@ -26,7 +26,6 @@ import java.io.IOException
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
@@ -41,30 +40,28 @@ import kotlinx.coroutines.launch
  * @property backgroundContext The coroutine context to launch task with; must not be main thread.
  */
 class BluetoothRfcommChannel(
-  private val acceptBluetoothSocketTimeout: Duration,
   private val isProtoApplied: Boolean,
   private val backgroundContext: CoroutineContext
 ) : OobChannel {
   private val lock = Any()
 
   private val isInterrupted = AtomicBoolean(false)
-  @GuardedBy("lock") internal var bluetoothServerSocket: BluetoothServerSocket? = null
   @GuardedBy("lock") internal var bluetoothSocket: BluetoothSocket? = null
 
   override var callback: OobChannel.Callback? = null
 
   /** Launches blocking calls to read OOB data on [backgroundContext]. */
   @SuppressLint("MissingPermission")
-  override fun startOobDataExchange() {
-    CoroutineScope(backgroundContext).launch { oobDataExchange() }
+  override fun startOobDataExchange(device: BluetoothDevice) {
+    CoroutineScope(backgroundContext).launch { oobDataExchange(device) }
   }
 
   /** This method blocks waiting for socket connection so it must not run in the main thread. */
-  internal fun oobDataExchange() {
+  internal fun oobDataExchange(device: BluetoothDevice) {
     isInterrupted.set(false)
 
     // Wait for the remote device to connect through BluetoothSocket.
-    val bluetoothSocket = waitForBluetoothSocket()
+    val bluetoothSocket = connectToDevice(device)
     if (isInterrupted.get()) {
       logi(TAG, "Stopped after socket connection.")
       return
@@ -94,37 +91,32 @@ class BluetoothRfcommChannel(
   }
 
   /**
-   * Waits for a bluetooth socket connection.
+   * Establishes a Bluetooth connection with remote [device].
    *
-   * This call blocks until a connection is established, was aborted, or timed out.
+   * This call blocks until a connection is established, was aborted, or failed.
    *
-   * Returns the established bluetooth socket, or `null` if the device is not bonded to any other
-   * devices, or if the connection fails.
+   * Returns the established bluetooth socket, or `null` if the device is not bonded to the [device]
+   * or the connection failed.
    */
-  private fun waitForBluetoothSocket(): BluetoothSocket? {
+  private fun connectToDevice(device: BluetoothDevice): BluetoothSocket? {
     val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
 
-    if (bluetoothAdapter.getBondedDevices().isEmpty()) {
-      logi(TAG, "No Bluetooth devices are bonded, so will not attempt to accept Bluetooth socket.")
+    if (device !in bluetoothAdapter.getBondedDevices()) {
+      logi(
+        TAG,
+        "Device $device is not bonded, so will not attempt to establish Bluetooth connection."
+      )
       // No need to clean up because we cannot establish any connection.
       return null
     }
 
-    val bluetoothServerSocket =
-      bluetoothAdapter.listenUsingRfcommWithServiceRecord(SERVICE_NAME, RFCOMM_UUID)
-
-    synchronized(lock) { this.bluetoothServerSocket = bluetoothServerSocket }
-
-    val bluetoothSocket =
-      try {
-        bluetoothServerSocket.accept(acceptBluetoothSocketTimeout.toMillis().toInt())
-      } catch (e: IOException) {
-        loge(TAG, "Accepting bluetooth socket was aborted or timed out.", e)
-        cleanUp()
-        return null
-      }
-
-    return bluetoothSocket
+    return try {
+      device.createRfcommSocketToServiceRecord(RFCOMM_UUID).apply { connect() }
+    } catch (e: IOException) {
+      loge(TAG, "Exception when connecting to device $device.", e)
+      cleanUp()
+      null
+    }
   }
 
   /**
@@ -185,19 +177,15 @@ class BluetoothRfcommChannel(
 
   private fun cleanUp() {
     synchronized(lock) {
-      logi(TAG, "Closing BluetoothServerSocket, InputStream, and BluetoothSocket.")
-      bluetoothServerSocket?.close()
+      logi(TAG, "Closing BluetoothSocket and InputStream.")
       bluetoothSocket?.inputStream?.close()
       bluetoothSocket?.close()
-
-      bluetoothServerSocket = null
       bluetoothSocket = null
     }
   }
 
   companion object {
     private const val TAG = "BluetoothRfcommChannel"
-    private const val SERVICE_NAME = "batmobile_oob"
     // TODO(b/159500330): Generate a random UUID
     private val RFCOMM_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 

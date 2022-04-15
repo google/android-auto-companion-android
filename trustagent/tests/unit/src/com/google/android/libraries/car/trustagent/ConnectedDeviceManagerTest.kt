@@ -142,7 +142,7 @@ class ConnectedDeviceManagerTest {
 
   @Test
   fun associate() {
-    val request = AssociationRequest.Builder(Intent()).build()
+    val request = associationRequest(Intent()) {}
     manager.associate(request)
 
     verify(mockAssociationManager).associate(request)
@@ -150,7 +150,7 @@ class ConnectedDeviceManagerTest {
 
   @Test
   fun associate_ignoresSubsequentRequest() {
-    val request = AssociationRequest.Builder(Intent()).build()
+    val request = associationRequest(Intent()) {}
     manager.associate(request)
 
     // Subsequent call should be ignored; verify the manager is still invoked once.
@@ -162,7 +162,7 @@ class ConnectedDeviceManagerTest {
   @Test
   fun associate_firstAssociationFails_acceptsNextRequest() {
     fakeLifecycleOwner.registry.setCurrentState(Lifecycle.State.CREATED)
-    val request = AssociationRequest.Builder(Intent()).build()
+    val request = associationRequest(Intent()) {}
     manager.associate(request)
 
     captureAssociationCallback().onAssociationFailed()
@@ -174,7 +174,7 @@ class ConnectedDeviceManagerTest {
   @Test
   fun associate_firstAssociationSucceeds_acceptsNextRequest() {
     fakeLifecycleOwner.registry.setCurrentState(Lifecycle.State.CREATED)
-    val request = AssociationRequest.Builder(Intent()).build()
+    val request = associationRequest(Intent()) {}
     manager.associate(request)
 
     captureAssociationCallback().onAssociated(mockCar)
@@ -425,6 +425,19 @@ class ConnectedDeviceManagerTest {
     captureDisassociationCallback().onCarDisassociated(DEVICE_ID)
 
     verify(mockFeature).onCarDisassociated(DEVICE_ID)
+  }
+
+  @Test
+  fun clearCurrentAssociation_ableToReassociate() {
+    whenever(mockAssociationManager.stopDiscovery()).doReturn(true)
+    whenever(mockAssociationManager.stopSppDiscovery()).doReturn(true)
+    val request = associationRequest(Intent()) {}
+    manager.associate(request)
+
+    manager.clearCurrentAssociation()
+    manager.associate(request)
+
+    verify(mockAssociationManager, times(2)).associate(request)
   }
 
   @Test

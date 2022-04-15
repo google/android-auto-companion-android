@@ -3,7 +3,6 @@ package com.google.android.libraries.car.trustagent
 import com.google.android.companionprotos.CapabilitiesExchangeProto.CapabilitiesExchange.OobChannelType
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
-import java.time.Duration
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -33,7 +32,6 @@ internal class OobChannelManagerFactoryImpl() : OobChannelManagerFactory {
             logi(TAG, "Remote supports BT_RFCOMM. Adding BluetoothRfcommChannel")
             executorService = Executors.newSingleThreadExecutor()
             BluetoothRfcommChannel(
-              DEFAULT_OOB_TIMEOUT,
               securityVersion >= MIN_SECURITY_VERSION_FOR_OOB_PROTO,
               executorService!!.asCoroutineDispatcher()
             )
@@ -55,7 +53,6 @@ internal class OobChannelManagerFactoryImpl() : OobChannelManagerFactory {
   companion object {
     private const val TAG = "OobChannelManagerFactory"
 
-    private val DEFAULT_OOB_TIMEOUT = Duration.ofMillis(500)
     private const val MIN_SECURITY_VERSION_FOR_OOB_PROTO = 4
   }
 }

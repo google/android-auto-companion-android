@@ -402,6 +402,7 @@ class ConnectedDeviceManager(
 
   /** Clears current incomplete association. */
   fun clearCurrentAssociation() {
+    ongoingAssociation = null
     associationManager.clearCurrentCdmAssociation()
   }
   /**

@@ -44,7 +44,8 @@ import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineDispatcher
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -185,29 +186,30 @@ class TrustedDeviceManagerTest {
   }
 
   @Test
-  fun testEnroll_receivedHandle_enrollComplete() = runBlockingTest {
-    shadowKeyguardManager.setIsDeviceSecure(true)
-    trustedDeviceManager.notifyCarConnected(mockCar)
-    trustedDeviceManager.enroll(DEVICE_ID)
+  fun testEnroll_receivedHandle_enrollComplete() =
+    runTest(UnconfinedTestDispatcher()) {
+      shadowKeyguardManager.setIsDeviceSecure(true)
+      trustedDeviceManager.notifyCarConnected(mockCar)
+      trustedDeviceManager.enroll(DEVICE_ID)
 
-    argumentCaptor<Car.Callback>().apply {
-      verify(mockCar).setCallback(capture(), any())
-      carCallbacks.add(firstValue)
-    }
-    argumentCaptor<ByteArray>().apply {
-      verify(mockCar).sendMessage(capture(), eq(FEATURE_ID))
-      with(TrustedDeviceMessage.parseFrom(firstValue)) {
-        assertThat(type).isEqualTo(TrustedDeviceMessage.MessageType.ESCROW_TOKEN)
+      argumentCaptor<Car.Callback>().apply {
+        verify(mockCar).setCallback(capture(), any())
+        carCallbacks.add(firstValue)
       }
-    }
+      argumentCaptor<ByteArray>().apply {
+        verify(mockCar).sendMessage(capture(), eq(FEATURE_ID))
+        with(TrustedDeviceMessage.parseFrom(firstValue)) {
+          assertThat(type).isEqualTo(TrustedDeviceMessage.MessageType.ESCROW_TOKEN)
+        }
+      }
 
-    carCallbacks.forEach { it.onMessageReceived(HANDLE_MESSAGE.toByteArray()) }
-    verify(mockCallback).onEnrollmentSuccess(DEVICE_ID, false)
-    // Expected to be not null.
-    val credential = storage.getCredential(DEVICE_ID)!!
-    // Token is generated so we can simply assume credential exists.
-    assertThat(credential.handle.toByteArray()).isEqualTo(HANDLE)
-  }
+      carCallbacks.forEach { it.onMessageReceived(HANDLE_MESSAGE.toByteArray()) }
+      verify(mockCallback).onEnrollmentSuccess(DEVICE_ID, false)
+      // Expected to be not null.
+      val credential = storage.getCredential(DEVICE_ID)!!
+      // Token is generated so we can simply assume credential exists.
+      assertThat(credential.handle.toByteArray()).isEqualTo(HANDLE)
+    }
 
   @Test
   fun testEnroll_receiveNonHandleMessage_enrollmentNotComplete() {
@@ -357,64 +359,69 @@ class TrustedDeviceManagerTest {
   }
 
   @Test
-  fun testUnlock_storesUnlockHistory() = runBlockingTest {
-    completeEnrollmentFromPhone(mockCar)
-    unlockMockCarSuccesfully(mockCar)
+  fun testUnlock_storesUnlockHistory() =
+    runTest(UnconfinedTestDispatcher()) {
+      completeEnrollmentFromPhone(mockCar)
+      unlockMockCarSuccesfully(mockCar)
 
-    assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).hasSize(1)
-  }
-
-  @Test
-  fun testUnlock_doesNotStore_ifDisabled() = runBlockingTest {
-    completeEnrollmentFromPhone(mockCar)
-
-    trustedDeviceManager.isUnlockHistoryEnabled = false
-    unlockMockCarSuccesfully(mockCar)
-
-    assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).isEmpty()
-  }
+      assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).hasSize(1)
+    }
 
   @Test
-  fun testUnlock_returnsEmptyList_afterDisabling() = runBlockingTest {
-    completeEnrollmentFromPhone(mockCar)
-    completeEnrollmentFromPhone(mockCar2)
+  fun testUnlock_doesNotStore_ifDisabled() =
+    runTest(UnconfinedTestDispatcher()) {
+      completeEnrollmentFromPhone(mockCar)
 
-    unlockMockCarSuccesfully(mockCar)
-    unlockMockCarSuccesfully(mockCar2)
-    assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).hasSize(1)
-    assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID_2)).hasSize(1)
+      trustedDeviceManager.isUnlockHistoryEnabled = false
+      unlockMockCarSuccesfully(mockCar)
 
-    trustedDeviceManager.isUnlockHistoryEnabled = false
-    assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).isEmpty()
-    assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID_2)).isEmpty()
-
-    // Even after turning back on, history should be cleared.
-    trustedDeviceManager.isUnlockHistoryEnabled = true
-    assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).isEmpty()
-    assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID_2)).isEmpty()
-  }
+      assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).isEmpty()
+    }
 
   @Test
-  fun testClearUnlockHistory() = runBlockingTest {
-    completeEnrollmentFromPhone(mockCar)
-    unlockMockCarSuccesfully(mockCar)
+  fun testUnlock_returnsEmptyList_afterDisabling() =
+    runTest(UnconfinedTestDispatcher()) {
+      completeEnrollmentFromPhone(mockCar)
+      completeEnrollmentFromPhone(mockCar2)
 
-    trustedDeviceManager.clearUnlockHistory(DEVICE_ID)
+      unlockMockCarSuccesfully(mockCar)
+      unlockMockCarSuccesfully(mockCar2)
+      assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).hasSize(1)
+      assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID_2)).hasSize(1)
 
-    assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).isEmpty()
-  }
+      trustedDeviceManager.isUnlockHistoryEnabled = false
+      assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).isEmpty()
+      assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID_2)).isEmpty()
+
+      // Even after turning back on, history should be cleared.
+      trustedDeviceManager.isUnlockHistoryEnabled = true
+      assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).isEmpty()
+      assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID_2)).isEmpty()
+    }
 
   @Test
-  fun testClearUnlockHistory_clearsForRightCar() = runBlockingTest {
-    completeEnrollmentFromPhone(mockCar)
-    unlockMockCarSuccesfully(mockCar)
+  fun testClearUnlockHistory() =
+    runTest(UnconfinedTestDispatcher()) {
+      completeEnrollmentFromPhone(mockCar)
+      unlockMockCarSuccesfully(mockCar)
 
-    // Clear for a random device id.
-    trustedDeviceManager.clearUnlockHistory(DEVICE_ID_2)
+      trustedDeviceManager.clearUnlockHistory(DEVICE_ID)
 
-    // Should not affect the unlock history for the unlocked car
-    assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).hasSize(1)
-  }
+      assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).isEmpty()
+    }
+
+  @Test
+  fun testClearUnlockHistory_clearsForRightCar() =
+    runTest(UnconfinedTestDispatcher()) {
+      completeEnrollmentFromPhone(mockCar)
+      unlockMockCarSuccesfully(mockCar)
+
+      // Clear for a random device id.
+      trustedDeviceManager.clearUnlockHistory(DEVICE_ID_2)
+
+      // Should not affect the unlock history for the unlocked car
+      assertThat(trustedDeviceManager.getUnlockHistory(DEVICE_ID)).hasSize(1)
+    }
 
   @Test
   fun testDeviceSecured_enrollInitiated() {
@@ -566,140 +573,150 @@ class TrustedDeviceManagerTest {
   }
 
   @Test
-  fun testCarDisassociated_clearsCredentials() = runBlockingTest {
-    completeEnrollmentFromPhone(mockCar)
+  fun testCarDisassociated_clearsCredentials() =
+    runTest(UnconfinedTestDispatcher()) {
+      completeEnrollmentFromPhone(mockCar)
 
-    trustedDeviceManager.onCarDisassociated(DEVICE_ID)
+      trustedDeviceManager.onCarDisassociated(DEVICE_ID)
 
-    assertThat(storage.containsCredential(DEVICE_ID)).isFalse()
-    assertThat(trustedDeviceManager.isEnabled(DEVICE_ID)).isFalse()
-  }
-
-  @Test
-  fun testCarDisassociated_clearsUnlockHistory() = runBlockingTest {
-    completeEnrollmentFromPhone(mockCar)
-    unlockMockCarSuccesfully(mockCar)
-
-    trustedDeviceManager.onCarDisassociated(DEVICE_ID)
-
-    assertThat(storage.getUnlockHistory(DEVICE_ID)).isEmpty()
-  }
-
-  @Test
-  fun testAllCarsDisassociated_clearsAllCredentials() = runBlockingTest {
-    completeEnrollmentFromPhone(mockCar)
-
-    trustedDeviceManager.onAllCarsDisassociated()
-
-    assertThat(storage.containsCredential(DEVICE_ID)).isFalse()
-    assertThat(trustedDeviceManager.isEnabled(DEVICE_ID)).isFalse()
-  }
-
-  @Test
-  fun testStopEnrollment_notEnrolled_doesNotNotifyCallback() = runBlockingTest {
-    shadowKeyguardManager.setIsDeviceSecure(true)
-
-    trustedDeviceManager.stopEnrollment(DEVICE_ID)
-
-    verify(mockCallback, never()).onUnenroll(eq(DEVICE_ID), any())
-  }
-
-  @Test
-  fun testStopEnrollment_notifiesCallback() = runBlockingTest {
-    shadowKeyguardManager.setIsDeviceSecure(true)
-    completeEnrollmentFromPhone(mockCar)
-
-    trustedDeviceManager.stopEnrollment(DEVICE_ID)
-
-    verify(mockCallback).onUnenroll(DEVICE_ID, initiatedFromCar = false)
-  }
-
-  @Test
-  fun testFeatureSync_disabledClearsLocalEnrollment() = runBlockingTest {
-    shadowKeyguardManager.setIsDeviceSecure(true)
-    completeEnrollmentFromPhone(mockCar)
-
-    carCallbacks.forEach { it.onMessageReceived(createStateSyncMessage(enabled = false)) }
-
-    assertThat(trustedDeviceManager.isEnabled(DEVICE_ID)).isFalse()
-    verify(mockCallback).onUnenroll(DEVICE_ID, initiatedFromCar = true)
-  }
-
-  @Test
-  fun testFeatureSync_ignoresEnabledMessage() = runBlockingTest {
-    shadowKeyguardManager.setIsDeviceSecure(true)
-    completeEnrollmentFromPhone(mockCar)
-
-    carCallbacks.forEach { it.onMessageReceived(createStateSyncMessage(enabled = true)) }
-
-    assertThat(trustedDeviceManager.isEnabled(DEVICE_ID)).isTrue()
-    verify(mockCallback, never()).onUnenroll(eq(DEVICE_ID), any())
-  }
-
-  @Test
-  fun testFeatureSync_sendsSyncAfterEnrollmentCleared() = runBlockingTest {
-    shadowKeyguardManager.setIsDeviceSecure(true)
-    completeEnrollmentFromPhone(mockCar)
-
-    argumentCaptor<ByteArray>().apply {
-      verify(mockCar, atLeastOnce()).sendMessage(capture(), eq(FEATURE_ID))
-      assertThat(lastValue).isNotEqualTo(createStateSyncMessage(enabled = false))
+      assertThat(storage.containsCredential(DEVICE_ID)).isFalse()
+      assertThat(trustedDeviceManager.isEnabled(DEVICE_ID)).isFalse()
     }
 
-    trustedDeviceManager.stopEnrollment(DEVICE_ID)
+  @Test
+  fun testCarDisassociated_clearsUnlockHistory() =
+    runTest(UnconfinedTestDispatcher()) {
+      completeEnrollmentFromPhone(mockCar)
+      unlockMockCarSuccesfully(mockCar)
 
-    argumentCaptor<ByteArray>().apply {
-      verify(mockCar, atLeastOnce()).sendMessage(capture(), eq(FEATURE_ID))
-      assertThat(lastValue).isEqualTo(createStateSyncMessage(enabled = false))
+      trustedDeviceManager.onCarDisassociated(DEVICE_ID)
+
+      assertThat(storage.getUnlockHistory(DEVICE_ID)).isEmpty()
     }
-  }
 
   @Test
-  fun testFeatureSync_onlySendsSyncOnceOnSubsequentConnections() = runBlockingTest {
-    shadowKeyguardManager.setIsDeviceSecure(true)
-    completeEnrollmentFromPhone(mockCar)
+  fun testAllCarsDisassociated_clearsAllCredentials() =
+    runTest(UnconfinedTestDispatcher()) {
+      completeEnrollmentFromPhone(mockCar)
 
-    carCallbacks.forEach { it.onDisconnected() }
+      trustedDeviceManager.onAllCarsDisassociated()
 
-    trustedDeviceManager.stopEnrollment(DEVICE_ID)
-    trustedDeviceManager.notifyCarConnected(mockCar)
-
-    // The sync message should be sent on the first reconnection.
-    argumentCaptor<ByteArray>().apply {
-      verify(mockCar, atLeastOnce()).sendMessage(capture(), eq(FEATURE_ID))
-      assertThat(lastValue).isEqualTo(createStateSyncMessage(enabled = false))
+      assertThat(storage.containsCredential(DEVICE_ID)).isFalse()
+      assertThat(trustedDeviceManager.isEnabled(DEVICE_ID)).isFalse()
     }
-
-    // Verify that second disconnection should not resend the sync message.
-    carCallbacks.forEach { it.onDisconnected() }
-    trustedDeviceManager.notifyCarConnected(mockCar)
-
-    argumentCaptor<ByteArray>().apply {
-      verify(mockCar, atLeastOnce()).sendMessage(capture(), eq(FEATURE_ID))
-
-      val syncMessages =
-        allValues.filter { it contentEquals createStateSyncMessage(enabled = false) }
-
-      // The sync message should still only have been sent once.
-      assertThat(syncMessages).hasSize(1)
-    }
-  }
 
   @Test
-  fun testFeatureSync_doesNotSyncAfterDisassociation() = runBlockingTest {
-    shadowKeyguardManager.setIsDeviceSecure(true)
-    completeEnrollmentFromPhone(mockCar)
+  fun testStopEnrollment_notEnrolled_doesNotNotifyCallback() =
+    runTest(UnconfinedTestDispatcher()) {
+      shadowKeyguardManager.setIsDeviceSecure(true)
 
-    trustedDeviceManager.onCarDisassociated(DEVICE_ID)
+      trustedDeviceManager.stopEnrollment(DEVICE_ID)
 
-    // Re-associate the device.
-    completeEnrollmentFromPhone(mockCar)
-
-    argumentCaptor<ByteArray>().apply {
-      verify(mockCar, atLeastOnce()).sendMessage(capture(), eq(FEATURE_ID))
-      assertThat(lastValue).isNotEqualTo(createStateSyncMessage(enabled = false))
+      verify(mockCallback, never()).onUnenroll(eq(DEVICE_ID), any())
     }
-  }
+
+  @Test
+  fun testStopEnrollment_notifiesCallback() =
+    runTest(UnconfinedTestDispatcher()) {
+      shadowKeyguardManager.setIsDeviceSecure(true)
+      completeEnrollmentFromPhone(mockCar)
+
+      trustedDeviceManager.stopEnrollment(DEVICE_ID)
+
+      verify(mockCallback).onUnenroll(DEVICE_ID, initiatedFromCar = false)
+    }
+
+  @Test
+  fun testFeatureSync_disabledClearsLocalEnrollment() =
+    runTest(UnconfinedTestDispatcher()) {
+      shadowKeyguardManager.setIsDeviceSecure(true)
+      completeEnrollmentFromPhone(mockCar)
+
+      carCallbacks.forEach { it.onMessageReceived(createStateSyncMessage(enabled = false)) }
+
+      assertThat(trustedDeviceManager.isEnabled(DEVICE_ID)).isFalse()
+      verify(mockCallback).onUnenroll(DEVICE_ID, initiatedFromCar = true)
+    }
+
+  @Test
+  fun testFeatureSync_ignoresEnabledMessage() =
+    runTest(UnconfinedTestDispatcher()) {
+      shadowKeyguardManager.setIsDeviceSecure(true)
+      completeEnrollmentFromPhone(mockCar)
+
+      carCallbacks.forEach { it.onMessageReceived(createStateSyncMessage(enabled = true)) }
+
+      assertThat(trustedDeviceManager.isEnabled(DEVICE_ID)).isTrue()
+      verify(mockCallback, never()).onUnenroll(eq(DEVICE_ID), any())
+    }
+
+  @Test
+  fun testFeatureSync_sendsSyncAfterEnrollmentCleared() =
+    runTest(UnconfinedTestDispatcher()) {
+      shadowKeyguardManager.setIsDeviceSecure(true)
+      completeEnrollmentFromPhone(mockCar)
+
+      argumentCaptor<ByteArray>().apply {
+        verify(mockCar, atLeastOnce()).sendMessage(capture(), eq(FEATURE_ID))
+        assertThat(lastValue).isNotEqualTo(createStateSyncMessage(enabled = false))
+      }
+
+      trustedDeviceManager.stopEnrollment(DEVICE_ID)
+
+      argumentCaptor<ByteArray>().apply {
+        verify(mockCar, atLeastOnce()).sendMessage(capture(), eq(FEATURE_ID))
+        assertThat(lastValue).isEqualTo(createStateSyncMessage(enabled = false))
+      }
+    }
+
+  @Test
+  fun testFeatureSync_onlySendsSyncOnceOnSubsequentConnections() =
+    runTest(UnconfinedTestDispatcher()) {
+      shadowKeyguardManager.setIsDeviceSecure(true)
+      completeEnrollmentFromPhone(mockCar)
+
+      carCallbacks.forEach { it.onDisconnected() }
+
+      trustedDeviceManager.stopEnrollment(DEVICE_ID)
+      trustedDeviceManager.notifyCarConnected(mockCar)
+
+      // The sync message should be sent on the first reconnection.
+      argumentCaptor<ByteArray>().apply {
+        verify(mockCar, atLeastOnce()).sendMessage(capture(), eq(FEATURE_ID))
+        assertThat(lastValue).isEqualTo(createStateSyncMessage(enabled = false))
+      }
+
+      // Verify that second disconnection should not resend the sync message.
+      carCallbacks.forEach { it.onDisconnected() }
+      trustedDeviceManager.notifyCarConnected(mockCar)
+
+      argumentCaptor<ByteArray>().apply {
+        verify(mockCar, atLeastOnce()).sendMessage(capture(), eq(FEATURE_ID))
+
+        val syncMessages =
+          allValues.filter { it contentEquals createStateSyncMessage(enabled = false) }
+
+        // The sync message should still only have been sent once.
+        assertThat(syncMessages).hasSize(1)
+      }
+    }
+
+  @Test
+  fun testFeatureSync_doesNotSyncAfterDisassociation() =
+    runTest(UnconfinedTestDispatcher()) {
+      shadowKeyguardManager.setIsDeviceSecure(true)
+      completeEnrollmentFromPhone(mockCar)
+
+      trustedDeviceManager.onCarDisassociated(DEVICE_ID)
+
+      // Re-associate the device.
+      completeEnrollmentFromPhone(mockCar)
+
+      argumentCaptor<ByteArray>().apply {
+        verify(mockCar, atLeastOnce()).sendMessage(capture(), eq(FEATURE_ID))
+        assertThat(lastValue).isNotEqualTo(createStateSyncMessage(enabled = false))
+      }
+    }
 
   private fun triggerEnrollmentFromCar() {
     trustedDeviceManager.notifyCarConnected(mockCar)

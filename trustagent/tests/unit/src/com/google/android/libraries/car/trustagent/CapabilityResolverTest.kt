@@ -29,7 +29,8 @@ import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.verify
 import com.nhaarman.mockitokotlin2.whenever
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,56 +62,59 @@ class CapabilityResolverTest {
   }
 
   @Test
-  fun exchangeCapabilities_returnsNullIfCouldNotSendMessage() = runBlockingTest {
-    whenever(mockGatt.sendMessage(any())).thenReturn(false)
+  fun exchangeCapabilities_returnsNullIfCouldNotSendMessage() =
+    runTest(UnconfinedTestDispatcher()) {
+      whenever(mockGatt.sendMessage(any())).thenReturn(false)
 
-    assertThat(resolver.exchangeCapabilities(emptyList())).isNull()
-  }
+      assertThat(resolver.exchangeCapabilities(emptyList())).isNull()
+    }
 
   @Test
-  fun exchangeCapabilities_sendsLocalCapabilities() = runBlockingTest {
-    whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
-      .thenAnswer {
-        val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
-        // Okay to callback with anything. This test only cares about what is sent out.
-        callback.onMessageReceived(RFCOMM_CAPABILITIES_EXCHANGE.toByteArray())
-      }
+  fun exchangeCapabilities_sendsLocalCapabilities() =
+    runTest(UnconfinedTestDispatcher()) {
+      whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
+        .thenAnswer {
+          val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
+          // Okay to callback with anything. This test only cares about what is sent out.
+          callback.onMessageReceived(RFCOMM_CAPABILITIES_EXCHANGE.toByteArray())
+        }
 
-    resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
+      resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
 
-    // Local capability is the same as remote, containing only BT_RFCOMM.
-    verify(mockGatt).sendMessage(RFCOMM_CAPABILITIES_EXCHANGE.toByteArray())
-  }
+      // Local capability is the same as remote, containing only BT_RFCOMM.
+      verify(mockGatt).sendMessage(RFCOMM_CAPABILITIES_EXCHANGE.toByteArray())
+    }
 
   @Test
   fun exchangeCapabilities_remoteAndLocalOobChannelsAreTheSame_returnsSharedOobChannels() =
-      runBlockingTest {
-    val capabilities = RFCOMM_CAPABILITIES_EXCHANGE
-    whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
-      .thenAnswer {
-        val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
-        callback.onMessageReceived(capabilities.toByteArray())
-      }
+    runTest(UnconfinedTestDispatcher()) {
+      val capabilities = RFCOMM_CAPABILITIES_EXCHANGE
+      whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
+        .thenAnswer {
+          val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
+          callback.onMessageReceived(capabilities.toByteArray())
+        }
 
-    val result: CapabilitiesExchange? =
-      resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
+      val result: CapabilitiesExchange? =
+        resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
 
-    assertThat(result).isEqualTo(capabilities)
-  }
+      assertThat(result).isEqualTo(capabilities)
+    }
 
   @Test
-  fun exchangeCapabilities_noRemoteOobChannels_returnsEmptyList() = runBlockingTest {
-    val remoteCapabilities = EMPTY_CAPABILITIES_EXCHANGE
-    whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
-      .thenAnswer {
-        val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
-        callback.onMessageReceived(remoteCapabilities.toByteArray())
-      }
+  fun exchangeCapabilities_noRemoteOobChannels_returnsEmptyList() =
+    runTest(UnconfinedTestDispatcher()) {
+      val remoteCapabilities = EMPTY_CAPABILITIES_EXCHANGE
+      whenever(mockGatt.registerMessageCallback(any<BluetoothConnectionManager.MessageCallback>()))
+        .thenAnswer {
+          val callback = it.getArgument(0) as BluetoothConnectionManager.MessageCallback
+          callback.onMessageReceived(remoteCapabilities.toByteArray())
+        }
 
-    // Local is capable of OOB channel, but resolved result is empty.
-    val result: CapabilitiesExchange? =
-      resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
+      // Local is capable of OOB channel, but resolved result is empty.
+      val result: CapabilitiesExchange? =
+        resolver.exchangeCapabilities(listOf(OobChannelType.BT_RFCOMM))
 
-    assertThat(result).isEqualTo(EMPTY_CAPABILITIES_EXCHANGE)
-  }
+      assertThat(result).isEqualTo(EMPTY_CAPABILITIES_EXCHANGE)
+    }
 }

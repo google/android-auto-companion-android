@@ -204,7 +204,8 @@ internal constructor(
     val oobChannelManager =
       oobChannelManagerFactory.create(oobChannelTypes, oobData, securityVersion = 3)
 
-    oobConnectionManager = oobChannelManager.readOobData()?.let { OobConnectionManager.create(it) }
+    oobConnectionManager =
+      oobChannelManager.readOobData(device)?.let { OobConnectionManager.create(it) }
 
     val encryptionRunnerType =
       if (oobConnectionManager == null) {

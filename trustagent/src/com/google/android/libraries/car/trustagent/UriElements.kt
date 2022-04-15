@@ -35,6 +35,15 @@ private constructor(
   val deviceIdentifier: ByteArray?,
   val queries: Map<String, String?>
 ) {
+  // Override to avoid [oobData] being logged.
+  override fun toString(): String {
+    val redactedOobData = if (oobData == null) "null" else "REDACTED"
+    val redactedQueries =
+      queries.mapValues { if (it.key == OOB_DATA_PARAMETER_KEY) "REDACTED" else it.value }
+    return "UriElements(oobData=$redactedOobData, " +
+      "deviceIdentifier=${deviceIdentifier?.asUByteArray()}, queries=$redactedQueries)"
+  }
+
   @PublicApi
   companion object {
     private const val TAG = "UriElements"

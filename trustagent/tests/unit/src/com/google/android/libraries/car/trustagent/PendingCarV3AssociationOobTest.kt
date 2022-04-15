@@ -269,7 +269,7 @@ class PendingCarV3AssociationOobTest {
 
 private class FakeOobChannelManager(private val oobData: OobData?) :
   OobChannelManager(oobChannels = emptyList(), executorService = null) {
-  override suspend fun readOobData() = oobData
+  override suspend fun readOobData(device: BluetoothDevice) = oobData
 }
 
 private class FakeOobChannelManagerFactory(private val oobChannelManager: OobChannelManager) :

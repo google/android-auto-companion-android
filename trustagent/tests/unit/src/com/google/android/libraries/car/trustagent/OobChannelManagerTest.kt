@@ -1,6 +1,10 @@
 package com.google.android.libraries.car.trustagent
 
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.content.Context
 import android.os.Looper
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors
@@ -10,7 +14,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
@@ -19,20 +24,27 @@ import org.robolectric.Shadows.shadowOf
 @RunWith(AndroidJUnit4::class)
 class OobChannelManagerTest {
   private lateinit var manager: OobChannelManager
+  private val context = ApplicationProvider.getApplicationContext<Context>()
+  private val testBluetoothDevice =
+    context
+      .getSystemService(BluetoothManager::class.java)
+      .adapter
+      .getRemoteDevice("00:11:22:33:AA:BB")
 
   @Test
-  fun noOobChannel_nullOobConnectionManager() = runBlockingTest {
-    val manager = OobChannelManager(emptyList(), executorService = null)
+  fun noOobChannel_nullOobConnectionManager() =
+    runTest(UnconfinedTestDispatcher()) {
+      val manager = OobChannelManager(emptyList(), executorService = null)
 
-    assertThat(manager.readOobData()).isNull()
-  }
+      assertThat(manager.readOobData(testBluetoothDevice)).isNull()
+    }
 
   @Test
   fun start_allOobChannelsStarted() {
     val oobChannels = listOf<OobChannel>(FakeOobChannel(), FakeOobChannel())
     val manager = OobChannelManager(oobChannels, executorService = null)
 
-    CoroutineScope(Dispatchers.Main).launch { manager.readOobData() }
+    CoroutineScope(Dispatchers.Main).launch { manager.readOobData(testBluetoothDevice) }
 
     shadowOf(Looper.getMainLooper()).idle()
     assertThat(oobChannels.all { (it as FakeOobChannel).isStarted }).isTrue()
@@ -43,7 +55,8 @@ class OobChannelManagerTest {
     val oobChannels = listOf<OobChannel>(FakeOobChannel(), FakeOobChannel())
     val manager = OobChannelManager(oobChannels, executorService = null)
 
-    val deferred = CoroutineScope(Dispatchers.Main).async { manager.readOobData() }
+    val deferred =
+      CoroutineScope(Dispatchers.Main).async { manager.readOobData(testBluetoothDevice) }
     shadowOf(Looper.getMainLooper()).idle()
 
     oobChannels[0].callback?.onSuccess(createOobData())
@@ -58,7 +71,8 @@ class OobChannelManagerTest {
     val oobChannels = listOf<OobChannel>(FakeOobChannel(), FakeOobChannel())
     val manager = OobChannelManager(oobChannels, executorService = null)
 
-    val deferred = CoroutineScope(Dispatchers.Main).async { manager.readOobData() }
+    val deferred =
+      CoroutineScope(Dispatchers.Main).async { manager.readOobData(testBluetoothDevice) }
     shadowOf(Looper.getMainLooper()).idle()
 
     oobChannels.forEach { it.callback?.onFailure() }
@@ -73,7 +87,7 @@ class OobChannelManagerTest {
     val oobChannels = listOf<OobChannel>(FakeOobChannel(), FakeOobChannel())
     val manager = OobChannelManager(oobChannels, executorService)
 
-    CoroutineScope(Dispatchers.Main).async { manager.readOobData() }
+    CoroutineScope(Dispatchers.Main).launch { manager.readOobData(testBluetoothDevice) }
     shadowOf(Looper.getMainLooper()).idle()
 
     oobChannels.forEach { it.callback?.onFailure() }
@@ -94,7 +108,7 @@ class OobChannelManagerTest {
 
     override var callback: OobChannel.Callback? = null
 
-    override fun startOobDataExchange() {
+    override fun startOobDataExchange(device: BluetoothDevice) {
       isStarted = true
     }
 

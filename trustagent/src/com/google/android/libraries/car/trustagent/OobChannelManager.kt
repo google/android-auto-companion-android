@@ -1,5 +1,6 @@
 package com.google.android.libraries.car.trustagent
 
+import android.bluetooth.BluetoothDevice
 import androidx.annotation.GuardedBy
 import androidx.annotation.VisibleForTesting
 import com.google.android.libraries.car.trustagent.util.logi
@@ -56,7 +57,7 @@ internal open class OobChannelManager(
    *
    * Returns the OOB data if any of the channels succeeded; `null` if all of the channels failed.
    */
-  open suspend fun readOobData(): OobData? {
+  open suspend fun readOobData(device: BluetoothDevice): OobData? {
     if (oobChannels.isEmpty()) return null
 
     val oobData =
@@ -64,7 +65,7 @@ internal open class OobChannelManager(
         synchronized(oobDataContinuationLock) { oobDataContinuation = cont }
         for (channel in oobChannels) {
           channel.callback = channelCallback
-          channel.startOobDataExchange()
+          channel.startOobDataExchange(device)
         }
       }
 

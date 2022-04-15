@@ -400,9 +400,9 @@ internal constructor(
    *
    * Results will be received through [DiscoveryCallback].
    *
-   * Returns `true` if the discovery was initiated successfully; `false` otherwise, for example,
-   * if Bluetooth is off or the current scanning permissions are not granted. [isBluetoothEnabled]
-   * can be used to check the Bluetooth adapter state.
+   * Returns `true` if the discovery was initiated successfully; `false` otherwise, for example, if
+   * Bluetooth is off or the current scanning permissions are not granted. [isBluetoothEnabled] can
+   * be used to check the Bluetooth adapter state.
    */
   @SuppressLint("MissingPermission")
   fun startSppDiscovery(): Boolean {
@@ -444,7 +444,7 @@ internal constructor(
    * certain Android phones. For a guaranteed stop, ensure Bluetooth is on.
    */
   @SuppressLint("MissingPermission")
-  fun stopDiscovery(): Boolean {
+  open fun stopDiscovery(): Boolean {
     if (bleManager.stopScan(scanCallback)) {
       return true
     }
@@ -460,7 +460,7 @@ internal constructor(
    * method will not be able to cancel discovery and `false` will be returned.
    */
   @SuppressLint("MissingPermission")
-  fun stopSppDiscovery(): Boolean {
+  open fun stopSppDiscovery(): Boolean {
     logd(TAG, "Stop SPP discovery.")
     if (isSppDiscoveryStarted) {
       context.unregisterReceiver(discoveredBluetoothDeviceReceiver)
@@ -518,10 +518,7 @@ internal constructor(
   private fun associateInternal(discoveredCar: DiscoveredCar, oobData: OobData?) {
     logi(TAG, "Starting association with $discoveredCar and $oobData.")
     if (!checkPermissionsForBluetoothConnection(context)) {
-      loge(
-        TAG,
-        "Missing required permissions to start association. Notifying callbacks of error."
-      )
+      loge(TAG, "Missing required permissions to start association. Notifying callbacks of error.")
 
       notifyCallbacksOfFailedAssociation()
       return
@@ -840,11 +837,8 @@ internal constructor(
     /** Invoked when this device has been successfully associated with [car]. */
     fun onAssociated(car: Car)
 
-    /**
-     * Invoked when association process failed.
-     *
-     * TODO(b/141774014): Define error code when encryption error is exposed.
-     */
+    /** Invoked when the association process has failed. */
+    // TODO(b/141774014): Define error code when encryption error is exposed.
     fun onAssociationFailed()
   }
 
@@ -980,7 +974,7 @@ internal constructor(
      *
      * The filter is decided by the structure of the advertisement data from the car side. It looks
      * for the given [associationUuid] bytes from the whole advertisement data beginning on a
-     * certain index. The detailed logic is described in this document: go/auto-cdm-integration-plan
+     * certain index.
      */
     @VisibleForTesting
     internal fun createRawDataFilter(associationUuid: UUID, advertisedData: ByteArray?): ByteArray {

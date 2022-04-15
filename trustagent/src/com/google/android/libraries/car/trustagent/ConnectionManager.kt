@@ -533,8 +533,7 @@ internal constructor(
     /**
      * The service UUID to scan for if the security version is 2.
      *
-     * This UUID is the Google Manufacturer Specific ID as outlined on
-     * go/google-ble-manufacturer-data-format.
+     * This UUID is the Google Manufacturer Specific ID.
      */
     val V2_SERVICE_UUID = UUID.fromString("000000e0-0000-1000-8000-00805f9b34fb")
 
@@ -542,8 +541,7 @@ internal constructor(
      * The UUID that serves as the key for data within the advertisement packet in security version
      * 2.
      *
-     * This UUID is only valid for security version 2. See go/google-ble-manufacturer-data-format
-     * and the "Google Manufacturer Data Type" for details on this value.
+     * This UUID is only valid for security version 2. It is the "Google Manufacturer Data Type".
      */
     val V2_DATA_UUID = UUID.fromString("00000020-0000-1000-8000-00805f9b34fb")
 

@@ -268,7 +268,7 @@ internal constructor(
           val oobChannelTypes = createOobChannelTypes()
           val oobChannelManager =
             oobChannelManagerFactory.create(oobChannelTypes, oobData, securityVersion = 4)
-          oobChannelManager?.readOobData()
+          oobChannelManager?.readOobData(device)
         }
       }
 

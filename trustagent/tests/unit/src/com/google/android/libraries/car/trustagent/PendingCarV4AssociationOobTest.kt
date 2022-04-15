@@ -43,7 +43,6 @@ import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.times
 import com.nhaarman.mockitokotlin2.verify
 import java.security.SecureRandom
-import java.time.Duration
 import java.util.UUID
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -52,10 +51,8 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.TestCoroutineDispatcher
-import kotlinx.coroutines.test.TestCoroutineScope
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.resetMain
 import org.junit.After
 import org.junit.Before
@@ -68,7 +65,7 @@ import org.robolectric.shadow.api.Shadow
 class PendingCarV4AssociationOobTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
   private val testDispatcher = TestCoroutineDispatcher()
-  private val testCoroutineScope = TestCoroutineScope(testDispatcher)
+  private val testCoroutineScope = TestScope(testDispatcher)
 
   private val mockPendingCarCallback: PendingCar.Callback = mock()
 
@@ -132,12 +129,9 @@ class PendingCarV4AssociationOobTest {
 
   @Test
   fun connect_oobDataIsNull_visualConfirmation() {
-    pendingCar = createPendingCar(TimeoutOobChannelManager(oobData))
+    pendingCar = createPendingCar(InvalidOobChannelManager(oobData))
     pendingCar.connect()
     respondToInitMessage()
-
-    // Advance the `delay()` in TimeoutOobChannelManager to simulate timeout.
-    testDispatcher.advanceUntilIdle()
 
     // Verify the phone is request visual verification.
     val visualVerification =
@@ -257,15 +251,14 @@ class PendingCarV4AssociationOobTest {
 private class PassThroughOobChannelManager(private val oobData: OobData?) :
   OobChannelManager(oobChannels = emptyList(), executorService = null) {
 
-  override suspend fun readOobData() = oobData
+  override suspend fun readOobData(device: BluetoothDevice) = oobData
 }
 
-private class TimeoutOobChannelManager(private val oobData: OobData?) :
+private class InvalidOobChannelManager(private val oobData: OobData?) :
   OobChannelManager(oobChannels = emptyList(), executorService = null) {
 
-  override suspend fun readOobData(): OobData? {
-    delay(Duration.ofSeconds(10).toMillis())
-    return oobData
+  override suspend fun readOobData(device: BluetoothDevice): OobData? {
+    return null
   }
 }
 

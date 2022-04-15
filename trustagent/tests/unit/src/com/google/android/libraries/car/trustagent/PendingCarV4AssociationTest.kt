@@ -15,6 +15,7 @@
 package com.google.android.libraries.car.trustagent
 
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -53,7 +54,6 @@ import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.shadow.api.Shadow
 
 @ExperimentalCoroutinesApi
 @RunWith(AndroidJUnit4::class)
@@ -78,7 +78,11 @@ class PendingCarV4AssociationTest {
 
   @Before
   fun setUp() {
-    bluetoothDevice = Shadow.newInstanceOf(BluetoothDevice::class.java)
+    bluetoothDevice =
+      context
+        .getSystemService(BluetoothManager::class.java)
+        .adapter
+        .getRemoteDevice("00:11:22:33:AA:BB")
 
     // Using directExecutor to ensure that all operations happen on the main thread and allows for
     // tests to wait until the operations are done before continuing. Without this, operations can

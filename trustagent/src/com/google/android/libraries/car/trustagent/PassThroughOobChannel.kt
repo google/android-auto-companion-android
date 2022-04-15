@@ -1,5 +1,7 @@
 package com.google.android.libraries.car.trustagent
 
+import android.bluetooth.BluetoothDevice
+
 /**
  * A channel for out-of-band verification.
  *
@@ -10,7 +12,7 @@ package com.google.android.libraries.car.trustagent
  */
 internal class PassThroughOobChannel(private val oobData: OobData) : OobChannel {
   override var callback: OobChannel.Callback? = null
-  override fun startOobDataExchange() {
+  override fun startOobDataExchange(device: BluetoothDevice) {
     callback?.onSuccess(oobData)
   }
   override fun stopOobDataExchange() {}
