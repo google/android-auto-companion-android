@@ -43,7 +43,6 @@ import java.time.Clock
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestCoroutineDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -83,7 +82,7 @@ class TrustedDeviceManagerTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
   private val shadowKeyguardManager =
     Shadows.shadowOf(context.getSystemService(KeyguardManager::class.java))
-  private val testDispatcher = TestCoroutineDispatcher()
+  private val testDispatcher = UnconfinedTestDispatcher()
 
   private val mockCallback: TrustedDeviceFeature.Callback = mock()
   private val mockCar: Car = mock {
@@ -125,7 +124,6 @@ class TrustedDeviceManagerTest {
   fun cleanUp() {
     trustedDeviceManager.sharedPref.edit().clear().commit()
     database.close()
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test

@@ -31,8 +31,8 @@ import java.util.UUID
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import javax.crypto.SecretKey
-import kotlinx.coroutines.test.TestCoroutineDispatcher
-import org.junit.Assert.assertThrows
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -43,7 +43,7 @@ import org.junit.runner.RunWith
 class CarTest {
   private val carId = UUID.fromString("3e6a5c94-e1d4-4d10-99e1-75e8af4ee463")
   private val carName = "testCarName"
-  private val testDispatcher = TestCoroutineDispatcher()
+  private val testDispatcher = UnconfinedTestDispatcher()
 
   private lateinit var car: Car
   private lateinit var bluetoothGattManager: BluetoothGattManager
@@ -66,7 +66,7 @@ class CarTest {
 
     car.setCallback(mock(), recipient)
 
-    assertThrows(IllegalStateException::class.java) { car.setCallback(mock(), recipient) }
+    assertFailsWith<IllegalStateException> { car.setCallback(mock(), recipient) }
   }
 
   @Test
@@ -111,7 +111,7 @@ class CarTest {
 
     // The clear was called for a different callback, so it won't succeed and an error should
     // still be thrown.
-    assertThrows(IllegalStateException::class.java) { car.setCallback(otherCallback, recipient) }
+    assertFailsWith<IllegalStateException> { car.setCallback(otherCallback, recipient) }
   }
 
   @Test

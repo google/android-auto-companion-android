@@ -39,9 +39,10 @@ import java.lang.UnsupportedOperationException
 import java.time.Duration
 import java.util.UUID
 import javax.crypto.SecretKey
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -72,9 +73,11 @@ internal constructor(
   private val bluetoothManager: BluetoothConnectionManager,
   private val oobData: OobData?,
   private val oobChannelManagerFactory: OobChannelManagerFactory = OobChannelManagerFactoryImpl(),
-  private val coroutineScope: CoroutineScope = MainScope()
+  coroutineDispatcher: CoroutineDispatcher = Dispatchers.Main,
 ) : PendingCar {
   override var callback: PendingCar.Callback? = null
+
+  private val coroutineScope: CoroutineScope = CoroutineScope(coroutineDispatcher)
 
   private var state = State.UNINITIATED
   private enum class State {
@@ -126,7 +129,7 @@ internal constructor(
           )
         )
 
-        logd(TAG, "Notifying callback auth string available: $authString.")
+        logi(TAG, "Notifying callback auth string available: $authString.")
         callback?.onAuthStringAvailable(authString)
 
         state = State.PENDING_CONFIRMATION
@@ -252,7 +255,7 @@ internal constructor(
    *
    * [advertisedData] must be null.
    */
-  override fun connect(advertisedData: ByteArray?) {
+  override suspend fun connect(advertisedData: ByteArray?) {
     require(advertisedData == null) {
       "Expected parameter advertisedData to be null; actual ${advertisedData?.toHexString()}."
     }

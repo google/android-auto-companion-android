@@ -33,9 +33,6 @@ import com.google.android.libraries.car.trustagent.util.toHexString
 import java.lang.IllegalStateException
 import java.util.UUID
 import javax.crypto.SecretKey
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
 
 /**
  * Represents a car that is ready to be associated with.
@@ -64,7 +61,6 @@ internal constructor(
   private val resolvedOobChannelTypes: List<OobChannelType>,
   private val oobData: OobData?,
   private val oobChannelManagerFactory: OobChannelManagerFactory = OobChannelManagerFactoryImpl(),
-  private val coroutineScope: CoroutineScope = MainScope()
 ) : PendingCar {
   override var callback: PendingCar.Callback? = null
 
@@ -184,18 +180,16 @@ internal constructor(
    *
    * [advertisedData] must be null.
    */
-  override fun connect(advertisedData: ByteArray?) {
+  override suspend fun connect(advertisedData: ByteArray?) {
     require(advertisedData == null) {
       "Expected parameter advertisedData to be null; actual ${advertisedData?.toHexString()}."
     }
     logi(TAG, "Starting connection.")
 
-    coroutineScope.launch {
-      if (resolvedOobChannelTypes.isNotEmpty()) {
-        readOobData(resolvedOobChannelTypes)
-      } else {
-        initEncryption(EncryptionRunnerFactory.EncryptionRunnerType.UKEY2)
-      }
+    if (resolvedOobChannelTypes.isNotEmpty()) {
+      readOobData(resolvedOobChannelTypes)
+    } else {
+      initEncryption(EncryptionRunnerFactory.EncryptionRunnerType.UKEY2)
     }
   }
 

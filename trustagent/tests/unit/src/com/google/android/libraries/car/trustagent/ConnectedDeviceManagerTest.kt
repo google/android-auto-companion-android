@@ -24,6 +24,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.Intent
+import android.os.Looper
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -47,11 +48,11 @@ import com.nhaarman.mockitokotlin2.verifyNoMoreInteractions
 import com.nhaarman.mockitokotlin2.whenever
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.TestCoroutineDispatcher
-import org.junit.After
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.fakes.RoboIntentSender
 
 private val TEST_BLUETOOTH_DEVICE =
@@ -62,7 +63,6 @@ private val TEST_BLUETOOTH_DEVICE =
 class ConnectedDeviceManagerTest {
 
   private lateinit var manager: ConnectedDeviceManager
-  private val testDispatcher = TestCoroutineDispatcher()
 
   private val context = ApplicationProvider.getApplicationContext<Context>()
   private val fakeLifecycleOwner = FakeLifecycleOwner()
@@ -100,13 +100,9 @@ class ConnectedDeviceManagerTest {
         mockAssociationManager,
         mockConnectionManager,
         listOf(mockFeature),
-        testDispatcher
+        coroutineDispatcher = UnconfinedTestDispatcher(),
+        backgroundDispatcher = UnconfinedTestDispatcher(),
       )
-  }
-
-  @After
-  fun after() {
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test
@@ -115,10 +111,11 @@ class ConnectedDeviceManagerTest {
       onBlocking { fetchConnectedBluetoothDevices() } doReturn
         Futures.immediateFuture(listOf(TEST_BLUETOOTH_DEVICE))
     }
-    // Move the lifecycle to onCreated().
+    // Move the lifecycle to onCreated() starts connection attempt.
     fakeLifecycleOwner.registry.setCurrentState(Lifecycle.State.CREATED)
+
     verify(mockConnectionManager).startScanForAssociatedCars(any())
-    verify(mockConnectionManager).connect(TEST_BLUETOOTH_DEVICE)
+    verify(mockConnectionManager).connect(eq(TEST_BLUETOOTH_DEVICE), any())
   }
 
   @Test
@@ -254,14 +251,14 @@ class ConnectedDeviceManagerTest {
   }
 
   @Test
-  fun sppConnection_receivedNonConnectedState_ignored() {
+  fun sppConnection_receivedNonConnectedState_ignored() = runBlocking {
     val intent =
       Intent(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED).apply {
         putExtra(BluetoothProfile.EXTRA_STATE, BluetoothProfile.STATE_DISCONNECTED)
       }
     manager.startSppBroadcastReceiver.onReceive(context, intent)
 
-    verify(mockConnectionManager, never()).connect(any<BluetoothDevice>())
+    verify(mockConnectionManager, never()).connect(any<BluetoothDevice>(), any())
   }
 
   @Test
@@ -275,11 +272,11 @@ class ConnectedDeviceManagerTest {
       }
     manager.startSppBroadcastReceiver.onReceive(context, intent)
 
-    verify(mockConnectionManager, never()).connect(any<BluetoothDevice>())
+    verify(mockConnectionManager, never()).connect(any<BluetoothDevice>(), any())
   }
 
   @Test
-  fun sppConnection_connect() {
+  fun sppConnection_connect() = runBlocking {
     whenever(mockAssociationManager.loadIsAssociated(any())).doReturn(Futures.immediateFuture(true))
     val intent =
       Intent(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED).apply {
@@ -288,7 +285,7 @@ class ConnectedDeviceManagerTest {
       }
     manager.startSppBroadcastReceiver.onReceive(context, intent)
 
-    verify(mockConnectionManager).connect(eq(TEST_BLUETOOTH_DEVICE))
+    verify(mockConnectionManager).connect(eq(TEST_BLUETOOTH_DEVICE), any())
   }
 
   @Test
@@ -307,12 +304,13 @@ class ConnectedDeviceManagerTest {
 
     fakeLifecycleOwner.registry.setCurrentState(Lifecycle.State.CREATED)
     captureScanCallback().onScanResult(/* callbackType= */ 0, fakeScanResult)
+    shadowOf(Looper.getMainLooper()).idle()
 
-    verify(mockConnectionManager).connect(eq(fakeScanResult))
+    verify(mockConnectionManager).connect(eq(fakeScanResult), any())
   }
 
   @Test
-  fun reconnectionScan_bluetoothOff_doNotConnect() {
+  fun reconnectionScan_bluetoothOff_doNotConnect() = runBlocking {
     whenever(mockAssociationManager.isBluetoothEnabled).doReturn(false)
     val fakeScanRecord =
       createScanRecord(
@@ -325,7 +323,7 @@ class ConnectedDeviceManagerTest {
     fakeLifecycleOwner.registry.setCurrentState(Lifecycle.State.CREATED)
     captureScanCallback().onScanResult(/* callbackType= */ 0, fakeScanResult)
 
-    verify(mockConnectionManager, never()).connect(any<ScanResult>())
+    verify(mockConnectionManager, never()).connect(any<ScanResult>(), any())
   }
 
   @Test
@@ -345,7 +343,7 @@ class ConnectedDeviceManagerTest {
     fakeLifecycleOwner.registry.setCurrentState(Lifecycle.State.CREATED)
     captureScanCallback().onScanResult(/* callbackType= */ 0, fakeScanResult)
 
-    verify(mockConnectionManager, never()).connect(any<ScanResult>())
+    verify(mockConnectionManager, never()).connect(any<ScanResult>(), any())
   }
 
   @Test
@@ -366,8 +364,9 @@ class ConnectedDeviceManagerTest {
     captureScanCallback().onScanResult(/* callbackType= */ 0, fakeScanResult)
     // Make a second callback; result should be ignored.
     captureScanCallback().onScanResult(/* callbackType= */ 0, fakeScanResult)
+    shadowOf(Looper.getMainLooper()).idle()
 
-    verify(mockConnectionManager).connect(eq(fakeScanResult))
+    verify(mockConnectionManager).connect(eq(fakeScanResult), any())
   }
 
   @Test
@@ -446,14 +445,15 @@ class ConnectedDeviceManagerTest {
       onBlocking { fetchConnectedBluetoothDevices() } doReturn
         Futures.immediateFuture(listOf(TEST_BLUETOOTH_DEVICE))
     }
-
     mockAssociationManager.stub {
       onBlocking { clearCdmAssociatedCar(DEVICE_ID) } doReturn true
       onBlocking { loadIsAssociated() } doReturn Futures.immediateFuture(false)
     }
-    fakeLifecycleOwner.registry.setCurrentState(Lifecycle.State.CREATED)
 
+    fakeLifecycleOwner.registry.setCurrentState(Lifecycle.State.CREATED)
     assertThat(manager.disassociate(DEVICE_ID).get()).isTrue()
+    shadowOf(Looper.getMainLooper()).idle()
+
     verify(mockAssociationManager).clearCdmAssociatedCar(DEVICE_ID)
     verify(mockConnectionManager).stop()
     verify(mockFeature).onCarDisassociated(DEVICE_ID)
@@ -508,13 +508,14 @@ class ConnectedDeviceManagerTest {
       onBlocking { fetchConnectedBluetoothDevices() } doReturn
         Futures.immediateFuture(listOf(TEST_BLUETOOTH_DEVICE))
     }
+
     fakeLifecycleOwner.registry.setCurrentState(Lifecycle.State.CREATED)
-    verify(mockConnectionManager).connect(TEST_BLUETOOTH_DEVICE)
+    verify(mockConnectionManager).connect(eq(TEST_BLUETOOTH_DEVICE), any())
 
     captureConnectionCallback().onConnectionFailed(TEST_BLUETOOTH_DEVICE)
 
     verify(mockConnectionManager, timeout((ConnectedDeviceManager.SPP_RETRY_THROTTLE).toMillis()))
-      .connect(TEST_BLUETOOTH_DEVICE)
+      .connect(eq(TEST_BLUETOOTH_DEVICE), any())
   }
 
   @Test
@@ -561,7 +562,7 @@ class ConnectedDeviceManagerTest {
     }
 
     fakeLifecycleOwner.registry.setCurrentState(Lifecycle.State.CREATED)
-    verify(mockConnectionManager).connect(TEST_BLUETOOTH_DEVICE)
+    verify(mockConnectionManager).connect(eq(TEST_BLUETOOTH_DEVICE), any())
 
     val mockCallback: ConnectedDeviceManager.Callback = mock()
     manager.registerCallback(mockCallback)
@@ -576,7 +577,7 @@ class ConnectedDeviceManagerTest {
     carCallback.onDisconnected()
 
     verify(mockConnectionManager, timeout(ConnectedDeviceManager.SPP_RETRY_THROTTLE.toMillis()))
-      .connect(TEST_BLUETOOTH_DEVICE)
+      .connect(eq(TEST_BLUETOOTH_DEVICE), any())
   }
 
   @Test
@@ -603,7 +604,7 @@ class ConnectedDeviceManagerTest {
         mockConnectionManager,
         timeout(ConnectedDeviceManager.SPP_RETRY_THROTTLE.toMillis()).times(0)
       )
-      .connect(TEST_BLUETOOTH_DEVICE)
+      .connect(eq(TEST_BLUETOOTH_DEVICE), any())
   }
 
   @Test

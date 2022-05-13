@@ -44,11 +44,8 @@ import java.security.SecureRandom
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.crypto.KeyGenerator
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestCoroutineDispatcher
-import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -60,7 +57,6 @@ import org.robolectric.shadow.api.Shadow
 @RunWith(AndroidJUnit4::class)
 class PendingCarV3AssociationOobTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
-  private val testDispatcher = TestCoroutineDispatcher()
 
   private val fakeBluetoothConnectionManager = FakeBluetoothConnectionManager()
   private val mockPendingCarCallback: PendingCar.Callback = mock()
@@ -123,13 +119,10 @@ class PendingCarV3AssociationOobTest {
   @After
   fun tearDown() {
     database.close()
-
-    Dispatchers.resetMain()
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test
-  fun connect_onConnected() {
+  fun connect_onConnected() = runBlocking {
     pendingCar.connect()
     respondToInitMessage()
     respondToOobContMessage()
@@ -240,7 +233,6 @@ class PendingCarV3AssociationOobTest {
         associatedCarManager = associatedCarManager,
         device = bluetoothDevice,
         bluetoothManager = fakeBluetoothConnectionManager,
-        coroutineScope = CoroutineScope(testDispatcher),
         resolvedOobChannelTypes = listOf(OobChannelType.BT_RFCOMM),
         // In prod this OOB data is read through QR code. It is not used if the channel does not
         // contain PRE_ASSOCIATION.

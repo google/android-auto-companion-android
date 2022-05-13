@@ -38,6 +38,7 @@ import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -80,6 +81,7 @@ abstract class PhoneSyncBaseService : FeatureManagerService() {
 
   /** Executes the battery monitoring task in a fixed interval. */
   private val batteryMonitorExecutor = ScheduledThreadPoolExecutor(1)
+  private val backgroundExecutor = Executors.newSingleThreadExecutor()
 
   private lateinit var scheduleFuture: ScheduledFuture<*>
 
@@ -282,7 +284,7 @@ abstract class PhoneSyncBaseService : FeatureManagerService() {
       val device = result.device
       if (device !in connectingCars && device !in connectedCarsByDevice) {
         logi(TAG, "Initiating connection to $device of $result; current $connectingCars.")
-        connectionManager.connect(result)
+        connectionManager.connect(result, backgroundExecutor)
         connectingCars.add(device)
       }
     }
@@ -364,7 +366,7 @@ abstract class PhoneSyncBaseService : FeatureManagerService() {
 
     logi(TAG, "Starting SPP connection to ${device.address}")
 
-    connectionManager.connect(device)
+    connectionManager.connect(device, backgroundExecutor)
     connectingCars.add(device)
   }
 

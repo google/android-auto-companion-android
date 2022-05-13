@@ -26,7 +26,6 @@ import com.google.common.truth.Truth.assertThat
 import com.nhaarman.mockitokotlin2.mock
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestCoroutineDispatcher
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -108,7 +107,6 @@ class ConnectedDeviceBaseServiceTest {
 
   class TestService : ConnectedDeviceBaseService() {
     override fun createFeatureManagers() = emptyList<FeatureManager>()
-    override val coroutineDispatcher = TestCoroutineDispatcher()
   }
 
   companion object {

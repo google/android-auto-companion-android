@@ -52,7 +52,7 @@ import kotlin.random.Random
 import kotlin.test.fail
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.TestCoroutineDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -87,7 +87,7 @@ class AssociationManagerTest {
       permission.BLUETOOTH_CONNECT,
     )
 
-  private val testDispatcher = TestCoroutineDispatcher()
+  private val testDispatcher = UnconfinedTestDispatcher()
   private val context = ApplicationProvider.getApplicationContext<Context>()
 
   private lateinit var database: ConnectedCarDatabase
@@ -137,7 +137,6 @@ class AssociationManagerTest {
   @After
   fun after() {
     database.close()
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test

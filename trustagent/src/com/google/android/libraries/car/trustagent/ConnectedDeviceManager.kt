@@ -41,36 +41,44 @@ import com.google.android.libraries.car.trustagent.util.logw
 import com.google.common.util.concurrent.ListenableFuture
 import java.time.Duration
 import java.util.UUID
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.newSingleThreadContext
 
 /**
  * Manages connected devices.
  *
- * @param[lifecycle] Lifecycle controls the connections. Reconnection will be started in
+ * @param[lifecycle] Lifecycle that controls the connections. Reconnection will be started in
  * lifecycle#onCreate(), and cut-off in lifecycle#onDestroy().
  *
  * @param[features] [FeatureManager]s that would be held by this manager. These features would be
  * notified of connection events.
+ *
+ * @param[coroutineDispatcher] Dispatcher for coroutines. Callbacks are made by this dispatcher.
+ * @param[backgroundDispatcher] Dispatcher for background tasks. Must not be the main thread.
  */
 @PublicApi
-class ConnectedDeviceManager(
+class ConnectedDeviceManager
+@JvmOverloads
+constructor(
   private val context: Context,
   private val lifecycle: Lifecycle,
   private val associationManager: AssociationManager,
   private val connectionManager: ConnectionManager,
   private val features: List<FeatureManager>,
-  private val coroutineDispatcher: CoroutineDispatcher
+  coroutineDispatcher: CoroutineDispatcher = Dispatchers.Main,
+  private val backgroundDispatcher: CoroutineDispatcher =
+    newSingleThreadContext(name = "backgroundDispatcher"),
 ) : DefaultLifecycleObserver {
-  private val coroutineScope = CoroutineScope(coroutineDispatcher)
   private val callbacks = mutableListOf<Callback>()
+  private var coroutineScope = CoroutineScope(coroutineDispatcher)
 
   /** Tracks the ongoing connection and connected devices. */
   private var ongoingAssociation: AssociationRequest? = null
@@ -86,10 +94,6 @@ class ConnectedDeviceManager(
 
   /** Indicates if [start] has been called. */
   private var isStarted = false
-
-  /** The coroutine scope which is executed in a background thread. */
-  private var backgroundScope: CoroutineScope =
-    CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
 
   private val associationManagerCallback =
     object : AssociationManager.AssociationCallback, AssociationManager.DisassociationCallback {
@@ -159,8 +163,8 @@ class ConnectedDeviceManager(
           return
         }
 
-        coroutineScope.launch {
-          logi(TAG, "onScanResult: checking whether $result should be connected to.")
+        coroutineScope.launch(backgroundDispatcher) {
+          logi(TAG, "onScanResult: checking whether we should connect to $result.")
           // Specifiy the filteredScanResult type to eliminate ambiguity in calling
           // ConnectionManager#connect().
           val filteredScanResult: ScanResult? =
@@ -176,7 +180,7 @@ class ConnectedDeviceManager(
             ongoingReconnections.add(device)
 
             logi(TAG, "Connecting to $result.")
-            connectionManager.connect(filteredScanResult)
+            connectionManager.connect(filteredScanResult, backgroundDispatcher.asExecutor())
           }
         }
       }
@@ -311,12 +315,12 @@ class ConnectedDeviceManager(
 
     connectionManager.unregisterConnectionCallback(connectionManagerCallback)
 
-    coroutineScope.cancel()
-
     context.unregisterReceiver(bluetoothStateChangeReceiver)
 
     // Stop reconnection, which also stops all current connections.
     stop()
+
+    coroutineScope.cancel()
   }
 
   // TODO(b/182827383): Remove default overrides when b/138957824 is resolved.
@@ -368,7 +372,7 @@ class ConnectedDeviceManager(
    * operation succeeded.
    */
   fun disassociate(deviceId: UUID): ListenableFuture<Boolean> =
-    backgroundScope.future {
+    coroutineScope.future(backgroundDispatcher) {
       val success = associationManager.clearCdmAssociatedCar(deviceId)
       if (success) {
         coroutineScope.launch { handleCarDisassociated(deviceId) }
@@ -390,7 +394,7 @@ class ConnectedDeviceManager(
    * operation succeeded.
    */
   fun disassociateAllCars(): ListenableFuture<Boolean> =
-    backgroundScope.future {
+    coroutineScope.future(backgroundDispatcher) {
       val success = associationManager.clearAllCdmAssociatedCars()
       if (success) {
         logi(TAG, "onAllCarsDisassociated: stopping.")
@@ -411,7 +415,7 @@ class ConnectedDeviceManager(
    * If there is no associated device, this method will be a no-op.
    *
    * Normally caller does not need to explicitly invoked this method, as it is automatically invoked
-   * by [lifecycle] onCreate().
+   * by `onCreate()` of [lifecycle].
    */
   fun start() {
     logi(TAG, "Starting reconnection.")
@@ -441,7 +445,7 @@ class ConnectedDeviceManager(
    * Stops any reconnections and disconnects all devices that are currently connected.
    *
    * Normally caller does not need to explicitly invoked this method, as it is automatically invoked
-   * by [lifecycle] onDestroy().
+   * by `onDestroy()` of [lifecycle].
    */
   fun stop() {
     connectionManager.stop()
@@ -468,7 +472,7 @@ class ConnectedDeviceManager(
    * If the given car is not associated, `false` is also returned.
    */
   fun renameCar(deviceId: UUID, name: String): ListenableFuture<Boolean> =
-    backgroundScope.future {
+    coroutineScope.future(backgroundDispatcher) {
       val isSuccessful = associationManager.renameCar(deviceId, name).await()
       if (isSuccessful) {
         _connectedCars.firstOrNull { it.deviceId == deviceId }?.name = name
@@ -524,8 +528,9 @@ class ConnectedDeviceManager(
 
     logi(TAG, "Starting SPP connection to ${device.address}")
     sppConnectionAttempted.set(true)
-    connectionManager.connect(device)
     ongoingReconnections.add(device)
+
+    connectionManager.connect(device, backgroundDispatcher.asExecutor())
   }
 
   /**

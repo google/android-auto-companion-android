@@ -49,11 +49,9 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestCoroutineDispatcher
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -64,8 +62,7 @@ import org.robolectric.shadow.api.Shadow
 @RunWith(AndroidJUnit4::class)
 class PendingCarV4AssociationOobTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
-  private val testDispatcher = TestCoroutineDispatcher()
-  private val testCoroutineScope = TestScope(testDispatcher)
+  private val testDispatcher = UnconfinedTestDispatcher()
 
   private val mockPendingCarCallback: PendingCar.Callback = mock()
 
@@ -106,13 +103,10 @@ class PendingCarV4AssociationOobTest {
   @After
   fun tearDown() {
     database.close()
-
-    Dispatchers.resetMain()
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test
-  fun connect_onConnected() {
+  fun connect_onConnected() = runBlocking {
     pendingCar = createPendingCar(PassThroughOobChannelManager(oobData))
     pendingCar.connect()
     respondToInitMessage()
@@ -128,7 +122,7 @@ class PendingCarV4AssociationOobTest {
   }
 
   @Test
-  fun connect_oobDataIsNull_visualConfirmation() {
+  fun connect_oobDataIsNull_visualConfirmation() = runBlocking {
     pendingCar = createPendingCar(InvalidOobChannelManager(oobData))
     pendingCar.connect()
     respondToInitMessage()
@@ -231,7 +225,7 @@ class PendingCarV4AssociationOobTest {
         bluetoothManager = fakeBluetoothGattManager,
         oobData = null,
         oobChannelManagerFactory = FakeOobChannelManagerFactory(oobChannelManager),
-        coroutineScope = testCoroutineScope,
+        coroutineDispatcher = testDispatcher,
       )
       .apply { callback = mockPendingCarCallback }
 

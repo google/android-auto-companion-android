@@ -43,7 +43,7 @@ import com.nhaarman.mockitokotlin2.whenever
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestCoroutineDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -63,7 +63,7 @@ private val TEST_SERVICE_RECIPIENT: UUID = UUID.fromString("11111111-635b-4560-b
 @RunWith(AndroidJUnit4::class)
 class PhoneSyncBaseServiceTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
-  private val testDispatcher = TestCoroutineDispatcher()
+  private val testDispatcher = UnconfinedTestDispatcher()
   private lateinit var serviceController: ServiceController<FakeService>
 
   private val bluetoothDevice =
@@ -110,7 +110,6 @@ class PhoneSyncBaseServiceTest {
   @After
   fun tearDown() {
     Dispatchers.resetMain()
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test
@@ -162,7 +161,7 @@ class PhoneSyncBaseServiceTest {
     serviceController.startCommand(/* flags= */ 0, /* startId= */ 0)
 
     assertThat(service.connectingCars).hasSize(1)
-    verify(mockConnectionManager).connect(scanResult)
+    verify(mockConnectionManager).connect(eq(scanResult), any())
   }
 
   @Test
@@ -173,7 +172,7 @@ class PhoneSyncBaseServiceTest {
 
     serviceController.startCommand(/* flags= */ 0, /* startId= */ 0)
 
-    verify(mockConnectionManager, never()).connect(scanResult)
+    verify(mockConnectionManager, never()).connect(eq(scanResult), any())
   }
 
   @Test

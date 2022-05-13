@@ -37,7 +37,6 @@ import com.nhaarman.mockitokotlin2.whenever
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
-import kotlinx.coroutines.test.TestCoroutineDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -62,7 +61,7 @@ private val ADVERTISE_DATA = "beef".encodeToByteArray()
 @ExperimentalCoroutinesApi
 class BluetoothGattManagerTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
-  private val testDispatcher = TestCoroutineDispatcher()
+  private val testDispatcher = UnconfinedTestDispatcher()
   private val testScope = TestScope(testDispatcher)
 
   private lateinit var bluetoothDevice: BluetoothDevice
@@ -133,8 +132,6 @@ class BluetoothGattManagerTest {
   fun cleanUp() {
     // Clear stored default MTU; defaults to MAXIMUM_MTU.
     context.deleteSharedPreferences(BluetoothGattManager.SHARED_PREF)
-
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test

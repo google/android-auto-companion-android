@@ -30,8 +30,9 @@ import java.util.UUID
 import javax.crypto.Mac
 import javax.crypto.SecretKey
 import kotlin.collections.copyOfRange
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
@@ -48,9 +49,10 @@ internal constructor(
   private val associatedCarManager: AssociatedCarManager,
   override val device: BluetoothDevice,
   private val bluetoothManager: BluetoothConnectionManager,
-  private val coroutineScope: CoroutineScope = MainScope()
 ) : PendingCar {
   override var callback: PendingCar.Callback? = null
+
+  @VisibleForTesting internal var coroutineDispatcher: CoroutineDispatcher = Dispatchers.Main
 
   private var deviceId: UUID? = null
   private var storedSession: ByteArray? = null
@@ -82,29 +84,15 @@ internal constructor(
   }
 
   /**
-   * [advertisedData] should contain [ADVERTISED_DATA_SIZE_BYTES] bytes that represent the salt and
-   * its expected HMAC or is null if reconnection happen through SPP.
-   */
-  override fun connect(advertisedData: ByteArray?) {
-    coroutineScope.launch { initConnection(advertisedData) }
-  }
-
-  override fun disconnect() {
-    cleanUp()
-    bluetoothManager.disconnect()
-  }
-
-  private fun cleanUp() {
-    bluetoothManager.unregisterConnectionCallback(gattConnectionCallback)
-  }
-
-  /**
    * Initiate connection to available associated cars.
    *
    * In a BLE connection [advertisedData] will be used to find the remote device to be connected to.
    * In a SPP connection [advertisedData] will be null. Initiate connection to [device] directly.
+   *
+   * [advertisedData] should contain [ADVERTISED_DATA_SIZE_BYTES] bytes that represent the salt and
+   * its expected HMAC or is null if reconnection happen through SPP.
    */
-  private suspend fun initConnection(advertisedData: ByteArray?) {
+  override suspend fun connect(advertisedData: ByteArray?) {
     val associatedCars = associatedCarManager.retrieveAssociatedCars()
     var associatedCar: AssociatedCar? =
       if (advertisedData != null) {
@@ -129,6 +117,15 @@ internal constructor(
     } else {
       initEncryption(checkNotNull(storedSession))
     }
+  }
+
+  override fun disconnect() {
+    cleanUp()
+    bluetoothManager.disconnect()
+  }
+
+  private fun cleanUp() {
+    bluetoothManager.unregisterConnectionCallback(gattConnectionCallback)
   }
 
   private fun initDeviceVerification(advertisedData: ByteArray, associatedCar: AssociatedCar) {
@@ -211,7 +208,8 @@ internal constructor(
       override fun onEncryptionEstablished(key: Key) {
         logd(TAG, "onEncryptionEstablished")
         messageStream.encryptionKey = key
-        coroutineScope.launch { callback?.onConnected(toCar()) }
+
+        CoroutineScope(coroutineDispatcher).launch { callback?.onConnected(toCar()) }
       }
     }
 

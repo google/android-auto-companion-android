@@ -41,18 +41,28 @@ import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logw
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.MoreExecutors
 import java.util.UUID
+import java.util.concurrent.Executor
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.launch
 
 private const val SCAN_CALLBACK_TYPE = ScanSettings.CALLBACK_TYPE_ALL_MATCHES
 
-/** Provides methods to connect to [Car]s that this device has previously associated with. */
+/**
+ * Provides methods to connect to [Car]s that this device has previously associated with.
+ *
+ * @param context To connect in the background, the context should outlive this object. Consider a
+ * service or application context.
+ * @param executor Handles the platform callback and executes the methods that return a
+ * ListenableFuture. Defaults to the executor in which is object is instantiated.
+ */
 // TODO(b/139635930): Add unit test when robolectric shadows support BluetoothLeScanner.
 @PublicApi
 open class ConnectionManager
@@ -60,9 +70,10 @@ internal constructor(
   private val context: Context,
   private val associatedCarManager: AssociatedCarManager =
     AssociatedCarManagerProvider.getInstance(context).manager,
+  private val executor: Executor = MoreExecutors.directExecutor(),
   private val serviceUuid: UUID = V2_SERVICE_UUID,
-  private val coroutineScope: CoroutineScope = MainScope()
 ) {
+  private val coroutineDispatcher = executor.asCoroutineDispatcher()
   /** The UUID to use as a key for pulling out values in advertisement data. */
   private val dataUuid = V2_DATA_UUID
 
@@ -88,7 +99,7 @@ internal constructor(
       override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
         bluetoothProfile = proxy
 
-        coroutineScope.launch {
+        CoroutineScope(coroutineDispatcher).launch {
           val associatedConnectedDevices =
             if (checkPermissionsForBluetoothConnection(context)) {
               proxy.connectedDevices.filter { associatedCarManager.loadIsAssociated(it.address) }
@@ -199,7 +210,7 @@ internal constructor(
       return false
     }
 
-    coroutineScope.launch {
+    CoroutineScope(coroutineDispatcher).launch {
       val isAssociated = associatedCarManager.loadIsAssociated()
       if (!isAssociated) {
         logi(TAG, "No associated car; no-op")
@@ -309,7 +320,7 @@ internal constructor(
    * scope to call this method.
    */
   open fun fetchConnectedBluetoothDevices(): ListenableFuture<List<BluetoothDevice>> =
-    coroutineScope.future { loadConnectedDevices() }
+    CoroutineScope(coroutineDispatcher).future { loadConnectedDevices() }
 
   private suspend fun loadConnectedDevices(): List<BluetoothDevice> {
     val proxy = bluetoothProfile
@@ -335,26 +346,38 @@ internal constructor(
    * back through [ConnectionCallback.onConnected] for successful connection; and the same
    * [scanResult] will be sent back through [ConnectionCallback.onConnectionFailed] if a connection
    * could not be established.
+   *
+   * Set [executor] to control the thread that initiates the connection. By default, this is the
+   * [executor] from construction. Consider setting a background thread to avoid delaying the
+   * connection if that thread is also handling the `ScanResult` callback.
    */
-  open fun connect(scanResult: ScanResult) {
-    coroutineScope.launch {
-      if (!checkPermissionsForBluetoothConnection(context)) {
-        loge(
-          TAG,
-          "Missing required permission to connect to bluetooth device, ignore the connect call."
-        )
-        return@launch
-      }
-      val gatt = scanResult.toBluetoothGattManager()
-      if (gatt == null) {
-        loge(TAG, "Could not convert $scanResult as BluetoothGattManager.")
-        connectionCallbacks.forEach { it.onConnectionFailed(scanResult.device) }
-        return@launch
-      }
-      val advertisedData = resolveAdvertisedData(gatt, scanResult)
+  @JvmOverloads
+  open fun connect(
+    scanResult: ScanResult,
+    // Convert [executor] between executor and dispatcher so that the exposed public API is
+    // java-friendly.
+    executor: Executor = coroutineDispatcher.asExecutor(),
+  ) {
+    CoroutineScope(executor.asCoroutineDispatcher()).launch { connectAsync(scanResult) }
+  }
 
-      connect(gatt, advertisedData)
+  private suspend fun connectAsync(scanResult: ScanResult) {
+    if (!checkPermissionsForBluetoothConnection(context)) {
+      loge(
+        TAG,
+        "Missing required permission to connect to bluetooth device, ignore the connect call."
+      )
+      return
     }
+    val gatt = scanResult.toBluetoothGattManager()
+    if (gatt == null) {
+      loge(TAG, "Could not convert $scanResult as BluetoothGattManager.")
+      connectionCallbacks.forEach { it.onConnectionFailed(scanResult.device) }
+      return
+    }
+    val advertisedData = resolveAdvertisedData(gatt, scanResult)
+
+    connect(gatt, advertisedData)
   }
 
   /**
@@ -362,21 +385,34 @@ internal constructor(
    *
    * The [device] passed should already been associated with this phone. Register a callback to be
    * notified of the results of this connection attempt.
+   *
+   * Set [executor] to control the thread that initiates the connection. By default, this is the
+   * [executor] from construction. Consider setting a background thread to avoid delaying the
+   * connection if that thread is also handling the `ScanResult` callback.
    */
-  open fun connect(device: BluetoothDevice) {
-    coroutineScope.launch {
-      if (!checkPermissionsForBluetoothConnection(context)) {
-        loge(
-          TAG,
-          "Missing required permission to connect to bluetooth device, ignore the connect call."
-        )
-        return@launch
-      }
-      // Establish SPP channel using phone's device id to make sure the phone is connecting to the
-      // right remote device.
-      val sppManager = SppManager(context, device, getDeviceId(context))
-      connect(sppManager, advertisedData = null)
+  @JvmOverloads
+  open fun connect(
+    device: BluetoothDevice,
+    // Convert [executor] between executor and dispatcher so that the exposed public API is
+    // java-friendly.
+    executor: Executor = coroutineDispatcher.asExecutor(),
+  ) {
+    CoroutineScope(executor.asCoroutineDispatcher()).launch { connectAsync(device) }
+  }
+
+  /** Establishes connection with a [BluetoothDevice] through SPP. */
+  internal open suspend fun connectAsync(device: BluetoothDevice) {
+    if (!checkPermissionsForBluetoothConnection(context)) {
+      loge(
+        TAG,
+        "Missing required permission to connect to bluetooth device, ignore the connect call."
+      )
+      return
     }
+    // Establish SPP channel using phone's device id to make sure the phone is connecting to the
+    // right remote device.
+    val sppManager = SppManager(context, device, getDeviceId(context))
+    connect(sppManager, advertisedData = null)
   }
 
   private suspend fun connect(manager: BluetoothConnectionManager, advertisedData: ByteArray?) {
@@ -507,7 +543,7 @@ internal constructor(
       }
 
       override fun onConnected(car: Car) {
-        coroutineScope.launch { handleOnConnected(car) }
+        CoroutineScope(coroutineDispatcher).launch { handleOnConnected(car) }
       }
 
       override fun onConnectionFailed(pendingCar: PendingCar) {

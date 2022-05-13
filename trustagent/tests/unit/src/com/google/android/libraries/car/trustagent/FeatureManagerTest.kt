@@ -23,14 +23,14 @@ import com.nhaarman.mockitokotlin2.eq
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.never
 import com.nhaarman.mockitokotlin2.spy
-import com.nhaarman.mockitokotlin2.whenever
 import com.nhaarman.mockitokotlin2.verify
+import com.nhaarman.mockitokotlin2.whenever
 import java.util.UUID
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestCoroutineDispatcher
 import kotlin.test.fail
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -44,7 +44,7 @@ private val OTHER_CAR_ID = UUID.fromString("829466cd-3321-4af5-ac6b-9d7e175d76dc
 @ExperimentalCoroutinesApi
 @RunWith(AndroidJUnit4::class)
 class FeatureManagerTest {
-  private val testDispatcher = TestCoroutineDispatcher()
+  private val testDispatcher = UnconfinedTestDispatcher()
 
   private lateinit var featureManger: FeatureManagerFake
   private lateinit var car: Car
@@ -73,11 +73,6 @@ class FeatureManagerTest {
         )
       )
     featureManger = spy(FeatureManagerFake())
-  }
-
-  @After
-  fun after() {
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test

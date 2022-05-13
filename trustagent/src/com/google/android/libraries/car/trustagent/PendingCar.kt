@@ -47,7 +47,7 @@ internal interface PendingCar {
    * invoked for out-of-band verification. If not, i.e. reconnection, [Callback.onConnectionFailed]
    * should be invoked if the previous session could not be found, and connection will be stopped.
    */
-  fun connect(advertisedData: ByteArray? = null)
+  suspend fun connect(advertisedData: ByteArray? = null)
 
   /**
    * Stops current connection.

@@ -8,7 +8,7 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.asCoroutineDispatcher
 
 /** A factory of [OobChannelManager]s. */
-internal interface OobChannelManagerFactory {
+internal fun interface OobChannelManagerFactory {
   /** Creates an [OobChannelManager] based on [oobChannelTypes]. */
   fun create(
     oobChannelTypes: List<OobChannelType>,
@@ -22,7 +22,7 @@ internal class OobChannelManagerFactoryImpl() : OobChannelManagerFactory {
   override fun create(
     oobChannelTypes: List<OobChannelType>,
     oobData: OobData?,
-    securityVersion: Int
+    securityVersion: Int,
   ): OobChannelManager {
     var executorService: ExecutorService? = null
     val oobChannels: List<OobChannel> =
@@ -33,7 +33,7 @@ internal class OobChannelManagerFactoryImpl() : OobChannelManagerFactory {
             executorService = Executors.newSingleThreadExecutor()
             BluetoothRfcommChannel(
               securityVersion >= MIN_SECURITY_VERSION_FOR_OOB_PROTO,
-              executorService!!.asCoroutineDispatcher()
+              executorService!!.asCoroutineDispatcher(),
             )
           }
           OobChannelType.PRE_ASSOCIATION -> {

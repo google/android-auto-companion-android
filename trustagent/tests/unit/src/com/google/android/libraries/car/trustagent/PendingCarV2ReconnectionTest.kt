@@ -50,14 +50,11 @@ import java.security.SecureRandom
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.crypto.SecretKey
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.TestCoroutineDispatcher
-import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.After
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -75,7 +72,6 @@ private const val DEVICE_NAME = "deviceName"
 @RunWith(AndroidJUnit4::class)
 class PendingCarV2ReconnectionTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
-  private val testDispatcher = TestCoroutineDispatcher()
   private val testBluetoothDevice =
     BluetoothAdapter.getDefaultAdapter().getRemoteDevice("AA:BB:CC:DD:EE:FF")
 
@@ -126,10 +122,10 @@ class PendingCarV2ReconnectionTest {
 
     gattCallbacks = CopyOnWriteArrayList()
     whenever(
-      mockGattManager.registerConnectionCallback(
-        any<BluetoothConnectionManager.ConnectionCallback>()
+        mockGattManager.registerConnectionCallback(
+          any<BluetoothConnectionManager.ConnectionCallback>()
+        )
       )
-    )
       .thenAnswer {
         val callback = it.getArgument(0) as BluetoothConnectionManager.ConnectionCallback
         gattCallbacks.add(callback)
@@ -154,9 +150,6 @@ class PendingCarV2ReconnectionTest {
   @After
   fun tearDown() {
     database.close()
-
-    Dispatchers.resetMain()
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test
@@ -178,7 +171,7 @@ class PendingCarV2ReconnectionTest {
   }
 
   @Test
-  fun connect_incorrectHmac_connectionFailed() {
+  fun connect_incorrectHmac_connectionFailed() = runBlocking {
     pendingCar.connect(createAdvertisedData())
 
     respondToSaltHmacAndChallenge(respondCorrectValue = false)
@@ -188,7 +181,7 @@ class PendingCarV2ReconnectionTest {
   }
 
   @Test
-  fun connect_onConnected() {
+  fun connect_onConnected() = runBlocking {
     pendingCar.connect(createAdvertisedData())
     respondToSaltHmacAndChallenge()
     respondToInitMessage()
@@ -199,7 +192,7 @@ class PendingCarV2ReconnectionTest {
   }
 
   @Test
-  fun connect_ukey2KeyMismatchEncryptionFailure_connectionFails() {
+  fun connect_ukey2KeyMismatchEncryptionFailure_connectionFails() = runBlocking {
     pendingCar.connect(createAdvertisedData())
     respondToSaltHmacAndChallenge()
     respondToInitMessage()
@@ -213,12 +206,12 @@ class PendingCarV2ReconnectionTest {
   }
 
   @Test
-  fun connect_noVerificationCodeEncryptionFailure_illegalStateException() {
+  fun connect_noVerificationCodeEncryptionFailure_illegalStateException(): Unit = runBlocking {
     pendingCar.connect(createAdvertisedData())
     respondToSaltHmacAndChallenge()
     respondToInitMessage()
 
-    assertThrows(IllegalStateException::class.java) {
+    assertFailsWith<IllegalStateException> {
       pendingCar.encryptionCallback.onEncryptionFailure(
         EncryptionRunnerManager.FailureReason.NO_VERIFICATION_CODE
       )
@@ -226,7 +219,7 @@ class PendingCarV2ReconnectionTest {
   }
 
   @Test
-  fun toCar_loadNameFromDatabase() {
+  fun toCar_loadNameFromDatabase(): Unit = runBlocking {
     pendingCar.connect(createAdvertisedData())
     respondToSaltHmacAndChallenge()
     respondToInitMessage()
@@ -359,7 +352,9 @@ class PendingCarV2ReconnectionTest {
         associatedCarManager = associatedCarManager,
         device = bluetoothDevice,
         bluetoothManager = mockGattManager,
-        coroutineScope = CoroutineScope(testDispatcher)
       )
-      .apply { callback = mockPendingCarCallback }
+      .apply {
+        coroutineDispatcher = UnconfinedTestDispatcher()
+        callback = mockPendingCarCallback
+      }
 }

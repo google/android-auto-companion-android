@@ -184,7 +184,8 @@ internal class MessagingNotificationHandler(
     val response = actionDataList.firstOrNull { it.key == REPLY_KEY } ?: return
     val bundle = Bundle().apply { putCharSequence(remoteInput.resultKey, response.value) }
     val intent = Intent()
-    RemoteInput.addResultsToIntent(action.remoteInputs, intent, bundle)
+    val remoteInputs = action.remoteInputs ?: emptyArray<RemoteInput>()
+    RemoteInput.addResultsToIntent(remoteInputs, intent, bundle)
     action.actionIntent?.send(context, 0, intent)
 
     DebugLogs.logSendReplyToPhone()

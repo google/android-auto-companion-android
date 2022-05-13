@@ -28,7 +28,7 @@ import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.spy
 import com.nhaarman.mockitokotlin2.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestCoroutineDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -49,7 +49,7 @@ class AssociationManagerMissingBluetoothPermissionsTest {
       permission.ACCESS_BACKGROUND_LOCATION,
     )
 
-  private val testDispatcher = TestCoroutineDispatcher()
+  private val testDispatcher = UnconfinedTestDispatcher()
   private val context = ApplicationProvider.getApplicationContext<Context>()
 
   private lateinit var database: ConnectedCarDatabase
@@ -83,7 +83,6 @@ class AssociationManagerMissingBluetoothPermissionsTest {
   @After
   fun after() {
     database.close()
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test

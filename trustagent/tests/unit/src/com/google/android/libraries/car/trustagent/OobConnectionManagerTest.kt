@@ -20,7 +20,7 @@ import java.security.InvalidAlgorithmParameterException
 import java.security.SecureRandom
 import javax.crypto.AEADBadTagException
 import javax.crypto.KeyGenerator
-import org.junit.Assert.assertThrows
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -65,7 +65,7 @@ class OobConnectionManagerTest {
     // OobConnectionManager on another device that share its nonces and encryption key.
     val oobConnectionManager = OobConnectionManager.create(TEST_OOB_DATA)!!
     oobConnectionManager.encryptVerificationCode(TEST_MESSAGE)
-    assertThrows(AEADBadTagException::class.java) {
+    assertFailsWith<AEADBadTagException> {
       oobConnectionManager.decryptVerificationCode(TEST_MESSAGE)
     }
   }
@@ -74,7 +74,7 @@ class OobConnectionManagerTest {
   fun testMultipleCallsToEncrypt_throwsInvalidParameterException() {
     val oobConnectionManager = OobConnectionManager.create(TEST_OOB_DATA)!!
     oobConnectionManager.encryptVerificationCode(TEST_MESSAGE)
-    assertThrows(InvalidAlgorithmParameterException::class.java) {
+    assertFailsWith<InvalidAlgorithmParameterException> {
       oobConnectionManager.encryptVerificationCode(TEST_MESSAGE)
     }
   }
@@ -84,7 +84,7 @@ class OobConnectionManagerTest {
     val oobConnectionManager = OobConnectionManager.create(TEST_OOB_DATA)!!
 
     // An exception will be thrown if the message to decrypt is shorter than the IV
-    assertThrows(AEADBadTagException::class.java) {
+    assertFailsWith<AEADBadTagException> {
       oobConnectionManager.decryptVerificationCode("short".toByteArray())
     }
   }

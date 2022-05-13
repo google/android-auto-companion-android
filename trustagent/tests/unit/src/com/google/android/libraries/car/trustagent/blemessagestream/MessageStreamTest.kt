@@ -19,7 +19,7 @@ import com.google.android.companionprotos.OperationProto.OperationType
 import com.google.android.libraries.car.trustagent.blemessagestream.version2.BluetoothMessageStreamV2
 import com.google.common.truth.Truth.assertThat
 import com.nhaarman.mockitokotlin2.mock
-import org.junit.Assert.assertThrows
+import kotlin.test.assertFailsWith
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -68,33 +68,31 @@ class MessageStreamTest {
 
   @Test
   fun testToEncrypted_payloadNotEncrypted_throwsException() {
-    val message = StreamMessage(
-      ByteArray(1),
-      OperationType.CLIENT_MESSAGE,
-      isPayloadEncrypted = false,
-      originalMessageSize = 0, recipient = null
-    )
-    assertThrows(IllegalStateException::class.java) {
+    val message =
+      StreamMessage(
+        ByteArray(1),
+        OperationType.CLIENT_MESSAGE,
+        isPayloadEncrypted = false,
+        originalMessageSize = 0,
+        recipient = null
+      )
+    assertFailsWith<IllegalStateException> {
       // We cannot create a mocked instance of interface here,
       // likely because the extension methods live in the scope provided by the concrete class.
-      with(stream) {
-        message.toEncrypted()
-      }
+      with(stream) { message.toEncrypted() }
     }
   }
 
   @Test
   fun testToDecrypted_payloadNotEncrypted_throwsException() {
-    val message = StreamMessage(
-      ByteArray(1),
-      OperationType.CLIENT_MESSAGE,
-      isPayloadEncrypted = false,
-      originalMessageSize = 0, recipient = null
-    )
-    assertThrows(IllegalStateException::class.java) {
-      with(stream) {
-        message.toDecrypted()
-      }
-    }
+    val message =
+      StreamMessage(
+        ByteArray(1),
+        OperationType.CLIENT_MESSAGE,
+        isPayloadEncrypted = false,
+        originalMessageSize = 0,
+        recipient = null
+      )
+    assertFailsWith<IllegalStateException> { with(stream) { message.toDecrypted() } }
   }
 }

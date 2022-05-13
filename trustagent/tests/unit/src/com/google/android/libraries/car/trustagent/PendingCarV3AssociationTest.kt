@@ -42,14 +42,10 @@ import com.nhaarman.mockitokotlin2.whenever
 import java.lang.IllegalStateException
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.TestCoroutineDispatcher
-import kotlinx.coroutines.test.resetMain
 import org.junit.After
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,7 +62,6 @@ private const val DEVICE_AND_SECRET_KEY_MESSAGE_ID = 3
 @RunWith(AndroidJUnit4::class)
 class PendingCarV3AssociationTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
-  private val testDispatcher = TestCoroutineDispatcher()
 
   private val fakeBluetoothConnectionManager = spy(FakeBluetoothConnectionManager())
   private val mockPendingCarCallback: PendingCar.Callback = mock()
@@ -119,9 +114,6 @@ class PendingCarV3AssociationTest {
   @After
   fun tearDown() {
     database.close()
-
-    Dispatchers.resetMain()
-    testDispatcher.cleanupTestCoroutines()
   }
 
   @Test
@@ -153,7 +145,7 @@ class PendingCarV3AssociationTest {
   }
 
   @Test
-  fun connect_encryptedDeviceIdConfirmsAuthString() {
+  fun connect_encryptedDeviceIdConfirmsAuthString() = runBlocking {
     pendingCar = createPendingCar()
     pendingCar.connect()
     respondToInitMessage()
@@ -166,7 +158,7 @@ class PendingCarV3AssociationTest {
   }
 
   @Test
-  fun connect_onConnected() {
+  fun connect_onConnected() = runBlocking {
     pendingCar = createPendingCar()
     pendingCar.connect()
     respondToInitMessage()
@@ -180,7 +172,7 @@ class PendingCarV3AssociationTest {
   }
 
   @Test
-  fun disconnect_GattIsDisconnected() {
+  fun disconnect_GattIsDisconnected() = runBlocking {
     pendingCar = createPendingCar()
     pendingCar.connect()
     respondToInitMessage()
@@ -192,7 +184,7 @@ class PendingCarV3AssociationTest {
   }
 
   @Test
-  fun gattDisconnection_connectionFails() {
+  fun gattDisconnection_connectionFails() = runBlocking {
     pendingCar = createPendingCar()
     pendingCar.connect()
     respondToInitMessage()
@@ -205,7 +197,7 @@ class PendingCarV3AssociationTest {
   }
 
   @Test
-  fun gattConnectedCallback_connectionFails() {
+  fun gattConnectedCallback_connectionFails() = runBlocking {
     pendingCar = createPendingCar()
     pendingCar.connect()
     respondToInitMessage()
@@ -219,7 +211,7 @@ class PendingCarV3AssociationTest {
   }
 
   @Test
-  fun connect_noVerificationCodeEncryptionFailure_connectionFails() {
+  fun connect_noVerificationCodeEncryptionFailure_connectionFails() = runBlocking {
     pendingCar = createPendingCar()
     pendingCar.connect()
     respondToInitMessage()
@@ -232,12 +224,12 @@ class PendingCarV3AssociationTest {
   }
 
   @Test
-  fun connect_ukey2KeyMismatchEncryptionFailure_failureIgnored() {
+  fun connect_ukey2KeyMismatchEncryptionFailure_failureIgnored(): Unit = runBlocking {
     pendingCar = createPendingCar()
     pendingCar.connect()
     respondToInitMessage()
 
-    assertThrows(IllegalStateException::class.java) {
+    assertFailsWith<IllegalStateException> {
       pendingCar.encryptionCallback.onEncryptionFailure(
         EncryptionRunnerManager.FailureReason.UKEY2_KEY_MISMATCH
       )
@@ -310,7 +302,6 @@ class PendingCarV3AssociationTest {
         associatedCarManager = associatedCarManager,
         device = bluetoothDevice,
         bluetoothManager = fakeBluetoothConnectionManager,
-        coroutineScope = CoroutineScope(testDispatcher),
         resolvedOobChannelTypes = emptyList(),
         oobData = null
       )

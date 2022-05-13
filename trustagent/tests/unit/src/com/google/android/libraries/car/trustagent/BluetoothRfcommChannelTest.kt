@@ -37,7 +37,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.TestCoroutineDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,7 +53,7 @@ class BluetoothRfcommChannelTest {
       .getSystemService(BluetoothManager::class.java)
       .adapter
       .getRemoteDevice("00:11:22:33:AA:BB")
-  private val testDispatcher = TestCoroutineDispatcher()
+  private val testDispatcher = UnconfinedTestDispatcher()
   private val backgroundContext: CoroutineDispatcher =
     Executors.newSingleThreadExecutor().asCoroutineDispatcher()
   private val mockCallback: OobChannel.Callback = mock()

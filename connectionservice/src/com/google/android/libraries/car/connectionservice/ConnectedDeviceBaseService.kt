@@ -26,8 +26,6 @@ import com.google.android.libraries.car.trustagent.ConnectionManager
 import com.google.android.libraries.car.trustagent.FeatureManager
 import com.google.android.libraries.car.trustagent.api.PublicApi
 import com.google.android.libraries.car.trustagent.util.logi
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 
 /**
  * A service that is responsible for creating [FeatureManager]s and posting foreground notification
@@ -46,13 +44,6 @@ import kotlinx.coroutines.Dispatchers
 abstract class ConnectedDeviceBaseService : FeatureManagerService() {
 
   lateinit var connectedDeviceManager: ConnectedDeviceManager
-
-  /**
-   * Dispatcher for the coroutines launched by this service and its internal components.
-   *
-   * Defaults to [Dispatchers.Main]. This field should not be overridden by implementations.
-   */
-  @VisibleForTesting protected open val coroutineDispatcher: CoroutineDispatcher = Dispatchers.Main
 
   private var foregroundNotificationInfo: Pair<Notification, Int>? = null
 
@@ -97,7 +88,6 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
           AssociationManager.getInstance(this),
           ConnectionManager.getInstance(this),
           featureManagers,
-          coroutineDispatcher
         )
         .apply { registerCallback(connectedDeviceManagerCallback) }
   }
@@ -114,6 +104,10 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
     foregroundNotificationInfo = intent?.foregroundNotificationInfo
 
     return START_STICKY
+  }
+
+  override fun onDestroy() {
+    super.onDestroy()
   }
 
   private fun handleConnection(associatedCar: AssociatedCar) {

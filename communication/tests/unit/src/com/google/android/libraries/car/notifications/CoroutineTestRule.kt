@@ -16,19 +16,17 @@ package com.google.android.libraries.car.notifications
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestCoroutineDispatcher
+import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
 
-/**
- * Coroutines Test Rule for testing coroutines calls
- */
+/** Coroutines Test Rule for testing coroutines calls */
 @ExperimentalCoroutinesApi
-class CoroutineTestRule(
-  val testDispatcher: TestCoroutineDispatcher = TestCoroutineDispatcher()
-) : TestWatcher() {
+class CoroutineTestRule(val testDispatcher: TestDispatcher = UnconfinedTestDispatcher()) :
+  TestWatcher() {
   override fun starting(description: Description?) {
     super.starting(description)
     Dispatchers.setMain(testDispatcher)
@@ -37,6 +35,5 @@ class CoroutineTestRule(
   override fun finished(description: Description?) {
     super.finished(description)
     Dispatchers.resetMain()
-    testDispatcher.cleanupTestCoroutines()
   }
 }
