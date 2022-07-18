@@ -44,6 +44,11 @@ internal object DebugLogs {
     UNKNOWN_ACTION,
   }
 
+  fun logPhoneToCarMessageErrors(reasons: List<String>, metadata: String) {
+    val reasonString = reasons.joinToString(", ")
+    Log.w(TAG, "Ignoring message because: $reasonString, $metadata")
+  }
+
   fun logPhoneToCarMessageError(reason: String) {
     Log.w(TAG, "Ignoring message because: $reason")
   }

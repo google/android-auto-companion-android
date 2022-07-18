@@ -35,8 +35,11 @@ import java.util.UUID
  * @property gattServiceUuid The UUID of the GATT service to start association with.
  * @property sppServiceUuid The UUID of the SPP service record to connect to. `null` means SPP
  * channel is not available.
+ *
+ * @deprecated: This class will be removed in a future SDK release.
  */
 @PublicApi
+@Deprecated("Use ConnectedDeviceManager API instead.")
 open class DiscoveredCar
 internal constructor(
   internal val device: BluetoothDevice,

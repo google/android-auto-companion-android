@@ -29,52 +29,54 @@ class NotificationUtilsTest {
   private val defaultKey = "key"
 
   @Test
-  fun isCarCompatibleMessage_returnsTrueWhenValid() {
+  fun passesCarMsgRequirements_returnsTrueWhenValid() {
     val sbn = createSBN()
-    val isCarCompatible = sbn.notification.isCarCompatibleMessagingNotification
-    assertThat(isCarCompatible).isTrue()
+    val passesCarMsgRequirements = sbn.notification.passesStrictCarMsgRequirements
+    assertThat(passesCarMsgRequirements).isTrue()
   }
 
   @Test
-  fun isCarCompatibleMessage_noReplyAction() {
+  fun passesCarMsgRequirements_noReplyAction() {
     val sbn = createSBN(hasReplyAction = false)
-    val isCarCompatible = sbn.notification.isCarCompatibleMessagingNotification
-    assertThat(isCarCompatible).isFalse()
+    val passesCarMsgRequirements = sbn.notification.passesStrictCarMsgRequirements
+    assertThat(passesCarMsgRequirements).isFalse()
   }
 
   @Test
-  fun isCarCompatibleMessage_noMarkAsReadAction() {
+  fun passesCarMsgRequirements_noMarkAsReadAction() {
     val sbn = createSBN(hasMarkAsRead = false)
-    val isCarCompatible = sbn.notification.isCarCompatibleMessagingNotification
-    assertThat(isCarCompatible).isTrue()
+    val passesStrictCarMsgRequirements = sbn.notification.passesStrictCarMsgRequirements
+    assertThat(passesStrictCarMsgRequirements).isFalse()
+    val passesRelaxedCarMsgRequirements = sbn.notification.passesRelaxedCarMsgRequirements
+    assertThat(passesRelaxedCarMsgRequirements).isTrue()
   }
 
   @Test
-  fun isCarCompatibleMessage_usingInvisibleActions() {
+  fun passesCarMsgRequirements_usingInvisibleActions() {
     val sbn = createSBN(useInvisibleActions = true)
-    val isCarCompatible = sbn.notification.isCarCompatibleMessagingNotification
-    assertThat(isCarCompatible).isTrue()
+    val passesCarMsgRequirements = sbn.notification.passesStrictCarMsgRequirements
+    assertThat(passesCarMsgRequirements).isTrue()
   }
 
   @Test
-  fun isCarCompatibleMessage_showsUI() {
+  fun passesCarMsgRequirements_showsUI() {
     val sbn = createSBN(showsUI = true)
-    val isCarCompatible = sbn.notification.isCarCompatibleMessagingNotification
-    assertThat(isCarCompatible).isFalse()
+    val passesCarMsgRequirements = sbn.notification.passesStrictCarMsgRequirements
+    assertThat(passesCarMsgRequirements).isFalse()
   }
 
   @Test
-  fun isCarCompatibleMessage_showsUI_InvisibleActions() {
+  fun passesCarMsgRequirements_showsUI_InvisibleActions() {
     val sbn = createSBN(showsUI = true, useInvisibleActions = true)
-    val isCarCompatible = sbn.notification.isCarCompatibleMessagingNotification
-    assertThat(isCarCompatible).isFalse()
+    val passesCarMsgRequirements = sbn.notification.passesStrictCarMsgRequirements
+    assertThat(passesCarMsgRequirements).isFalse()
   }
 
   @Test
-  fun isCarCompatibleMessage_noMessagingStyle() {
+  fun passesCarMsgRequirements_noMessagingStyle() {
     val sbn = createSBN(hasMessagingStyle = false)
-    val isCarCompatible = sbn.notification.isCarCompatibleMessagingNotification
-    assertThat(isCarCompatible).isFalse()
+    val passesCarMsgRequirements = sbn.notification.passesStrictCarMsgRequirements
+    assertThat(passesCarMsgRequirements).isFalse()
   }
 
   @Test

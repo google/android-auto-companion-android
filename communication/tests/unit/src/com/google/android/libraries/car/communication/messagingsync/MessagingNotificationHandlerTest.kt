@@ -198,7 +198,7 @@ class MessagingNotificationHandlerTest {
     messagingUtils.disableMessagingSync(carId.toString())
     val sbn = createSBN()
     assertThat(handler.canHandleNotification(sbn)).isFalse()
-    assertThat(handler.cannotHandleNotificationReason(sbn))
+    assertThat(handler.cannotHandleNotificationReasons(sbn))
       .contains(MESSAGING_SYNC_FEATURE_DISABLED.name)
     handler.onNotificationReceived(sbn)
     verify(sendMessage, never()).invoke(any(), any())
@@ -209,7 +209,7 @@ class MessagingNotificationHandlerTest {
     val sbn = createSBN()
     handler.onNotificationReceived(sbn).also { reset(sendMessage) }
     assertThat(handler.canHandleNotification(sbn)).isFalse()
-    assertThat(handler.cannotHandleNotificationReason(sbn)).contains(DUPLICATE_MESSAGE.name)
+    assertThat(handler.cannotHandleNotificationReasons(sbn)).contains(DUPLICATE_MESSAGE.name)
     handler.onNotificationReceived(sbn)
     verify(sendMessage, never()).invoke(any(), any())
   }
@@ -221,7 +221,7 @@ class MessagingNotificationHandlerTest {
     handler.onMessageReceived(buildReply(defaultKey))
     val responseSBN = createSBN(postSpecificMessage = replyMessages[defaultKey])
     assertThat(handler.canHandleNotification(responseSBN)).isFalse()
-    assertThat(handler.cannotHandleNotificationReason(responseSBN)).contains(REPLY_REPOST.name)
+    assertThat(handler.cannotHandleNotificationReasons(responseSBN)).contains(REPLY_REPOST.name)
     handler.onNotificationReceived(responseSBN)
     verify(sendMessage, never()).invoke(any(), any())
   }
@@ -230,7 +230,7 @@ class MessagingNotificationHandlerTest {
   fun onNotificationReceived_oldMessage() {
     val sbn = createSBN(isOldMessage = true)
     assertThat(handler.canHandleNotification(sbn)).isFalse()
-    assertThat(handler.cannotHandleNotificationReason(sbn))
+    assertThat(handler.cannotHandleNotificationReasons(sbn))
       .contains(OLD_MESSAGES_IN_NOTIFICATION.name)
     handler.onNotificationReceived(sbn)
     verify(sendMessage, never()).invoke(any(), any())
@@ -240,7 +240,7 @@ class MessagingNotificationHandlerTest {
   fun onNotificationReceived_noMessagingStyle() {
     val sbn = createSBN(hasMessagingStyle = false)
     assertThat(handler.canHandleNotification(sbn)).isFalse()
-    assertThat(handler.cannotHandleNotificationReason(sbn))
+    assertThat(handler.cannotHandleNotificationReasons(sbn))
       .contains(NON_CAR_COMPATIBLE_MESSAGE_NO_MESSAGING_STYLE.name)
     handler.onNotificationReceived(sbn)
     verify(sendMessage, never()).invoke(any(), any())
@@ -250,7 +250,7 @@ class MessagingNotificationHandlerTest {
   fun onNotificationReceived_noReplyAction() {
     val sbn = createSBN(hasReplyAction = false)
     assertThat(handler.canHandleNotification(sbn)).isFalse()
-    assertThat(handler.cannotHandleNotificationReason(sbn))
+    assertThat(handler.cannotHandleNotificationReasons(sbn))
       .contains(NON_CAR_COMPATIBLE_MESSAGE_NO_REPLY.name)
     handler.onNotificationReceived(sbn)
     verify(sendMessage, never()).invoke(any(), any())
@@ -260,7 +260,7 @@ class MessagingNotificationHandlerTest {
   fun onNotificationReceived_wrongReplySemanticAction() {
     val sbn = createSBN(hasWrongReplySemanticAction = true)
     assertThat(handler.canHandleNotification(sbn)).isFalse()
-    assertThat(handler.cannotHandleNotificationReason(sbn))
+    assertThat(handler.cannotHandleNotificationReasons(sbn))
       .contains(NON_CAR_COMPATIBLE_MESSAGE_NO_REPLY.name)
     handler.onNotificationReceived(sbn)
     verify(sendMessage, never()).invoke(any(), any())
@@ -270,7 +270,7 @@ class MessagingNotificationHandlerTest {
   fun onNotificationReceived_showsUI() {
     val sbn = createSBN(showsUI = true)
     assertThat(handler.canHandleNotification(sbn)).isFalse()
-    assertThat(handler.cannotHandleNotificationReason(sbn))
+    assertThat(handler.cannotHandleNotificationReasons(sbn))
       .contains(NON_CAR_COMPATIBLE_MESSAGE_SHOWS_UI.name)
     handler.onNotificationReceived(sbn)
     verify(sendMessage, never()).invoke(any(), any())

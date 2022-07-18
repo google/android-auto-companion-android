@@ -233,7 +233,7 @@ constructor(
         callbacks.forEach { it.onDeviceDiscovered(chooserLauncher) }
       }
 
-      override fun onFailure(error: CharSequence) {
+      override fun onFailure(error: CharSequence?) {
         loge(TAG, "Received onFailure() from CompanionDeviceManager: $error.")
         callbacks.forEach { it.onDiscoveryFailed() }
       }
@@ -248,7 +248,8 @@ constructor(
           return
         }
 
-        if (intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1) != BluetoothProfile.STATE_CONNECTED
+        if (
+          intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1) != BluetoothProfile.STATE_CONNECTED
         ) {
           logi(TAG, "Bluetooth connection status is not STATE_CONNECTED. Ignored")
           return
@@ -337,6 +338,9 @@ constructor(
    * Bluetooth is off, then this method will do nothing and return `false`. This method will also
    * fail if the proper scanning permissions are not granted. In this case, `false` will also be
    * returned.
+   *
+   * This method should only be invoked once per request. Otherwise launching the IntentSender from
+   * [onDeviceDiscovered] might cause exception from the platform.
    *
    * @param[request] Parameters that modify this discovery call.
    */

@@ -44,6 +44,7 @@ internal class PhoneToCarMessageDAO(
 ) {
 
   private val DEFAULT_USER_NAME = "DRIVER"
+  private val DEFAULT_CONVERSATION_TITLE = "CONVERSATION"
 
   private val appIconBytes: ByteString
     get() = appIcon.toByteString()
@@ -71,9 +72,10 @@ internal class PhoneToCarMessageDAO(
 
   private fun NotificationCompat.MessagingStyle.buildMessageStyle() =
     NotificationMsg.MessagingStyle.newBuilder()
-      .setUserDisplayName(user?.name?.toString() ?: DEFAULT_USER_NAME)
+      .setUserDisplayName(
+        if (user?.name?.isNullOrEmpty() == true) DEFAULT_USER_NAME else user.name.toString())
       .setIsGroupConvo(isGroupConversation)
-      .setConvoTitle(conversationTitle.toString())
+      .setConvoTitle(conversationTitle?.toString() ?: DEFAULT_CONVERSATION_TITLE)
       .apply {
         messages.filter { Instant.ofEpochMilli(it.timestamp) >= connectionTime }.forEach { message
           ->
@@ -109,8 +111,7 @@ internal class PhoneToCarMessageDAO(
     quality: Int = ICON_QUALITY_DEFAULT,
     maxWidthHeight: Int? = null
   ) =
-    loadDrawable(context)
-      .toBitmap()
+    loadDrawable(context)!!.toBitmap()
       .run { maxWidthHeight?.let { maxSize -> reduceSize(maxSize) } ?: this }
       .toByteString(compressFormat, quality)
 

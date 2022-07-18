@@ -14,6 +14,7 @@
 
 package com.google.android.libraries.car.trustagent
 
+import android.Manifest.permission
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothClass
@@ -66,13 +67,17 @@ import kotlinx.coroutines.launch
  * Manages the process of associating the current device with a car, including
  * - discovering a car that is ready to be associated with;
  * - initiating the association and notifying callbacks that require user interaction.
+ *
+ * @deprecated: This class will be removed in a future SDK release. Use [ConnectedDeviceManager]
+ * instead.
  */
 @PublicApi
 @OptIn(kotlin.ExperimentalStdlibApi::class)
+@Deprecated("Use ConnectedDeviceManager instead.")
 open class AssociationManager
 internal constructor(
   private val context: Context,
-  @VisibleForTesting
+  @get:VisibleForTesting
   internal open var associatedCarManager: AssociatedCarManager =
     AssociatedCarManagerProvider.getInstance(context).manager,
   private val bleManager: BleManager =
@@ -426,7 +431,18 @@ internal constructor(
 
     // Register for broadcasts when a device is discovered
     val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
-    context.registerReceiver(discoveredBluetoothDeviceReceiver, filter)
+    val requiredPermission =
+      if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
+        permission.BLUETOOTH
+      } else {
+        permission.BLUETOOTH_SCAN
+      }
+    context.registerReceiver(
+      discoveredBluetoothDeviceReceiver,
+      filter,
+      requiredPermission,
+      /* handler= */ null
+    )
 
     val success = bluetoothAdapter.startDiscovery()
     if (!success) {
@@ -991,7 +1007,8 @@ internal constructor(
       advertisedData?.let {
         // Also copy the advertised data into filter, only with supported length.
         when (it.size) {
-          ADVERTISED_NAME_DATA_LENGTH_LONG, ADVERTISED_NAME_DATA_LENGTH_SHORT -> {
+          ADVERTISED_NAME_DATA_LENGTH_LONG,
+          ADVERTISED_NAME_DATA_LENGTH_SHORT -> {
             System.arraycopy(it, 0, rawDataFilter, DEVICE_NAME_START_INDEX, it.size)
           }
           else -> {

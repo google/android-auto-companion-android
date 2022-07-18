@@ -36,10 +36,11 @@ import com.google.android.libraries.car.communication.messagingsync.DebugLogs.Ph
 import com.google.android.libraries.car.communication.messagingsync.DebugLogs.PhoneToCarMessageError.UNKNOWN
 import com.google.android.libraries.car.notifications.NotificationHandler
 import com.google.android.libraries.car.notifications.NotificationSyncManager
-import com.google.android.libraries.car.notifications.isCarCompatibleMessagingNotification
 import com.google.android.libraries.car.notifications.lastMessage
 import com.google.android.libraries.car.notifications.markAsReadAction
 import com.google.android.libraries.car.notifications.messagingStyle
+import com.google.android.libraries.car.notifications.passesRelaxedCarMsgRequirements
+import com.google.android.libraries.car.notifications.passesStrictCarMsgRequirements
 import com.google.android.libraries.car.notifications.replyAction
 import com.google.android.libraries.car.notifications.showsUI
 import com.google.android.libraries.car.trustagent.Car
@@ -114,8 +115,8 @@ internal class MessagingNotificationHandler(
 
   override fun onNotificationReceived(sbn: StatusBarNotification) {
     if (!canHandleNotification(sbn)) {
-      val reason = cannotHandleNotificationReason(sbn)
-      DebugLogs.logPhoneToCarMessageError(reason)
+      val reasons = cannotHandleNotificationReasons(sbn)
+      DebugLogs.logPhoneToCarMessageErrors(reasons, "${sbn.packageName}")
       return
     }
     DebugLogs.logMessageNotificationReceived(sbn.packageName)
@@ -128,7 +129,7 @@ internal class MessagingNotificationHandler(
   @VisibleForTesting
   fun canHandleNotification(sbn: StatusBarNotification) =
     isFeatureEnabled() &&
-      sbn.notification.isCarCompatibleMessagingNotification &&
+      isCarCompatibleNotification(sbn) &&
       isUnique(sbn) &&
       isRecentTextMessage(sbn) &&
       !isReplyRepost(sbn) &&
@@ -139,20 +140,37 @@ internal class MessagingNotificationHandler(
    * [StatusBarNotification]
    */
   @VisibleForTesting
-  fun cannotHandleNotificationReason(sbn: StatusBarNotification): String {
-    val error =
-      when {
-        !isFeatureEnabled() -> MESSAGING_SYNC_FEATURE_DISABLED
-        sbn.notification.messagingStyle == null -> NON_CAR_COMPATIBLE_MESSAGE_NO_MESSAGING_STYLE
-        sbn.notification.replyAction == null -> NON_CAR_COMPATIBLE_MESSAGE_NO_REPLY
-        sbn.notification.showsUI -> NON_CAR_COMPATIBLE_MESSAGE_SHOWS_UI
-        !isUnique(sbn) -> DUPLICATE_MESSAGE
-        !isRecentTextMessage(sbn) -> OLD_MESSAGES_IN_NOTIFICATION
-        isReplyRepost(sbn) -> REPLY_REPOST
-        isSMSMessage(sbn.packageName) -> SMS_MESSAGE
-        else -> UNKNOWN
+  fun cannotHandleNotificationReasons(sbn: StatusBarNotification): List<String> {
+    val reasons = buildList {
+      if (!isFeatureEnabled()) {
+        add("${MESSAGING_SYNC_FEATURE_DISABLED.name}")
       }
-    return "${error.name}, ${sbn.packageName}."
+      if (sbn.notification.messagingStyle == null) {
+        add("${NON_CAR_COMPATIBLE_MESSAGE_NO_MESSAGING_STYLE.name}")
+      }
+      if (sbn.notification.replyAction == null ) {
+        add("${NON_CAR_COMPATIBLE_MESSAGE_NO_REPLY.name}")
+      }
+      if (sbn.notification.showsUI ) {
+        add("${NON_CAR_COMPATIBLE_MESSAGE_SHOWS_UI.name}")
+      }
+      if (!isUnique(sbn)) {
+        add("${DUPLICATE_MESSAGE.name}")
+      }
+      if (!isRecentTextMessage(sbn)) {
+        add("${OLD_MESSAGES_IN_NOTIFICATION.name}")
+      }
+      if (isReplyRepost(sbn)) {
+        add("${REPLY_REPOST.name}")
+      }
+      if (isSMSMessage(sbn.packageName)) {
+        add("${SMS_MESSAGE.name}")
+      }
+      if (isEmpty()) {
+        add("${UNKNOWN.name}")
+      }
+    }
+    return reasons
   }
 
   private fun isFeatureEnabled() = messagingUtils.isMessagingSyncEnabled(carId.toString())
@@ -204,6 +222,20 @@ internal class MessagingNotificationHandler(
     val action = notification.markAsReadAction
     action?.actionIntent?.send(context, 0, Intent())
     DebugLogs.logSendMarkAsReadToPhone()
+  }
+
+  /**
+   * Allowlisted applications do not require mark as read intent to be present in the notification.
+   */
+  private fun isCarCompatibleNotification(sbn: StatusBarNotification) =
+    if (isAllowlistedForRelaxedReqs(sbn.packageName))
+      sbn.notification.passesRelaxedCarMsgRequirements
+    else
+      sbn.notification.passesStrictCarMsgRequirements
+
+  private fun isAllowlistedForRelaxedReqs(packageName: String): Boolean {
+    val allowList = context.getString(R.string.relaxedAllowlist).split(",")
+    return packageName in allowList
   }
 
   /**

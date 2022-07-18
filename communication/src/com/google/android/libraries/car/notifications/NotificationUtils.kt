@@ -77,9 +77,15 @@ val Notification.messagingStyle: NotificationCompat.MessagingStyle?
   get() = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(this)
 
 /**
- * Returns true if is car-compatible messaging notification Removing [markAsReadAction] non-null
- * check requirement to support Hangouts which, from the last manual test, does not have Mark As
- * read action.
+ * Returns true if is car-compatible messaging notification
  */
-val Notification.isCarCompatibleMessagingNotification: Boolean
+val Notification.passesStrictCarMsgRequirements: Boolean
+  get() = passesRelaxedCarMsgRequirements && markAsReadAction != null
+
+/**
+ * Returns true if is car-compatible messaging notification passing relaxed requirements.
+ *
+ * Relaxed car-compatible messaging notification requirements do not check for markAsReadAction.
+ */
+val Notification.passesRelaxedCarMsgRequirements: Boolean
   get() = messagingStyle != null && replyAction != null && !showsUI

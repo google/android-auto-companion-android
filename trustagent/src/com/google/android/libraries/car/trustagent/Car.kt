@@ -45,8 +45,11 @@ import kotlinx.coroutines.launch
  * Represents a connected remote device that runs Android Automotive OS.
  *
  * This class can be used to exchange messages with a Car.
+ *
+ * @deprecated: This class will be removed in a future SDK release. Use [AssociatedCar] instead.
  */
 @PublicApi
+@Deprecated("Use AssociatedCar instead.")
 open class Car
 internal constructor(
   private val bluetoothManager: BluetoothConnectionManager,
@@ -355,7 +358,7 @@ internal constructor(
         return
       }
 
-    val handler = queryResponseHandlers.remove(queryResponseProto.queryId)
+    val handler = lock.withLock { queryResponseHandlers.remove(queryResponseProto.queryId) }
     if (handler == null) {
       loge(
         TAG,
