@@ -93,8 +93,9 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
   }
 
   override fun onBind(intent: Intent): ServiceBinder {
-    logi(TAG, "onBind called. Returning service binder.")
     super.onBind(intent)
+
+    logi(TAG, "onBind called. Returning service binder.")
     return ServiceBinder()
   }
 
@@ -103,19 +104,25 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
 
     foregroundNotificationInfo = intent?.foregroundNotificationInfo
 
+    EventLog.onServiceStarted()
     return START_STICKY
   }
 
   override fun onDestroy() {
+    EventLog.onServiceStopped()
+
     super.onDestroy()
   }
 
   private fun handleConnection(associatedCar: AssociatedCar) {
     logi(TAG, "$associatedCar has connected.")
+    EventLog.onCarConnected(associatedCar.deviceId)
+
     connectedDevices.add(associatedCar)
     foregroundNotificationInfo?.let { (notification, notificationId) ->
       logi(TAG, "A device has connected. Starting foreground.")
 
+      EventLog.onStartForeground()
       startForeground(notificationId, notification)
     }
   }
@@ -125,6 +132,7 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
     connectedDevices.remove(associatedCar)
     if (connectedDevices.isEmpty()) {
       logi(TAG, "No device is connected. Stopping foreground.")
+      EventLog.onStopForeground()
       stopForeground(/* removeNotification= */ true)
     }
   }

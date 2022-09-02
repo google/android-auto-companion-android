@@ -16,7 +16,6 @@ package com.google.android.libraries.car.trustagent
 
 import android.bluetooth.BluetoothDevice
 import android.content.Context
-import com.google.android.libraries.car.trustagent.api.PublicApi
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothConnectionManager
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothGattHandle
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothGattManager
@@ -35,11 +34,7 @@ import java.util.UUID
  * @property gattServiceUuid The UUID of the GATT service to start association with.
  * @property sppServiceUuid The UUID of the SPP service record to connect to. `null` means SPP
  * channel is not available.
- *
- * @deprecated: This class will be removed in a future SDK release.
  */
-@PublicApi
-@Deprecated("Use ConnectedDeviceManager API instead.")
 open class DiscoveredCar
 internal constructor(
   internal val device: BluetoothDevice,

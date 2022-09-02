@@ -19,7 +19,6 @@ import androidx.annotation.VisibleForTesting
 import com.google.android.companionprotos.OperationProto.OperationType
 import com.google.android.companionprotos.Query as QueryProto
 import com.google.android.companionprotos.QueryResponse as QueryResponseProto
-import com.google.android.libraries.car.trustagent.api.PublicApi
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothConnectionManager
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
 import com.google.android.libraries.car.trustagent.blemessagestream.SppManager
@@ -45,11 +44,7 @@ import kotlinx.coroutines.launch
  * Represents a connected remote device that runs Android Automotive OS.
  *
  * This class can be used to exchange messages with a Car.
- *
- * @deprecated: This class will be removed in a future SDK release. Use [AssociatedCar] instead.
  */
-@PublicApi
-@Deprecated("Use AssociatedCar instead.")
 open class Car
 internal constructor(
   private val bluetoothManager: BluetoothConnectionManager,

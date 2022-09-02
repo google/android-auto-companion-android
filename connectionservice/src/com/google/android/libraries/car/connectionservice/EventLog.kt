@@ -22,19 +22,24 @@ import java.util.UUID
 object EventLog {
   private const val TAG = "ConnectionEvent"
 
-  /** Logs an event that indicates the service has been started. */
   fun onServiceStarted() {
     logi(TAG, "Service has been started.")
   }
 
-  /** Logs an event that indicate the service has been stopped. */
   fun onServiceStopped() {
     logi(TAG, "Service has been stopped.")
   }
 
-  /** Logs an event that indicates that car of [deviceId] has connected. */
   fun onCarConnected(deviceId: UUID) {
     logi(TAG, "Car of $deviceId has connected.")
+  }
+
+  fun onStartForeground() {
+    logi(TAG, "Service has started running in the foreground.")
+  }
+
+  fun onStopForeground() {
+    logi(TAG, "Service has stopped running in the foreground.")
   }
 }
 // LINT.ThenChange(//depot/google3/java/com/google/android/libraries/automotive/multidevice/testing/python_aae/tests/companion_android_longevity_test.py)

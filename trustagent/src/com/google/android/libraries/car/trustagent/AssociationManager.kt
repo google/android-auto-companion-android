@@ -54,7 +54,6 @@ import java.nio.ByteOrder.LITTLE_ENDIAN
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.regex.Pattern
-import kotlin.ExperimentalStdlibApi
 import kotlin.experimental.or
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -67,13 +66,7 @@ import kotlinx.coroutines.launch
  * Manages the process of associating the current device with a car, including
  * - discovering a car that is ready to be associated with;
  * - initiating the association and notifying callbacks that require user interaction.
- *
- * @deprecated: This class will be removed in a future SDK release. Use [ConnectedDeviceManager]
- * instead.
  */
-@PublicApi
-@OptIn(kotlin.ExperimentalStdlibApi::class)
-@Deprecated("Use ConnectedDeviceManager instead.")
 open class AssociationManager
 internal constructor(
   private val context: Context,
