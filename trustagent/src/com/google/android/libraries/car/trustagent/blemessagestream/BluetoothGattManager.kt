@@ -276,7 +276,8 @@ open class BluetoothGattManager(
           notifyConnectionFailed()
         }
       }
-      GattState.CONNECTED, GattState.RETRIEVING_NAME -> {
+      GattState.CONNECTED,
+      GattState.RETRIEVING_NAME -> {
         // We established the GATT connection but have not completed service discovery.
         notifyConnectionFailed()
       }
@@ -614,7 +615,7 @@ open class BluetoothGattManager(
       }
 
       override fun onServicesDiscovered(status: Int) {
-        val message = handler.obtainMessage(MSG_ON_SERVICES_DISCOVERED, /* arg1= */ status)
+        val message = handler.obtainMessage(MSG_ON_SERVICES_DISCOVERED, /* obj= */ status)
         if (!handler.sendMessage(message)) {
           logwtf(TAG, "onServicesDiscovered: could not send $message to handler.")
         }
@@ -667,7 +668,8 @@ open class BluetoothGattManager(
             """
           |Received characteristic read for ${characteristic.uuid}
           |while expecting $DEVICE_NAME_UUID. Ignored.
-          """.trimMargin()
+          """
+              .trimMargin()
           )
           return
         }
@@ -698,7 +700,8 @@ open class BluetoothGattManager(
             """
           |Received characteristic read for ${characteristic.uuid}
           |while expecting $advertiseDataCharacteristicUuid. Ignored.
-          """.trimMargin()
+          """
+              .trimMargin()
           )
           return
         }
@@ -732,6 +735,14 @@ open class BluetoothGattManager(
         }
 
         retrieveDeviceName()
+      }
+
+      override fun onServiceChanged() {
+        loge(TAG, "Received onServiceChanged callback. Disconnecting.")
+        // The suggested behavior by Android is to re-discover services.
+        // But we don't expect the GATT services to change. We'd get this callback when IHU
+        // disconnects (see b/241451594), so disconnect instead.
+        disconnect()
       }
     }
 

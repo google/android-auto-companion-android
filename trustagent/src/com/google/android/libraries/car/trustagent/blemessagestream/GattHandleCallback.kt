@@ -66,4 +66,7 @@ interface GattHandleCallback {
    * [status] will be [Bluetooth.GATT_SUCCESS] on a successful write.
    */
   fun onDescriptorWrite(descriptor: BluetoothGattDescriptor, status: Int)
+
+  /** Invoked to indicate a service-changed event. */
+  fun onServiceChanged()
 }

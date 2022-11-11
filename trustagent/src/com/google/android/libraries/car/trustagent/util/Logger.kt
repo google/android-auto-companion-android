@@ -16,13 +16,15 @@ package com.google.android.libraries.car.trustagent.util
 
 import com.google.android.libraries.car.trustagent.util.LogRecord.Level
 import com.google.common.collect.EvictingQueue
+import com.google.common.collect.Queues
 import com.google.gson.Gson
 import java.util.Queue
 
 /** Singleton class that keeps latest internal log records. */
 object Logger {
   private const val MAX_LOG_SIZE = 500
-  private val logRecordQueue: Queue<LogRecord> = EvictingQueue.create(MAX_LOG_SIZE)
+  private val logRecordQueue: Queue<LogRecord> =
+    Queues.synchronizedQueue(EvictingQueue.create(MAX_LOG_SIZE))
 
   fun logwtf(tag: String, message: String) = addLogRecord(LogRecord(Level.ASSERT, tag, message))
 

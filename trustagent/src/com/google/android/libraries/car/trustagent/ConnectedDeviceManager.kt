@@ -164,24 +164,25 @@ constructor(
         }
 
         coroutineScope.launch(backgroundDispatcher) {
-          logi(TAG, "onScanResult: checking whether we should connect to $result.")
+          logi(TAG, "onScanResult: checking whether we should connect to ${result.device}.")
           // Specifiy the filteredScanResult type to eliminate ambiguity in calling
           // ConnectionManager#connect().
           val filteredScanResult: ScanResult? =
             connectionManager.filterForConnectableCars(listOf(result)).firstOrNull()
-
           if (filteredScanResult == null) {
             loge(TAG, "$result does not meet condition for reconnection. Ignored.")
             return@launch
           }
 
           val device = filteredScanResult.device
-          if (device !in ongoingReconnections) {
-            ongoingReconnections.add(device)
-
-            logi(TAG, "Connecting to $result.")
-            connectionManager.connect(filteredScanResult, backgroundDispatcher.asExecutor())
+          if (device in ongoingReconnections) {
+            loge(TAG, "$device has an ongoing connection. Ignored.")
+            return@launch
           }
+          ongoingReconnections.add(device)
+
+          logi(TAG, "Connecting to $result.")
+          connectionManager.connect(filteredScanResult, backgroundDispatcher.asExecutor())
         }
       }
 
@@ -303,7 +304,9 @@ constructor(
 
     context.registerReceiver(
       bluetoothStateChangeReceiver,
-      IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+      IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
+      BluetoothAdapter.ACTION_STATE_CHANGED,
+      /* handler= */ null,
     )
 
     // Start reconnection.
@@ -430,7 +433,9 @@ constructor(
       logi(TAG, "Registering BroadcastReceiver for SPP.")
       context.registerReceiver(
         startSppBroadcastReceiver,
-        IntentFilter(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
+        IntentFilter(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED),
+        BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED,
+        /* handler= */ null,
       )
     }
     // The following logic will be executed as long as a reconnection attempt is needed.

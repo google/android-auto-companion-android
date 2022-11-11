@@ -175,6 +175,10 @@ class BluetoothGattHandle(
       ) {
         callback?.onDescriptorWrite(descriptor, status)
       }
+
+      override fun onServiceChanged(gatt: BluetoothGatt) {
+        callback?.onServiceChanged()
+      }
     }
 
   companion object {

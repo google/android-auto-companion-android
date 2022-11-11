@@ -76,6 +76,13 @@ class BluetoothMessageStreamV2(
         if (isCompressionEnabled) {
           message = message.toDecompressed()
         }
+        if (callbacks.isEmpty()) {
+          logw(
+            TAG,
+            "Received a message when no callback is registered. Ignored. Recipient ID: " +
+              "${message.recipient}, operation type: ${message.operation.name}."
+          )
+        }
         callbacks.forEach { it.onMessageReceived(message) }
       }
     }
@@ -169,7 +176,7 @@ class BluetoothMessageStreamV2(
 
   /** Write the next message in the [messageQueue]. */
   private fun writeNextMessageInQueue() {
-    if (!writeInProgress.compareAndSet(/* expected= */ false, /* update= */ true)) {
+    if (!writeInProgress.compareAndSet(/* expectedValue= */ false, /* newValue= */ true)) {
       // If writeInProgress does not match expected value - false, (obviously) it is true.
       logw(
         TAG,

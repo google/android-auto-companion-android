@@ -23,8 +23,8 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 
 /**
- * Manages incoming [Packet]s by grouping them by [Packet.getMessageId] and notifying
- * registered listener when a complete message has been received.
+ * Manages incoming [Packet]s by grouping them by [Packet.getMessageId] and notifying registered
+ * listener when a complete message has been received.
  */
 class PacketPayloadStream {
   /** A map of message IDs to data that are waiting to be formed into complete messages. */
@@ -38,28 +38,26 @@ class PacketPayloadStream {
    * If the write cannot be completed, an [IOException] will be thrown.
    *
    * An [IllegalStateException] can also be thrown if there is inconsistency with the packet that is
-   * being written (e.g. if the given `packet` is  written out-of-order with the last write of a
+   * being written (e.g. if the given `packet` is written out-of-order with the last write of a
    * `packet` with the same message id). When this happens, the stream should not be reused.
    */
   fun write(packet: Packet) {
     val messageId = packet.messageId
-    var pendingMessage = pendingData.get(messageId)?.apply {
-      if (!shouldProcessPacket(packet, currentPendingMessage = this)) {
-        return@write
-      }
+    var pendingMessage =
+      pendingData.get(messageId)?.apply {
+        if (!shouldProcessPacket(packet, currentPendingMessage = this)) {
+          return@write
+        }
 
-      write(packet)
-    }
+        write(packet)
+      }
 
     if (pendingMessage == null) {
       // The first message must start at 1, but handle receiving the last packet as this could
       // represent a duplicate packet. All other cases will trigger an exception when the packet
       // is parsed into a BleDeviceMessage.
       if (packet.packetNumber != 1 && packet.packetNumber == packet.totalPackets) {
-        logw(
-          TAG,
-          "Received a first message that is not the start of a packet. Ignoring."
-        )
+        logw(TAG, "Received a first message that is not the start of a packet. Ignoring.")
         return
       }
 
@@ -71,12 +69,13 @@ class PacketPayloadStream {
       return
     }
 
-    val bleDeviceMessage = try {
-      Message.parseFrom(pendingMessage.messageStream.toByteArray())
-    } catch (e: IOException) {
-      loge(TAG, "Could not parse BlePackets with message id $messageId as BleDeviceMessage.")
-      throw e
-    }
+    val bleDeviceMessage =
+      try {
+        Message.parseFrom(pendingMessage.messageStream.toByteArray())
+      } catch (e: IOException) {
+        loge(TAG, "Could not parse BlePackets with message id $messageId as BleDeviceMessage.")
+        throw e
+      }
 
     pendingData.remove(messageId)
     listener?.onMessageCompleted(bleDeviceMessage)
@@ -86,10 +85,7 @@ class PacketPayloadStream {
    * Validates the given [packet]'s metadata and returns `true` if the [packet] is valid for being
    * written into the message stream.
    */
-  private fun shouldProcessPacket(
-    packet: Packet,
-    currentPendingMessage: PendingMessage
-  ): Boolean {
+  private fun shouldProcessPacket(packet: Packet, currentPendingMessage: PendingMessage): Boolean {
     if (currentPendingMessage.lastPacketNumber + 1 == packet.packetNumber) {
       return true
     }
@@ -118,9 +114,7 @@ class PacketPayloadStream {
     return PendingMessage(messageStream, lastPacketNumber = packetNumber)
   }
 
-  /**
-   * Invoked when [BlePacket]s through [write] can be combined into a [BleDeviceMessage].
-   */
+  /** Invoked when [BlePacket]s through [write] can be combined into a [BleDeviceMessage]. */
   interface OnMessageCompletedListener {
     fun onMessageCompleted(deviceMessage: Message)
   }

@@ -31,9 +31,8 @@ import javax.crypto.Mac
 import javax.crypto.SecretKey
 import kotlin.collections.copyOfRange
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /**
  * Represents a connection to an already associated car.
@@ -208,8 +207,7 @@ internal constructor(
       override fun onEncryptionEstablished(key: Key) {
         logd(TAG, "onEncryptionEstablished")
         messageStream.encryptionKey = key
-
-        CoroutineScope(coroutineDispatcher).launch { callback?.onConnected(toCar()) }
+        runBlocking { callback?.onConnected(toCar()) }
       }
     }
 

@@ -536,6 +536,16 @@ class BluetoothGattManagerTest {
     }
 
   @Test
+  fun testOnServiceChanged_disconnect() {
+    manager.connect()
+    shadowOf(Looper.getMainLooper()).idle()
+
+    manager.gattCallback.onServiceChanged()
+
+    verify(gattHandle).disconnect()
+  }
+
+  @Test
   fun testDisconnect_bluetoothEnabled_callsGattDisconnect() {
     bluetoothAdapter.enable()
     manager.disconnect()
