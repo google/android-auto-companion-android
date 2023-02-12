@@ -21,17 +21,20 @@ sourceSets {
 }
 
 dependencies {
-    implementation "com.google.protobuf:protobuf-java:3.10.0"
+    implementation "com.google.protobuf:protobuf-java:3.21.12"
 }
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.10.0'
+        artifact = 'com.google.protobuf:protoc:3.21.12'
     }
     generateProtoTasks {
         all().each { task ->
             task.builtins {
                 java {
+                    option "lite"
+                }
+                kotlin {
                     option "lite"
                 }
             }

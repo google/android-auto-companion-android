@@ -13,11 +13,11 @@ buildscript {
 }
 
 android {
-    compileSdkVersion 29
+    compileSdkVersion rootProject.ext.sdkVersion
 
     defaultConfig {
-        minSdkVersion 26
-        targetSdkVersion 29
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.sdkVersion
         versionCode 1
         versionName "1.0"
 
@@ -41,6 +41,7 @@ android {
         main {
             manifest.srcFile 'AndroidManifest.xml'
             java.srcDirs = ['src']
+            res.srcDirs = ['src/com/google/android/libraries/car/communication/messagingsync/res']
             proto {
                 srcDir java.srcDirs
             }
@@ -62,37 +63,29 @@ android {
 }
 
 dependencies {
-    implementation "androidx.core:core:1.5.0-rc01"
-    implementation "androidx.core:core-ktx:1.3.2"
-    implementation "androidx.annotation:annotation:1.2.0"
-    implementation "com.google.guava:guava:30.0-android"
-    implementation "com.google.protobuf:protobuf-java:3.10.0"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.0"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.0"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.6.0"
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation project(path: ":android-auto-companion-android:trustagent")
-    implementation project(path: ":android-auto-companion-android:communicationproto")
+    implementation libs.bundles.androidx
+    implementation libs.bundles.kotlin
 
-    testImplementation "androidx.arch.core:core-testing:2.1.0"
-    testImplementation "androidx.test.ext:junit:1.1.2"
-    testImplementation "androidx.test:core:1.3.0"
-    testImplementation "androidx.test:rules:1.3.0"
-    testImplementation "com.android.support.test:runner:1.0.2"
-    testImplementation "com.android.support:support-annotations:28.0.0"
-    testImplementation "com.google.dexmaker:dexmaker:1.2"
-    testImplementation "com.google.truth:truth:1.1.2"
-    testImplementation "com.nhaarman.mockitokotlin2:mockito-kotlin:2.2.0"
-    testImplementation "org.jetbrains.kotlin:kotlin-test-junit:1.4.32"
-    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.3.1"
-    testImplementation "org.mockito:mockito-core:3.6.0"
-    testImplementation "org.robolectric:robolectric:4.5.1"
+    implementation libs.guava
+    implementation libs.protobuf
 
+    implementation project(path: ":trustagent")
+    implementation project(path: ":communicationproto")
+
+    testImplementation libs.bundles.androidx.testing
+
+    testImplementation libs.dexmaker
+    testImplementation libs.truth
+    testImplementation libs.nhaarman.mockito.kotlin
+    testImplementation libs.kotlin.junit.test
+    testImplementation libs.kotlin.coroutines.test
+    testImplementation libs.mockito
+    testImplementation libs.robolectric
 }
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.10.0'
+        artifact = 'com.google.protobuf:protoc:3.21.12'
     }
     generateProtoTasks {
         all().each { task ->

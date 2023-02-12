@@ -1,4 +1,7 @@
-build/**
-.gradle/**
+**/build/**
+**/.gradle/**
 .idea/**
 .DS_STORE
+**.swp
+**.hprof
+tests/**

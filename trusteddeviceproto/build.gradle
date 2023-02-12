@@ -3,15 +3,6 @@ apply plugin: 'com.google.protobuf'
 
 sourceCompatibility = '1.8'
 
-buildscript {
-    repositories {
-        jcenter()
-    }
-    dependencies {
-        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.13'
-    }
-}
-
 sourceSets {
     main {
         proto {
@@ -26,12 +17,15 @@ dependencies {
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.10.0'
+        artifact = 'com.google.protobuf:protoc:3.21.12'
     }
     generateProtoTasks {
         all().each { task ->
             task.builtins {
                 java {
+                    option "lite"
+                }
+                kotlin {
                     option "lite"
                 }
             }

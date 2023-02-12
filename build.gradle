@@ -1,3 +1,19 @@
+plugins {
+    /**
+     * Use `apply false` in the top-level build.gradle file to add a Gradle
+     * plugin as a build dependency but not apply it to the current (root)
+     * project.
+     */
+    id "com.android.library" version "7.4.0" apply false
+    id "com.google.protobuf" version "0.9.1" apply false
+    id "org.jetbrains.kotlin.android" version "1.7.20" apply false
+}
+
+ext {
+    sdkVersion = 31
+    minSdkVersion = 26
+}
+
 apply plugin: 'com.android.library'
 apply plugin: 'com.google.protobuf'
 apply plugin: 'kotlin-android'
@@ -32,60 +48,57 @@ android {
         main {
             manifest.srcFile 'AndroidManifest.xml'
             java.srcDirs = [
-                'src',
-                // Also export the test util so dependencies (mainly connectionservice) can use it for testing.
-                'tests/unit/src/com/google/android/libraries/car/trustagent/testutils',
+                'trustagent/src',
+                'calendarsync/src',
+                'communication/src',
+                'loggingsupport/src',
+                'trusteddevice/src',
+                'connectionservice/src',
             ]
-            res.srcDirs = ['res']
             proto {
                 srcDir java.srcDirs
             }
+            // Resources are included by the dependencies.
         }
-
-        test {
-            java.srcDirs = ['tests/unit/src']
-            assets.srcDirs += ['tests/unit/schemas']
-        }
+        // No test is included at root project.
     }
 
     lintOptions {
         abortOnError false
     }
-
-    testOptions {
-        unitTests.includeAndroidResources = true
-    }
 }
 
 dependencies {
-    annotationProcessor libs.androidx.room.compiler
-
     implementation libs.androidx.room.runtime
     implementation libs.androidx.room.ktx
+    implementation libs.dagger
     implementation libs.gson
     implementation libs.guava
     implementation libs.javax.annotation
     implementation libs.protobuf
 
-    implementation libs.bundles.androidx.lifecycle
     implementation libs.bundles.androidx
+    implementation libs.bundles.androidx.lifecycle
+    implementation libs.bundles.androidx.room
     implementation libs.bundles.kotlin
+    implementation libs.bundles.autovalue
 
+    implementation project(path: ":communication")
+    implementation project(path: ":calendarsync")
     implementation project(path: ":companionprotos")
+    implementation project(path: ":communicationproto")
     implementation project(path: ":encryptionrunner")
+    implementation project(path: ":trustagent")
+    implementation project(path: ":trusteddeviceproto")
 
+    kapt libs.auto.value
+    kapt libs.auto.factory
     kapt libs.androidx.room.compiler
+    kapt libs.dagger.compiler
+}
 
-    testImplementation libs.androidx.room.testing
-    testImplementation libs.dexmaker
-    testImplementation libs.truth
-    testImplementation libs.nhaarman.mockito.kotlin
-    testImplementation libs.kotlin.junit.test
-    testImplementation libs.kotlin.coroutines.test
-    testImplementation libs.mockito
-    testImplementation libs.robolectric
-
-    testImplementation libs.bundles.androidx.testing
+kapt {
+    correctErrorTypes = true
 }
 
 protobuf {
@@ -96,9 +109,6 @@ protobuf {
         all().each { task ->
             task.builtins {
                 java {
-                    option "lite"
-                }
-                kotlin {
                     option "lite"
                 }
             }

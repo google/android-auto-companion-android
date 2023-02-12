@@ -29,7 +29,7 @@ import com.google.android.libraries.car.calendarsync.feature.CalendarSyncManager
 import com.google.android.libraries.car.calendarsync.feature.repository.CalendarRepository
 import com.google.android.libraries.car.trustagent.Car
 import com.google.common.collect.ImmutableSet
-import com.google.common.time.ZoneIds
+import java.time.ZoneId
 import com.google.common.truth.Truth.assertThat
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.anyOrNull
@@ -56,7 +56,7 @@ import org.robolectric.shadows.ShadowLooper
 
 @RunWith(AndroidJUnit4::class)
 class CalendarSyncManagerTest {
-  private val zoneId = ZoneIds.googleZoneId()
+  private val zoneId = ZoneId.of("America/Los_Angeles")
   private val zonedDateTime = ZonedDateTime.of(2020, 3, 10, 11, 12, 13, 14, zoneId)
   private val fixedTimeClock = Clock.fixed(zonedDateTime.toInstant(), zoneId)
   private val context = ApplicationProvider.getApplicationContext<Context>()

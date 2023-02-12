@@ -17,6 +17,6 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.google.android.libraries.car.trusteddevice">
-  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="29"/>
+  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="31"/>
   <application />
 </manifest>
