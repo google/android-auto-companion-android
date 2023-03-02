@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
  *
  * @property backgroundContext The coroutine context to launch task with; must not be main thread.
  */
-class BluetoothRfcommChannel(
+internal class BluetoothRfcommChannel(
   private val isProtoApplied: Boolean,
   private val backgroundContext: CoroutineContext
 ) : OobChannel {
@@ -186,7 +186,7 @@ class BluetoothRfcommChannel(
 
   companion object {
     private const val TAG = "BluetoothRfcommChannel"
-    // TODO(b/159500330): Generate a random UUID
+    // TODO: Generate a random UUID
     private val RFCOMM_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
     // Number of bytes that represents an int, which will be the size of OOB data.

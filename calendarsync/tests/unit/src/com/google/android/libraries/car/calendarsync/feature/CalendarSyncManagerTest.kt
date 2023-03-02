@@ -29,7 +29,6 @@ import com.google.android.libraries.car.calendarsync.feature.CalendarSyncManager
 import com.google.android.libraries.car.calendarsync.feature.repository.CalendarRepository
 import com.google.android.libraries.car.trustagent.Car
 import com.google.common.collect.ImmutableSet
-import java.time.ZoneId
 import com.google.common.truth.Truth.assertThat
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.anyOrNull
@@ -41,6 +40,7 @@ import com.nhaarman.mockitokotlin2.whenever
 import java.time.Clock
 import java.time.Instant
 import java.time.ZonedDateTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import org.junit.Before

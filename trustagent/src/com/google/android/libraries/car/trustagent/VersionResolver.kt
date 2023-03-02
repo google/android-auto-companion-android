@@ -22,9 +22,9 @@ import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logw
 import com.google.protobuf.InvalidProtocolBufferException
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 import kotlin.math.max
 import kotlin.math.min
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Handles version exchange.
@@ -38,7 +38,7 @@ internal class VersionResolver(private val manager: BluetoothConnectionManager) 
    * @return The received version; `null` if there was an error during exchange.
    */
   suspend fun exchangeVersion(): VersionExchange? =
-    suspendCoroutine<VersionExchange?> { continuation ->
+    suspendCancellableCoroutine<VersionExchange?> { continuation ->
       val messageCallback =
         object : BluetoothConnectionManager.MessageCallback {
           override fun onMessageReceived(data: ByteArray) {
@@ -80,7 +80,8 @@ internal class VersionResolver(private val manager: BluetoothConnectionManager) 
         """
         |Local version is ${makeVersionExchange().asString()};
         |remote version is ${remoteVersion.asString()}.
-        """.trimMargin()
+        """
+          .trimMargin()
       )
       return null
     }
@@ -136,7 +137,8 @@ private fun VersionExchange.asString() =
   |max security version: ${this.maxSupportedSecurityVersion};
   |min message version: ${this.minSupportedMessagingVersion};
   |max message version: ${this.maxSupportedMessagingVersion}.
-  """.trimMargin()
+  """
+    .trimMargin()
 
 internal data class ResolvedVersion(
   val messageVersion: Int,

@@ -42,4 +42,4 @@ object EventLog {
     logi(TAG, "Service has stopped running in the foreground.")
   }
 }
-// LINT.ThenChange(//depot/google3/java/com/google/android/libraries/automotive/multidevice/testing/python_aae/tests/companion_android_longevity_test.py)
+// LINT.ThenChange(//depot/google3/java/com/google/android/libraries/automotive/multidevice/testing/python_aae/tests/common/companion_longevity.py)

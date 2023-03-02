@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package aae.messenger;
 
+
+
 option java_package = "com.google.protos.aae.messenger";
 option java_outer_classname = "NotificationMsg";
 
@@ -95,7 +97,8 @@ message ConversationNotification {
   string messaging_app_display_name = 1;
 
   // Package name of the application that posted this notification.
-  string messaging_app_package_name = 2;
+  string messaging_app_package_name = 2
+     ;
 
   // MessagingStyle metadata of this conversation.
   MessagingStyle messaging_style = 3;
@@ -152,14 +155,16 @@ message AvatarIconSync {
   string messaging_app_display_name = 2;
 
   // Package name of the application that posted this notification.
-  string messaging_app_package_name = 3;
+  string messaging_app_package_name = 3
+     ;
 }
 
 // Request to clear all internal data and remove notifications for
 // a specific messaging application.
 message ClearAppDataRequest {
   // Specifies which messaging app's data to remove.
-  string messaging_app_package_name = 1;
+  string messaging_app_package_name = 1
+     ;
 }
 
 // Message to inform whether user has disabled/enabled this feature.

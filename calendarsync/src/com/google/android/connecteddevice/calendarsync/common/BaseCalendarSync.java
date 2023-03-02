@@ -63,7 +63,7 @@ import javax.annotation.Nullable;
  * <p>This class is not thread-safe and after construction should only be accessed by a single
  * non-main thread.
  */
-// TODO(b/166134901) Work in progress - complete the features documented above.
+// TODO Work in progress - complete the features documented above.
 public abstract class BaseCalendarSync {
   /** The current version of the protocol. */
   private static final int PROTOCOL_VERSION = 1;
@@ -144,7 +144,7 @@ public abstract class BaseCalendarSync {
 
   /** Replaces the given {@code calendars} by deleting and maybe recreating them. */
   protected void handleReceiveMessage(DeviceState state, List<Calendar> updates) {
-    // TODO(b/182912880) Changes made concurrently by another application could be lost.
+    // TODO Changes made concurrently by another application could be lost.
     CalendarManager manager = getCalendarManager(state);
     manager.applyUpdateMessages(state.deviceId, updates);
     send(newUpdateBuilder(UpdateCalendars.Type.ACKNOWLEDGE).build(), state.deviceId);

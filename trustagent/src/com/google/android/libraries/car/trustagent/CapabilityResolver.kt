@@ -22,7 +22,7 @@ import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logw
 import com.google.protobuf.InvalidProtocolBufferException
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Handles capabilities exchange.
@@ -37,7 +37,7 @@ internal class CapabilityResolver(private val manager: BluetoothConnectionManage
    * @return The received version; `null` if there was an error during exchange.
    */
   suspend fun exchangeCapabilities(oobChannelTypes: List<OobChannelType>): CapabilitiesExchange? =
-    suspendCoroutine<CapabilitiesExchange?> { continuation ->
+    suspendCancellableCoroutine<CapabilitiesExchange?> { continuation ->
       val messageCallback =
         object : BluetoothConnectionManager.MessageCallback {
           override fun onMessageReceived(data: ByteArray) {

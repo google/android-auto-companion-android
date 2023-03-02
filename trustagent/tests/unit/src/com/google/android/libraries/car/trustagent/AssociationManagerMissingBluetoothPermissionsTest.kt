@@ -56,6 +56,7 @@ class AssociationManagerMissingBluetoothPermissionsTest {
   private lateinit var bleManager: FakeBleManager
   private lateinit var associationManager: AssociationManager
   private lateinit var associationCallback: AssociationManager.AssociationCallback
+  private lateinit var testAssociationHandler: TestAssociationHandler
 
   @Before
   fun setUp() {
@@ -72,12 +73,17 @@ class AssociationManagerMissingBluetoothPermissionsTest {
 
     bleManager = spy(FakeBleManager())
     associationCallback = mock()
+    testAssociationHandler = TestAssociationHandler()
 
     associationManager =
-      AssociationManager(context, associatedCarManager, bleManager).apply {
-        registerAssociationCallback(associationCallback)
-        coroutineContext = testDispatcher
-      }
+      AssociationManager(
+          context,
+          associatedCarManager,
+          bleManager,
+          testAssociationHandler,
+          testDispatcher
+        )
+        .apply { registerAssociationCallback(associationCallback) }
   }
 
   @After
@@ -86,17 +92,7 @@ class AssociationManagerMissingBluetoothPermissionsTest {
   }
 
   @Test
-  fun startSppDiscovery_returnsFalse() {
-    bleManager.isEnabled = true
-
-    assertThat(associationManager.startSppDiscovery()).isFalse()
-    assertThat(associationManager.isSppDiscoveryStarted).isFalse()
-  }
-
-  @Test
   fun startCdmDiscovery_returnsFalse() {
-    associationManager.isSppEnabled = false
-
     val discoveryRequest = DiscoveryRequest.Builder(Activity()).build()
     assertThat(associationManager.startCdmDiscovery(discoveryRequest, mock())).isFalse()
   }

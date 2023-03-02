@@ -18,13 +18,19 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothConnectionManager
 import com.google.android.libraries.car.trustagent.testutils.Base64CryptoHelper
 import com.google.android.libraries.car.trustagent.testutils.FakeSecretKey
 import com.google.android.libraries.car.trustagent.testutils.createScanRecord
 import com.google.android.libraries.car.trustagent.testutils.createScanResult
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
+import com.nhaarman.mockitokotlin2.anyOrNull
+import com.nhaarman.mockitokotlin2.argumentCaptor
+import com.nhaarman.mockitokotlin2.mock
+import com.nhaarman.mockitokotlin2.verify
 import java.util.UUID
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -32,9 +38,12 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ConnectionManagerTest {
+
   private lateinit var connectionManager: ConnectionManager
 
   private val context = ApplicationProvider.getApplicationContext<Context>()
+
+  private lateinit var connectionCallback: ConnectionManager.ConnectionCallback
 
   private lateinit var database: ConnectedCarDatabase
   private lateinit var associatedCarManager: AssociatedCarManager
@@ -51,7 +60,16 @@ class ConnectionManagerTest {
         .build()
     associatedCarManager = AssociatedCarManager(context, database, Base64CryptoHelper())
 
-    connectionManager = ConnectionManager(context, associatedCarManager)
+    connectionCallback = mock()
+
+    connectionManager =
+      ConnectionManager(
+          context,
+          SERVICE_UUID,
+          associatedCarManager,
+          directExecutor(),
+        )
+        .apply { registerConnectionCallback(connectionCallback) }
   }
 
   @After
@@ -129,6 +147,57 @@ class ConnectionManagerTest {
     val associatedCars = listOf(fakeAssociatedCar)
 
     assertThat(connectionManager.shouldConnect(fakeScanResult, associatedCars)).isFalse()
+  }
+
+  @Test
+  fun resolveVersion_bluetoothDisconnects_onConnectionFailed() {
+    runBlocking {
+      val mockBluetoothManager = mock<BluetoothConnectionManager>()
+
+      connectionManager.resolveVersion(mockBluetoothManager)
+      val bluetoothCallback =
+        argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+          verify(mockBluetoothManager).registerConnectionCallback(capture())
+          firstValue
+        }
+      bluetoothCallback.onConnectionFailed()
+
+      verify(connectionCallback).onConnectionFailed(anyOrNull())
+    }
+  }
+
+  @Test
+  fun resolveVersion_bluetoothOnConnected_onConnectionFailed() {
+    runBlocking {
+      val mockBluetoothManager = mock<BluetoothConnectionManager>()
+
+      connectionManager.resolveVersion(mockBluetoothManager)
+      val bluetoothCallback =
+        argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+          verify(mockBluetoothManager).registerConnectionCallback(capture())
+          firstValue
+        }
+      bluetoothCallback.onConnected()
+
+      verify(connectionCallback).onConnectionFailed(anyOrNull())
+    }
+  }
+
+  @Test
+  fun resolveVersion_bluetoothOnConnectionFailed_onConnectionFailed() {
+    runBlocking {
+      val mockBluetoothManager = mock<BluetoothConnectionManager>()
+
+      connectionManager.resolveVersion(mockBluetoothManager)
+      val bluetoothCallback =
+        argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+          verify(mockBluetoothManager).registerConnectionCallback(capture())
+          firstValue
+        }
+      bluetoothCallback.onConnectionFailed()
+
+      verify(connectionCallback).onConnectionFailed(anyOrNull())
+    }
   }
 
   companion object {

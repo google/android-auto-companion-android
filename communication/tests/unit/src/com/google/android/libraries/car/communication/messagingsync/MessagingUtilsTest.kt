@@ -95,7 +95,7 @@ class MessagingUtilsTest {
   }
 
   @Test
-  @Ignore // TODO(b/215427836): Fails under coroutines 1.6.0: runBlocking hangs until timeout
+  @Ignore // TODO: Fails under coroutines 1.6.0: runBlocking hangs until timeout
   fun enableMessagingSync_succeedsIfNotificationAccessIsGranted() {
     revokeAllNotificationAccess(context.contentResolver)
     val coroutineScope = messagingUtils.enableMessagingSync(carId, onSuccess, onFailure)

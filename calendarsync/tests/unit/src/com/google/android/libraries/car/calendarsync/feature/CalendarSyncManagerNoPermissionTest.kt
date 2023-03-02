@@ -48,6 +48,7 @@ class CalendarSyncManagerNoPermissionTest {
   @Before
   fun setUp() {
     mockCalendarRepository = mock()
+
     whenever(
       mockCalendarRepository.getCalendars(any(), any())
     ) doReturn Calendars.getDefaultInstance()

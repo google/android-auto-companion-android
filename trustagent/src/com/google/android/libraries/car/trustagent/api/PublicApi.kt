@@ -20,4 +20,11 @@ package com.google.android.libraries.car.trustagent.api
  * This annotation is also used to keep the annotated types during Proguard. Retention set to BINARY
  * to enable annotation to be seen by Proguard.
  */
-@Target(AnnotationTarget.CLASS) @Retention(AnnotationRetention.BINARY) annotation class PublicApi()
+@Target(
+  AnnotationTarget.CLASS,
+  AnnotationTarget.PROPERTY_GETTER,
+  AnnotationTarget.CONSTRUCTOR,
+  AnnotationTarget.FUNCTION,
+)
+@Retention(AnnotationRetention.BINARY)
+annotation class PublicApi()

@@ -7,9 +7,9 @@ import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logwtf
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Manages OobChannels and the received out-of-band data.
@@ -27,7 +27,7 @@ internal open class OobChannelManager(
 
   // Continuation of the OOB channel callback; any success will resume this continuation.
   @GuardedBy("oobDataContinuationLock")
-  private var oobDataContinuation: Continuation<OobData?>? = null
+  private var oobDataContinuation: CancellableContinuation<OobData?>? = null
   private val oobDataContinuationLock = Any()
 
   private val channelCallback: OobChannel.Callback =
@@ -61,7 +61,7 @@ internal open class OobChannelManager(
     if (oobChannels.isEmpty()) return null
 
     val oobData =
-      suspendCoroutine<OobData?> { cont ->
+      suspendCancellableCoroutine<OobData?> { cont ->
         synchronized(oobDataContinuationLock) { oobDataContinuation = cont }
         for (channel in oobChannels) {
           channel.callback = channelCallback

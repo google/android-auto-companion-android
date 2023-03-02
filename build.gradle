@@ -12,6 +12,7 @@ plugins {
 ext {
     sdkVersion = 31
     minSdkVersion = 26
+    protocVersion = 'com.google.protobuf:protoc:3.21.12'
 }
 
 apply plugin: 'com.android.library'
@@ -103,7 +104,7 @@ kapt {
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.21.12'
+        artifact = rootProject.ext.protocVersion
     }
     generateProtoTasks {
         all().each { task ->

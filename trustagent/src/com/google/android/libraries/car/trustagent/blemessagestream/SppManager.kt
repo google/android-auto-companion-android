@@ -89,7 +89,7 @@ class SppManager(
 
   /** Start the [ConnectTask] to initiate a connection to a remote device. */
   override fun connect() {
-    // TODO(b/162537040): add retry logic for SPP
+    // TODO: add retry logic for SPP
     logi(TAG, "Attempt connect to remote device.")
     // Cancel any thread attempting to make a connection
     connectTask?.cancel()
@@ -146,7 +146,7 @@ class SppManager(
     const val LENGTH_BYTES_SIZE = 4
 
     private const val TAG = "SppManager"
-    // TODO(b/166538373): Currently its an arbitrary number, should update after getting more
+    // TODO: Currently its an arbitrary number, should update after getting more
     //  testing data.
     private const val MAX_WRITE_SIZE = 700
 

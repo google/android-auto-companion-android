@@ -52,7 +52,7 @@ private const val USE_CALENDAR_BIDIRECTIONAL_SYNC = false
 /**
  * Returns an instance of a calendar sync manager to be used for managing calendar sync.
  */
-// TODO(b/166134901) Remove this once v1 is deleted.
+// TODO Remove this once v1 is deleted.
 fun createCalendarSyncManager(context: Context): FeatureManager {
   return if (USE_CALENDAR_BIDIRECTIONAL_SYNC) {
     logi(TAG, "Using ${CalendarSyncManagerV2::class.simpleName}")
@@ -83,7 +83,7 @@ fun createCalendarSyncManager(context: Context): FeatureManager {
  * - Car connect schedules a sync at the start of the next day
  */
 @PublicApi
-// TODO(b/159453310) Remove this from public API only exposing the interface above.
+// TODO Remove this from public API only exposing the interface above.
 class CalendarSyncManager(
   private val context: Context,
   private val calendarRepository: CalendarRepository = CalendarRepository(context.contentResolver),
@@ -163,7 +163,7 @@ class CalendarSyncManager(
     // Make sure that read calendar permission is granted. If the feature is enabled this will
     // typically be the case, but users can manually revoke the permission. In this case the feature
     // will be disabled and users have to enable it again through the Companion App.
-    // TODO(b/151917680): Implement a callback mechanism into the companion app.
+    // TODO: Implement a callback mechanism into the companion app.
     if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR)
       != PackageManager.PERMISSION_GRANTED
     ) {
@@ -174,24 +174,24 @@ class CalendarSyncManager(
   }
 
   override fun isCarEnabled(carId: UUID): Boolean {
-    // TODO(b/152163075): Migrate to Room
+    // TODO: Migrate to Room
     return preferences.getBoolean(key(KEY_ENABLED, carId), false)
   }
 
   override fun enableCar(carId: UUID) {
-    // TODO(b/152163075): Migrate to Room
+    // TODO: Migrate to Room
     preferences.edit().putBoolean(key(KEY_ENABLED, carId), true).apply()
     syncStoredCalendars(carId)
   }
 
   override fun disableCar(carId: UUID) {
-    // TODO(b/152163075): Migrate to Room
+    // TODO: Migrate to Room
     preferences.edit().putBoolean(key(KEY_ENABLED, carId), false).apply()
     unsyncStoredCalendars(carId)
   }
 
   override fun getCalendarIdsToSync(carId: UUID): Set<String> {
-    // TODO(b/152163075): Migrate to Room
+    // TODO: Migrate to Room
     val key = key(KEY_CALENDAR_IDS, carId)
     return if (preferences.contains(key)) {
       preferences.getStringSet(key, ImmutableSet.of())!!
@@ -210,7 +210,7 @@ class CalendarSyncManager(
   }
 
   override fun setCalendarIdsToSync(calendarIds: Set<String>, carId: UUID) {
-    // TODO(b/152163075): Migrate to Room
+    // TODO: Migrate to Room
     val storedIds = getCalendarIdsToSync(carId)
     storeCalendarIds(calendarIds, carId)
 

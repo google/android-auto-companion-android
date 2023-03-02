@@ -17,8 +17,6 @@ package com.google.android.libraries.car.trustagent
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothHeadset
-import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.companion.CompanionDeviceManager
@@ -39,9 +37,7 @@ import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logw
 import com.google.common.util.concurrent.ListenableFuture
-import java.time.Duration
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,18 +60,23 @@ import kotlinx.coroutines.newSingleThreadContext
  * @param[coroutineDispatcher] Dispatcher for coroutines. Callbacks are made by this dispatcher.
  * @param[backgroundDispatcher] Dispatcher for background tasks. Must not be the main thread.
  */
-@PublicApi
+// This class is the entry point of Companion API but the class itself is not annotated as
+// @PublicApi. Instead, individual fields are annotated, thus publicized. The reason is that
+// this class exposes some fields/methods as `internal` for unit testing. These `internal` members
+// will generate `public` methods in Java, and may accidentally expose internal classes.
+//
+// NOTE: public API in the SDK needs to be annotated as @PublicApi so it's not obfuscated by
+// proguard during granular release. See go/aae-batmobile-lib-dev#exposing-public-api.
 class ConnectedDeviceManager
-@JvmOverloads
-constructor(
+@VisibleForTesting
+internal constructor(
   private val context: Context,
   private val lifecycle: Lifecycle,
   private val associationManager: AssociationManager,
   private val connectionManager: ConnectionManager,
   private val features: List<FeatureManager>,
-  coroutineDispatcher: CoroutineDispatcher = Dispatchers.Main,
-  private val backgroundDispatcher: CoroutineDispatcher =
-    newSingleThreadContext(name = "backgroundDispatcher"),
+  coroutineDispatcher: CoroutineDispatcher,
+  private val backgroundDispatcher: CoroutineDispatcher,
 ) : DefaultLifecycleObserver {
   private val callbacks = mutableListOf<Callback>()
   private var coroutineScope = CoroutineScope(coroutineDispatcher)
@@ -85,15 +86,12 @@ constructor(
   private val ongoingReconnections = mutableSetOf<BluetoothDevice>()
 
   private val retryHandler = Handler(Looper.getMainLooper())
-  private var sppConnectionAttempted = AtomicBoolean(false)
 
   private val _connectedCars = mutableSetOf<Car>()
   /** Returns the currently connected cars. */
+  @get:PublicApi
   val connectedCars: List<AssociatedCar>
     get() = _connectedCars.map { it.toAssociatedCar() }
-
-  /** Indicates if [start] has been called. */
-  private var isStarted = false
 
   private val associationManagerCallback =
     object : AssociationManager.AssociationCallback, AssociationManager.DisassociationCallback {
@@ -215,14 +213,6 @@ constructor(
         }
 
         loge(TAG, "onConnectionFailed: could not reconnect to $device.")
-
-        // Check the connection channel type first. If current connection is a SPP connection then a
-        // retry logic is needed to make sure the remote device can be reconnected successfully.
-        // A retry under BLE connection is not needed because BLE will do the background scanning
-        // all the time to make sure the reconnection worked properly.
-        if (sppConnectionAttempted.get()) {
-          reconnectIfBluetoothConnected(device)
-        }
       }
     }
 
@@ -237,32 +227,6 @@ constructor(
       override fun onFailure(error: CharSequence?) {
         loge(TAG, "Received onFailure() from CompanionDeviceManager: $error.")
         callbacks.forEach { it.onDiscoveryFailed() }
-      }
-    }
-
-  @VisibleForTesting
-  internal val startSppBroadcastReceiver =
-    object : BroadcastReceiver() {
-      override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED) {
-          loge(TAG, "Received Intent with incorrect action: ${intent.action}. Ignored.")
-          return
-        }
-
-        if (
-          intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1) != BluetoothProfile.STATE_CONNECTED
-        ) {
-          logi(TAG, "Bluetooth connection status is not STATE_CONNECTED. Ignored")
-          return
-        }
-
-        val device: BluetoothDevice =
-          intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE) ?: return
-        if (!associationManager.loadIsAssociated(device.address).get()) {
-          logw(TAG, "Discovered device (${device.address}) that is not associated. Ignored.")
-          return
-        }
-        attemptSppConnection(device)
       }
     }
 
@@ -289,12 +253,28 @@ constructor(
    *
    * Starting discovery of devices to associate can only occur if this value is `true`.
    */
+  @get:PublicApi
   val isBluetoothEnabled: Boolean
     get() = associationManager.isBluetoothEnabled
 
   init {
     lifecycle.addObserver(this)
   }
+
+  @PublicApi
+  constructor(
+    context: Context,
+    lifecycle: Lifecycle,
+    features: List<FeatureManager>,
+  ) : this(
+    context = context,
+    lifecycle = lifecycle,
+    features = features,
+    associationManager = AssociationManager(context),
+    connectionManager = ConnectionManager(context),
+    coroutineDispatcher = Dispatchers.Main,
+    backgroundDispatcher = newSingleThreadContext(name = "backgroundDispatcher"),
+  )
 
   override fun onCreate(owner: LifecycleOwner) {
     associationManager.registerAssociationCallback(associationManagerCallback)
@@ -327,7 +307,7 @@ constructor(
     coroutineScope.cancel()
   }
 
-  // TODO(b/182827383): Remove default overrides when b/138957824 is resolved.
+  // TODO: Remove default overrides when b/138957824 is resolved.
   // These empty overrides are currently required by granular.
   override fun onResume(owner: LifecycleOwner) {}
   override fun onPause(owner: LifecycleOwner) {}
@@ -347,6 +327,7 @@ constructor(
    *
    * @param[request] Parameters that modify this discovery call.
    */
+  @PublicApi
   fun startDiscovery(request: DiscoveryRequest): Boolean {
     logi(TAG, "StartDiscovery with $request.")
     return associationManager.startCdmDiscovery(request, companionDeviceManagerCallback)
@@ -364,6 +345,7 @@ constructor(
    * There can only be one association at a time; subsequent calls are ignored until the association
    * completes, i.e. [Callback.onAssociated] or [Callback.onAssociationFailed].
    */
+  @PublicApi
   fun associate(request: AssociationRequest) {
     logi(TAG, "Associate with $request.")
     if (ongoingAssociation != null) {
@@ -378,6 +360,7 @@ constructor(
    * Clears the association status for the car with the given [deviceId] and returns `true` if the
    * operation succeeded.
    */
+  @PublicApi
   fun disassociate(deviceId: UUID): ListenableFuture<Boolean> =
     coroutineScope.future(backgroundDispatcher) {
       val success = associationManager.clearCdmAssociatedCar(deviceId)
@@ -400,6 +383,7 @@ constructor(
    * Clears all cars that are currently associated with this device and returns `true` if the
    * operation succeeded.
    */
+  @PublicApi
   fun disassociateAllCars(): ListenableFuture<Boolean> =
     coroutineScope.future(backgroundDispatcher) {
       val success = associationManager.clearAllCdmAssociatedCars()
@@ -412,6 +396,7 @@ constructor(
     }
 
   /** Clears current incomplete association. */
+  @PublicApi
   fun clearCurrentAssociation() {
     ongoingAssociation = null
     associationManager.clearCurrentCdmAssociation()
@@ -424,27 +409,9 @@ constructor(
    * Normally caller does not need to explicitly invoked this method, as it is automatically invoked
    * by `onCreate()` of [lifecycle].
    */
+  @PublicApi
   fun start() {
     logi(TAG, "Starting reconnection.")
-    if (!isStarted) {
-      isStarted = true
-
-      // No need to register receiver for multiple times.
-      logi(TAG, "Registering BroadcastReceiver for SPP.")
-      context.registerReceiver(
-        startSppBroadcastReceiver,
-        IntentFilter(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED),
-        BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED,
-        /* handler= */ null,
-      )
-    }
-    // The following logic will be executed as long as a reconnection attempt is needed.
-    coroutineScope.launch {
-      val devices = connectionManager.fetchConnectedBluetoothDevices().await()
-      for (device in devices) {
-        attemptSppConnection(device)
-      }
-    }
     connectionManager.startScanForAssociatedCars(reconnectionScanCallback)
   }
 
@@ -456,21 +423,20 @@ constructor(
    * Normally caller does not need to explicitly invoked this method, as it is automatically invoked
    * by `onDestroy()` of [lifecycle].
    */
+  @PublicApi
   fun stop() {
     connectionManager.stop()
-    if (isStarted) {
-      context.unregisterReceiver(startSppBroadcastReceiver)
-      isStarted = false
-    }
     _connectedCars.forEach { it.disconnect() }
   }
 
   /** Registers the given [callback] to be notified of connection events. */
+  @PublicApi
   fun registerCallback(callback: Callback) {
     callbacks.add(callback)
   }
 
   /** Unregisters the given [callback] from being notified of connection events. */
+  @PublicApi
   fun unregisterCallback(callback: Callback) {
     callbacks.remove(callback)
   }
@@ -480,6 +446,7 @@ constructor(
    *
    * If the given car is not associated, `false` is also returned.
    */
+  @PublicApi
   fun renameCar(deviceId: UUID, name: String): ListenableFuture<Boolean> =
     coroutineScope.future(backgroundDispatcher) {
       val isSuccessful = associationManager.renameCar(deviceId, name).await()
@@ -501,53 +468,12 @@ constructor(
   }
 
   /**
-   * Establishes SPP connection to [device] if the [device] is an associated device and currently
-   * connected over bluetooth. This method retries continually with [SPP_RETRY_THROTTLE] seconds
-   * delay.
-   */
-  private fun reconnectIfBluetoothConnected(device: BluetoothDevice) {
-    coroutineScope.launch {
-      val connectedDevices = connectionManager.fetchConnectedBluetoothDevices().await()
-      // Only retry connection if the device is still connected over Bluetooth. Otherwise, the
-      // reconnection will occur when the device reconnects over Bluetooth.
-      if (device in connectedDevices) {
-        logi(
-          TAG,
-          "Associated device $device connection failed while in range. Retrying connection."
-        )
-        retryHandler.postDelayed({ attemptSppConnection(device) }, SPP_RETRY_THROTTLE.toMillis())
-      }
-    }
-  }
-
-  /**
-   * Establishes SPP connection to [device] if the device is not currently connected or in the
-   * middle of a connection.
-   */
-  private fun attemptSppConnection(device: BluetoothDevice) {
-    if (ongoingReconnections.contains(device)) {
-      logi(TAG, "Passed Bluetooth device ${device.address} is already connecting. Ignored.")
-      return
-    }
-
-    if (_connectedCars.any { it.bluetoothDevice == device }) {
-      logi(TAG, "Passed Bluetooth device ${device.address} is already connected. Ignored.")
-      return
-    }
-
-    logi(TAG, "Starting SPP connection to ${device.address}")
-    sppConnectionAttempted.set(true)
-    ongoingReconnections.add(device)
-
-    connectionManager.connect(device, backgroundDispatcher.asExecutor())
-  }
-
-  /**
    * Loads a list of all cars that are currently associated with this phone.
    *
    * The returned [ListenableFuture] will be invoked with the list when loading is successful. An
    * empty list will be returned if there are no associated cars.
    */
+  @PublicApi
   fun retrieveAssociatedCars(): ListenableFuture<List<AssociatedCar>> =
     associationManager.retrieveAssociatedCars()
 
@@ -564,10 +490,6 @@ constructor(
           car.clearCallback(this, RECIPIENT_ID)
 
           callbacks.forEach { it.onDisconnected(car.toAssociatedCar()) }
-
-          if (car.isSppDevice()) {
-            reconnectIfBluetoothConnected(car.bluetoothDevice)
-          }
         }
 
         // The following callbacks are irrelevant to connection status; ignored.
@@ -605,7 +527,7 @@ constructor(
     fun onAssociated(associatedCar: AssociatedCar)
 
     /** Invoked when association process failed. */
-    // TODO(b/166381202): define error enum.
+    // TODO: define error enum.
     fun onAssociationFailed()
 
     /** Invoked when an already associated device has reconnected. */
@@ -615,15 +537,8 @@ constructor(
     fun onDisconnected(associatedCar: AssociatedCar)
   }
 
-  @PublicApi
   companion object {
     private const val TAG = "ConnectedDeviceManager"
-    /**
-     * Retry SPP connection under a certain arbitrary interval to establish connection as soon as
-     * the remote device is available and at the same time do not spam connection calls to the
-     * Bluetooth.
-     */
-    @VisibleForTesting internal val SPP_RETRY_THROTTLE = Duration.ofSeconds(2)
     internal val RECIPIENT_ID = UUID.fromString("5efd8b16-21d6-4fb1-b00a-a904720d1320")
   }
 }

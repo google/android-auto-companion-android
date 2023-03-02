@@ -15,6 +15,7 @@
 package com.google.android.libraries.car.trustagent
 
 import com.google.android.companionprotos.OutOfBandAssociationToken
+import com.google.android.libraries.car.trustagent.api.PublicApi
 import java.util.Objects
 
 private const val NONCE_LENGTH_BYTES = 12
@@ -47,6 +48,7 @@ internal fun ByteArray.toOobData(): OobData? {
  * @property ihuIv the initialization vector (IV) for messages sent by IHU.
  * @property mobileIv the initialization vector (IV) for messages sent by mobile.
  */
+@PublicApi
 data class OobData(
   val encryptionKey: ByteArray,
   val ihuIv: ByteArray,

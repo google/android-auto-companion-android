@@ -19,7 +19,6 @@ import android.app.PendingIntent
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
-import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
@@ -28,32 +27,23 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.ParcelUuid
 import androidx.annotation.VisibleForTesting
-import com.google.android.libraries.car.trustagent.api.PublicApi
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothConnectionManager
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothGattHandle
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothGattManager
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
-import com.google.android.libraries.car.trustagent.blemessagestream.SppManager
 import com.google.android.libraries.car.trustagent.storage.getDeviceId
 import com.google.android.libraries.car.trustagent.util.checkPermissionsForBleScanner
 import com.google.android.libraries.car.trustagent.util.checkPermissionsForBluetoothConnection
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logw
-import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import java.util.UUID
 import java.util.concurrent.Executor
-import kotlin.coroutines.Continuation
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.asExecutor
-import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.launch
-
-private const val SCAN_CALLBACK_TYPE = ScanSettings.CALLBACK_TYPE_ALL_MATCHES
 
 /**
  * Provides methods to connect to [Car]s that this device has previously associated with.
@@ -63,15 +53,14 @@ private const val SCAN_CALLBACK_TYPE = ScanSettings.CALLBACK_TYPE_ALL_MATCHES
  * @param executor Handles the platform callback and executes the methods that return a
  * ListenableFuture. Defaults to the executor in which is object is instantiated.
  */
-// TODO(b/139635930): Add unit test when robolectric shadows support BluetoothLeScanner.
-@PublicApi
-open class ConnectionManager
+// TODO: Add unit test when robolectric shadows support BluetoothLeScanner.
+open internal class ConnectionManager
+@VisibleForTesting
 internal constructor(
   private val context: Context,
-  private val associatedCarManager: AssociatedCarManager =
-    AssociatedCarManagerProvider.getInstance(context).manager,
-  private val executor: Executor = MoreExecutors.directExecutor(),
-  private val serviceUuid: UUID = V2_SERVICE_UUID,
+  private val serviceUuid: UUID,
+  private val associatedCarManager: AssociatedCarManager,
+  private val executor: Executor,
 ) {
   private val coroutineDispatcher = executor.asCoroutineDispatcher()
   /** The UUID to use as a key for pulling out values in advertisement data. */
@@ -91,50 +80,22 @@ internal constructor(
   private var startPendingIntent: PendingIntent? = null
   private var startScanCallback: ScanCallback? = null
 
-  private var bluetoothProfile: BluetoothProfile? = null
-  private var fetchConnectedDevicesContinuation: Continuation<List<BluetoothDevice>>? = null
-
-  private val serviceListener =
-    object : BluetoothProfile.ServiceListener {
-      override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
-        bluetoothProfile = proxy
-
-        CoroutineScope(coroutineDispatcher).launch {
-          val associatedConnectedDevices =
-            if (checkPermissionsForBluetoothConnection(context)) {
-              proxy.connectedDevices.filter { associatedCarManager.loadIsAssociated(it.address) }
-            } else {
-              loge(TAG, "Missing the permission to get bluetooth connected device, ignored.")
-              emptyList()
-            }
-
-          logi(
-            TAG,
-            "onServiceConnected(). Number of connected devices: ${associatedConnectedDevices.size}."
-          )
-
-          fetchConnectedDevicesContinuation?.resume(associatedConnectedDevices)
-          fetchConnectedDevicesContinuation = null
-        }
-      }
-
-      override fun onServiceDisconnected(profile: Int) {
-        logi(TAG, "onServiceDisconnected for BluetoothProfile.ServiceListener")
-        bluetoothProfile = null
-      }
-    }
-
   init {
     val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     bluetoothAdapter = bluetoothManager.adapter
 
-    // Connect to the HEADSET profile in order to obtain the list of already connected Bluetooth
-    // devices. This is necessary to allow applications to reconnect to these devices if they are
-    // associated.
-    bluetoothAdapter.getProfileProxy(context, serviceListener, BluetoothProfile.HEADSET)
-
     logi(TAG, "Always connecting to device with names: ${context.alwaysAllowedDeviceNames}.")
   }
+
+  constructor(
+    context: Context,
+    serviceUuid: UUID = V2_SERVICE_UUID,
+  ) : this(
+    context = context.applicationContext,
+    serviceUuid = serviceUuid,
+    associatedCarManager = AssociatedCarManagerProvider.getInstance(context).manager,
+    executor = MoreExecutors.directExecutor(),
+  )
 
   /** Registers the given [callback] to be notified of connection events. */
   open fun registerConnectionCallback(callback: ConnectionCallback) {
@@ -165,7 +126,7 @@ internal constructor(
    * @return `true` if the start was successful.
    * @see [BluetoothLeScanner.startScan]
    */
-  // TODO(b/134590063): Remove lint suppression once false positive lint error has been fixed.
+  // TODO: Remove lint suppression once false positive lint error has been fixed.
   @SuppressLint("MissingPermission")
   open fun start(pendingIntent: PendingIntent): Boolean =
     startScanForAssociatedCarsInternal(pendingIntent, scanCallback = null)
@@ -246,7 +207,7 @@ internal constructor(
    * If Bluetooth is off when this method is called, this request might not stop correctly on
    * certain Android phones. For a guaranteed stop, ensure Bluetooth is on.
    */
-  // TODO(b/134590063): Remove lint suppression once false positive lint error has been fixed.
+  // TODO: Remove lint suppression once false positive lint error has been fixed.
   @SuppressLint("MissingPermission")
   open fun stop(): Boolean {
     val scanner = bluetoothLeScanner
@@ -309,32 +270,6 @@ internal constructor(
   }
 
   /**
-   * Returns a list of devices that are associated and are available to be connected to via a call
-   * to [connect].
-   *
-   * This method can be used on app startup to check if there are devices that are connected via
-   * Bluetooth, but yet connected for message sending. The list of these devices can then be passed
-   * to this connection manager for final set up of a secure communication channel.
-   *
-   * Note that due to the nature of now these devices are retrieved, do not use a `runBlocking`
-   * scope to call this method.
-   */
-  open fun fetchConnectedBluetoothDevices(): ListenableFuture<List<BluetoothDevice>> =
-    CoroutineScope(coroutineDispatcher).future { loadConnectedDevices() }
-
-  private suspend fun loadConnectedDevices(): List<BluetoothDevice> {
-    val proxy = bluetoothProfile
-    if (proxy != null) {
-      if (!checkPermissionsForBluetoothConnection(context)) {
-        loge(TAG, "Missing the permission to get bluetooth connected device, ignored.")
-        return emptyList()
-      }
-      return proxy.connectedDevices.filter { associatedCarManager.loadIsAssociated(it.address) }
-    }
-    return suspendCoroutine<List<BluetoothDevice>> { fetchConnectedDevicesContinuation = it }
-  }
-
-  /**
    * Establishes connection with a [ScanResult] through BLE.
    *
    * Before attempting to connect to [scanResult], ensure [shouldConnect] returns `true` for it.
@@ -372,7 +307,7 @@ internal constructor(
     val gatt = scanResult.toBluetoothGattManager()
     if (gatt == null) {
       loge(TAG, "Could not convert $scanResult as BluetoothGattManager.")
-      connectionCallbacks.forEach { it.onConnectionFailed(scanResult.device) }
+      notifyCallbacksOfFailedConnection(scanResult.device)
       return
     }
     val advertisedData = resolveAdvertisedData(gatt, scanResult)
@@ -380,61 +315,26 @@ internal constructor(
     connect(gatt, advertisedData)
   }
 
-  /**
-   * Establishes connection with a [BluetoothDevice] through SPP.
-   *
-   * The [device] passed should already been associated with this phone. Register a callback to be
-   * notified of the results of this connection attempt.
-   *
-   * Set [executor] to control the thread that initiates the connection. By default, this is the
-   * [executor] from construction. Consider setting a background thread to avoid delaying the
-   * connection if that thread is also handling the `ScanResult` callback.
-   */
-  @JvmOverloads
-  open fun connect(
-    device: BluetoothDevice,
-    // Convert [executor] between executor and dispatcher so that the exposed public API is
-    // java-friendly.
-    executor: Executor = coroutineDispatcher.asExecutor(),
-  ) {
-    CoroutineScope(executor.asCoroutineDispatcher()).launch { connectAsync(device) }
-  }
-
-  /** Establishes connection with a [BluetoothDevice] through SPP. */
-  internal open suspend fun connectAsync(device: BluetoothDevice) {
-    if (!checkPermissionsForBluetoothConnection(context)) {
-      loge(
-        TAG,
-        "Missing required permission to connect to bluetooth device, ignore the connect call."
-      )
-      return
-    }
-    // Establish SPP channel using phone's device id to make sure the phone is connecting to the
-    // right remote device.
-    val sppManager = SppManager(context, device, getDeviceId(context))
-    connect(sppManager, advertisedData = null)
-  }
-
   private suspend fun connect(manager: BluetoothConnectionManager, advertisedData: ByteArray?) {
     val device = manager.bluetoothDevice
 
     if (!manager.connectToDevice()) {
       loge(TAG, "Could not establish connection.")
-      connectionCallbacks.forEach { it.onConnectionFailed(device) }
+      notifyCallbacksOfFailedConnection(device)
       return
     }
 
-    val resolvedVersion = VersionResolver.resolve(manager)
+    val resolvedVersion = resolveVersion(manager)
     if (resolvedVersion == null) {
       loge(TAG, "Could not resolve version over $device.")
-      connectionCallbacks.forEach { it.onConnectionFailed(device) }
+      notifyCallbacksOfFailedConnection(device)
       return
     }
 
     val stream = MessageStream.create(resolvedVersion.messageVersion, manager)
     if (stream == null) {
       loge(TAG, "Resolved version is $resolvedVersion but could not create stream.")
-      connectionCallbacks.forEach { it.onConnectionFailed(device) }
+      notifyCallbacksOfFailedConnection(device)
       return
     }
 
@@ -453,6 +353,42 @@ internal constructor(
         .apply { callback = pendingCarCallback }
 
     pendingCar.connect(advertisedData)
+  }
+
+  // This method registers then unregisters a connection callback because it owns the connection
+  // during the version exchange phase.
+  @VisibleForTesting
+  internal suspend fun resolveVersion(manager: BluetoothConnectionManager): ResolvedVersion? {
+    val device = manager.bluetoothDevice
+    val connectionCallback =
+      object : BluetoothConnectionManager.ConnectionCallback {
+        override fun onConnected() {
+          loge(TAG, "Received onConnected() during version exchange. Stopping reconnection.")
+          notifyCallbacksOfFailedConnection(device)
+        }
+
+        override fun onConnectionFailed() {
+          loge(TAG, "Received onConnectionFailed() during version exchange. Stopping reconnection.")
+          notifyCallbacksOfFailedConnection(device)
+        }
+
+        override fun onDisconnected() {
+          loge(TAG, "Disconnected during version exchange.")
+          notifyCallbacksOfFailedConnection(device)
+        }
+      }
+
+    manager.registerConnectionCallback(connectionCallback)
+    val resolved = VersionResolver.resolve(manager)
+    manager.unregisterConnectionCallback(connectionCallback)
+
+    return resolved
+  }
+
+  private fun notifyCallbacksOfFailedConnection(device: BluetoothDevice) {
+    for (callback in connectionCallbacks) {
+      callback.onConnectionFailed(device)
+    }
   }
 
   /** Converts a [ScanResult] to [BluetoothGattManager]. */
@@ -550,14 +486,28 @@ internal constructor(
         // We should not clear stored secure session for this pending car, in case it's attempting
         // to connect to a car that has not been previously associated.
         logi(TAG, "Could not re-authenticate $pendingCar.")
-        connectionCallbacks.forEach { it.onConnectionFailed(pendingCar.device) }
+        notifyCallbacksOfFailedConnection(pendingCar.device)
       }
     }
 
   private fun ScanResult.getAdvertisedData(serviceUuid: UUID): ByteArray? =
     scanRecord?.getServiceData(ParcelUuid(serviceUuid))
 
-  @PublicApi
+  /** Callback that will be notified for [connect] state change. */
+  interface ConnectionCallback {
+    /**
+     * Invoked when a [Car] has been connected. It can be used to send/receive encrypted messages.
+     */
+    fun onConnected(car: Car)
+
+    /**
+     * Invoked when [connect] fails, e.g. car has removed the association with this device (forget
+     * the phone). [device] will be the same [BluetoothDevice] or [ScanResult.getDevice] passed to
+     * the [connect] call.
+     */
+    fun onConnectionFailed(device: BluetoothDevice)
+  }
+
   companion object {
     private const val TAG = "ConnectionManager"
 
@@ -565,6 +515,8 @@ internal constructor(
       UUID.fromString("5e2a68a5-27be-43f9-8d1e-4546976fabd7")
     private val V2_CLIENT_WRITE_CHARACTERISTIC_UUID =
       UUID.fromString("5e2a68a6-27be-43f9-8d1e-4546976fabd7")
+
+    private const val SCAN_CALLBACK_TYPE = ScanSettings.CALLBACK_TYPE_ALL_MATCHES
 
     /**
      * The service UUID to scan for if the security version is 2.
@@ -580,25 +532,6 @@ internal constructor(
      * This UUID is only valid for security version 2. It is the "Google Manufacturer Data Type".
      */
     val V2_DATA_UUID = UUID.fromString("00000020-0000-1000-8000-00805f9b34fb")
-
-    // This object uses application context.
-    @SuppressLint("StaticFieldLeak")
-    @Volatile
-    @VisibleForTesting
-    var instance: ConnectionManager? = null
-
-    /**
-     * Returns an instance of [ConnectionManager].
-     *
-     * @param context Context of calling app.
-     */
-    @JvmStatic
-    fun getInstance(context: Context) =
-      instance
-        ?: synchronized(this) {
-          // Double checked locking. Note the field must be volatile.
-          instance ?: ConnectionManager(context.applicationContext).also { instance = it }
-        }
 
     /**
      * Sets the default GATT MTU.
@@ -616,20 +549,5 @@ internal constructor(
     @JvmStatic
     fun setDefaultGattMtu(context: Context, mtu: Int): Boolean =
       BluetoothGattManager.setDefaultMtu(context, mtu)
-  }
-
-  /** Callback that will be notified for [connect] state change. */
-  interface ConnectionCallback {
-    /**
-     * Invoked when a [Car] has been connected. It can be used to send/receive encrypted messages.
-     */
-    fun onConnected(car: Car)
-
-    /**
-     * Invoked when [connect] fails, e.g. car has removed the association with this device (forget
-     * the phone). [device] will be the same [BluetoothDevice] or [ScanResult.getDevice] passed to
-     * the [connect] call.
-     */
-    fun onConnectionFailed(device: BluetoothDevice)
   }
 }

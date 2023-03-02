@@ -61,10 +61,12 @@ private constructor(
      * Adding this value will ensure that the discovery will only attempt to surface results that
      * match the given value. Any non-`null` value here will be utilized. Defaults to `null`.
      *
+     * The device identifier should ensure only a single device will be found during discovery.
+     *
      * The data can be obtained through channels before discovery is started, e.g. QR code scanning
      * or NFC, which requires setup on IHU.
      */
-    // TODO(b/202849608): link to external QR code doc to explain how to retrieve deviceIdentifier.
+    // TODO: link to external QR code doc to explain how to retrieve deviceIdentifier.
     var deviceIdentifier: ByteArray? = null
 
     /** Creates a [DiscoveryRequest]. */

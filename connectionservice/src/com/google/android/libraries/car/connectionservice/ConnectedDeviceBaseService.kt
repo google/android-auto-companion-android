@@ -20,9 +20,7 @@ import android.content.IntentSender
 import androidx.annotation.CallSuper
 import androidx.annotation.VisibleForTesting
 import com.google.android.libraries.car.trustagent.AssociatedCar
-import com.google.android.libraries.car.trustagent.AssociationManager
 import com.google.android.libraries.car.trustagent.ConnectedDeviceManager
-import com.google.android.libraries.car.trustagent.ConnectionManager
 import com.google.android.libraries.car.trustagent.FeatureManager
 import com.google.android.libraries.car.trustagent.api.PublicApi
 import com.google.android.libraries.car.trustagent.util.logi
@@ -85,8 +83,6 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
       ConnectedDeviceManager(
           this,
           lifecycle,
-          AssociationManager.getInstance(this),
-          ConnectionManager.getInstance(this),
           featureManagers,
         )
         .apply { registerCallback(connectedDeviceManagerCallback) }

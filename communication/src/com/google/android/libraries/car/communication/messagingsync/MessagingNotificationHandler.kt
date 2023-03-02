@@ -88,12 +88,17 @@ internal class MessagingNotificationHandler(
     }
 
   /**
-   * Enables handler to listen for notifications and post to car. Example use:
+   * Enables handler to listen for notifications and post to car.
+   * Clears car-level caching.
+   *
+   * Example use:
    * ```
    * MessagingNotificationHandler().also { it.onCarConnected }
    * ```
    */
   fun onCarConnected() {
+    notificationMap.clear()
+
     if (isCarConnected) return
     NotificationSyncManager.addNotificationHandler(this)
     connectionTime = timeSource.now()
@@ -102,7 +107,7 @@ internal class MessagingNotificationHandler(
   }
 
   /**
-   * Clears all car-level caching on disconnect Also stops listening for notifications, rendering
+   * Clears all car-level caching on disconnect. Also stops listening for notifications, rendering
    * this handler as inoperable. To reuse handler re-call [onCarConnected],
    */
   fun onCarDisconnected() {
