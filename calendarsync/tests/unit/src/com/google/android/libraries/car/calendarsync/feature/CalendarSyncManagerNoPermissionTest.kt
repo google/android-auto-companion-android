@@ -20,7 +20,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.connecteddevice.calendarsync.proto.Calendars
 import com.google.android.libraries.car.calendarsync.feature.repository.CalendarRepository
 import com.google.android.libraries.car.trustagent.Car
-import com.google.common.time.testing.FakeTimeSource
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.anyOrNull
 import com.nhaarman.mockitokotlin2.doReturn
@@ -44,13 +43,11 @@ class CalendarSyncManagerNoPermissionTest {
   }
 
   private lateinit var calendarSyncManager: CalendarSyncManager
-  private lateinit var fakeTimeSource: FakeTimeSource
   private lateinit var mockCalendarRepository: CalendarRepository
 
   @Before
   fun setUp() {
     mockCalendarRepository = mock()
-    fakeTimeSource = FakeTimeSource.create()
 
     whenever(
       mockCalendarRepository.getCalendars(any(), any())

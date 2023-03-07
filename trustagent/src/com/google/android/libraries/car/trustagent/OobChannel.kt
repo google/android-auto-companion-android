@@ -20,7 +20,7 @@ import android.bluetooth.BluetoothDevice
  * A channel that can handle out-of-band verification for establishing a secure connection with a
  * remote vehicle.
  */
-interface OobChannel {
+internal interface OobChannel {
 
   var callback: Callback?
 

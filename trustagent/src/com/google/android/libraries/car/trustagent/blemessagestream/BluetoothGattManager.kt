@@ -34,9 +34,9 @@ import com.google.android.libraries.car.trustagent.util.logwtf
 import com.google.android.libraries.car.trustagent.util.toHexString
 import java.time.Duration
 import java.util.UUID
-import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Extracts the interface for sending/receiving data from [BluetoothGatt].
@@ -59,7 +59,7 @@ open class BluetoothGattManager(
   private var serverWriteCharacteristic: BluetoothGattCharacteristic? = null
   private var clientWriteCharacteristic: BluetoothGattCharacteristic? = null
 
-  private var retrieveAdvertisedDataContinuation: Continuation<ByteArray?>? = null
+  private var retrieveAdvertisedDataContinuation: CancellableContinuation<ByteArray?>? = null
 
   /**
    * The updated name of the [bluetoothDevice] managed by this class.
@@ -70,7 +70,7 @@ open class BluetoothGattManager(
    *
    * This field will instead return that up-to-date name.
    */
-  // TODO(b/134590063): Remove lint suppression once false positive lint error has been fixed.
+  // TODO: Remove lint suppression once false positive lint error has been fixed.
   @SuppressLint("MissingPermission")
   final override var deviceName = bluetoothDevice.name
     private set
@@ -201,7 +201,7 @@ open class BluetoothGattManager(
    * Returns `null` if GATT service does not contain such characteristic, or its value is null.
    */
   suspend fun retrieveAdvertisedData(): ByteArray? {
-    return suspendCoroutine<ByteArray?> { cont ->
+    return suspendCancellableCoroutine<ByteArray?> { cont ->
       retrieveAdvertisedDataContinuation = cont
       logi(TAG, "Issuing request to read advertise data from GATT characteristic.")
 
@@ -400,12 +400,12 @@ open class BluetoothGattManager(
       }
 
     if (bondState == BluetoothDevice.BOND_BONDING) {
-      // TODO(b/151950260): Retry the request later if the device is still bonding.
+      // TODO: Retry the request later if the device is still bonding.
       loge(TAG, "Device is bonding. We should wait for bonding to complete.")
       disconnect()
     }
 
-    // TODO(b/145092826): for Android 7 and below, if bondState is BOND_BONDED, Android stack is
+    // TODO: for Android 7 and below, if bondState is BOND_BONDED, Android stack is
     // still busy handling it and calling discoverServices() without a delay would make it fail.
     if (!retryMessage(MSG_DISCOVER_SERVICES, delay = delay)) {
       loge(TAG, "Could not retry sending MSG_DISCOVER_SERVICES. Disconnecting")
@@ -475,7 +475,7 @@ open class BluetoothGattManager(
         return
       }
 
-      // TODO(b/170516057): always write descriptor; retrieve device name in onDescriptorWrite().
+      // TODO: always write descriptor; retrieve device name in onDescriptorWrite().
       // The default IHU apk does not set this descriptor on write characteristic. We need to update
       // the apk in gerrit before changing phone behavior to stay compatible.
       val descriptor = characteristic.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_DESCRIPTOR)
@@ -814,10 +814,11 @@ open class BluetoothGattManager(
     /**
      * The maximum supported MTU for Android.
      *
-     * If a default MTU has not been configured by [setDefaultMtu], this is the default value. This
-     * value is defined by the framework. See `system/bt/stack/include/gatt_api.h`.
+     * If a default MTU has not been configured by [setDefaultMtu], this is the default value.
+     * This value is defined by the framework. See `system/bt/stack/include/gatt_api.h`.
      */
-    internal const val MAXIMUM_MTU = 517
+    // This value is lower than the max MTU (517) defined by the framework - see b/260904308
+    internal const val MAXIMUM_MTU = 512
 
     internal const val SHARED_PREF = "com.google.android.libraries.car.trustagent.ConnectionManager"
     private const val KEY_DEFAULT_MTU = "default_mtu"

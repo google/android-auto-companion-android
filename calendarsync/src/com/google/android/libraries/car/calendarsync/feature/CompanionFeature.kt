@@ -19,7 +19,7 @@ import com.google.android.libraries.car.trustagent.api.PublicApi
 /**
  * Marker interface for "features" managed by the PhoneSyncService.
  *
- * TODO(b/159453310) Move this to connectionservice.
+ * TODO Move this to connectionservice.
  */
 @PublicApi
 interface CompanionFeature

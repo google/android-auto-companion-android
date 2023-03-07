@@ -50,7 +50,7 @@ private const val DEFAULT_DAYS_TO_SYNC = 2
  *
  * There should only exist a single instance of this class managed by a service.
  *
- * TODO(b/178175283): Make CalendarSyncManager methods non-blocking.
+ * TODO: Make CalendarSyncManager methods non-blocking.
  */
 @PublicApi
 class CalendarSyncManagerV2(
@@ -126,7 +126,7 @@ class CalendarSyncManagerV2(
 
   /**
    * A blocking read to the preferences data store.
-   * TODO(b/178175283): Make CalendarSyncManager methods non-blocking.
+   * TODO: Make CalendarSyncManager methods non-blocking.
    */
   private fun read(carId: UUID): Car? = runBlocking {
     datastore.data.map { settings -> settings.carsMap[carId.toString()] }.first()
@@ -134,7 +134,7 @@ class CalendarSyncManagerV2(
 
   /**
    * A blocking write to the preferences data store.
-   * TODO(b/178175283): Make CalendarSyncManager methods non-blocking.
+   * TODO: Make CalendarSyncManager methods non-blocking.
    */
   private fun write(carId: UUID, modify: Car.Builder.() -> Unit): Unit = runBlocking {
     datastore.updateData { settings ->
@@ -201,7 +201,7 @@ private fun createCalendarSyncAccessFactory(context: Context, daysToSync: Int):
     )
   }
 
-// TODO(b/175854426) This logging util should be moved from trust agent package.
+// TODO This logging util should be moved from trust agent package.
 private object TrustAgentLoggerFactory : CommonLogger.Factory {
   override fun create(name: String) = object : CommonLogger {
     override fun debug(message: String) = logd(name, message)

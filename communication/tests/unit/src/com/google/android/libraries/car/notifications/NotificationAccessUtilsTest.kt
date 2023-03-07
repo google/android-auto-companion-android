@@ -67,7 +67,7 @@ class NotificationAccessUtilsTest {
   }
 
   @Test
-  @Ignore // TODO(b/215427836): Fails under coroutines 1.6.0: runBlocking hangs until timeout
+  @Ignore // TODO: Fails under coroutines 1.6.0: runBlocking hangs until timeout
   fun requestNotificationAccess_pollsForAccessGranted() {
     var granted = false
     val coroutineScope = CoroutineScope(coroutinesTestRule.testDispatcher).launch {

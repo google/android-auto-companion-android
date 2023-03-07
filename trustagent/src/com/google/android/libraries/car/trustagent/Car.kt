@@ -21,7 +21,6 @@ import com.google.android.companionprotos.Query as QueryProto
 import com.google.android.companionprotos.QueryResponse as QueryResponseProto
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothConnectionManager
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
-import com.google.android.libraries.car.trustagent.blemessagestream.SppManager
 import com.google.android.libraries.car.trustagent.blemessagestream.StreamMessage
 import com.google.android.libraries.car.trustagent.util.bytesToUuid
 import com.google.android.libraries.car.trustagent.util.loge
@@ -45,8 +44,7 @@ import kotlinx.coroutines.launch
  *
  * This class can be used to exchange messages with a Car.
  */
-open class Car
-internal constructor(
+open class Car(
   private val bluetoothManager: BluetoothConnectionManager,
   internal open val messageStream: MessageStream,
   @GuardedBy("lock")
@@ -151,11 +149,6 @@ internal constructor(
   }
 
   override fun hashCode(): Int = deviceId.hashCode()
-
-  /** Returns `true` if this car communicates through an SPP channel. */
-  open fun isSppDevice(): Boolean {
-    return bluetoothManager is SppManager
-  }
 
   /**
    * Sends message to remote device Car and returns the id generated for the message.

@@ -103,7 +103,7 @@ class OobChannelManagerTest {
       ByteArray(10).apply { Random().nextBytes(this) },
     )
 
-  class FakeOobChannel : OobChannel {
+  internal class FakeOobChannel : OobChannel {
     var isStarted = false
 
     override var callback: OobChannel.Callback? = null

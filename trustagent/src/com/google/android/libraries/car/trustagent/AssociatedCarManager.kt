@@ -164,7 +164,7 @@ internal constructor(
   private fun SecretKey.toEncryptedString(): String {
     val encrypted = cryptoHelper.encrypt(encoded)
     if (encrypted == null) {
-      // TODO(b/155932001): CryptoHelper should not be able to return null.
+      // TODO: CryptoHelper should not be able to return null.
       throw IllegalStateException("Could not encrypt secret key.")
     }
     return encrypted

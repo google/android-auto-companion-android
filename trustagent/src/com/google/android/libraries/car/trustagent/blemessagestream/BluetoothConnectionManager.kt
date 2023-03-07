@@ -19,7 +19,7 @@ import com.google.android.libraries.car.trustagent.util.logd
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * A generic class which manages common logics shared among different connection managers e.g.
@@ -53,7 +53,7 @@ abstract class BluetoothConnectionManager() {
    * callback, or will register a callback separately.
    */
   open suspend fun connectToDevice(): Boolean =
-    suspendCoroutine<Boolean> { cont ->
+    suspendCancellableCoroutine<Boolean> { cont ->
       val callback =
         object : ConnectionCallback {
           override fun onConnected() {

@@ -112,7 +112,7 @@ fun getAppName(context: Context, packageName: String): String {
     val info = packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
     packageManager.getApplicationLabel(info) as String
   } catch (e: PackageManager.NameNotFoundException) {
-    // TODO(b/145615236)
+    // TODO
     e.printStackTrace()
     ""
   }

@@ -25,7 +25,7 @@ import java.util.UUID
 import java.util.concurrent.Executor
 
 /** This task runs when sending a connection request to remote device. */
-// TODO(b/134590063): Remove lint suppression once false positive lint error has been fixed.
+// TODO: Remove lint suppression once false positive lint error has been fixed.
 @SuppressLint("MissingPermission")
 internal class ConnectTask(
   device: BluetoothDevice,

@@ -185,7 +185,7 @@ class EncryptionRunnerManagerTest {
     }
   }
 
-  // TODO(b/140443698): Test handling bad previous key; need support from dummy encryption runner.
+  // TODO: Test handling bad previous key; need support from dummy encryption runner.
   private fun respondToReconnection(previousKey: ByteArray = PREVIOUS_KEY) {
     // client sends 2 consecutive messages: cont., then HMAC.
     // Trigger sending HMAC by notifying the second message has been sent.

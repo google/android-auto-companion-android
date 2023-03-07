@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package aae.messenger;
 
-import "storage/datapol/annotations/proto/semantic_annotations.proto";
+
 
 option java_package = "com.google.protos.aae.messenger";
 option java_outer_classname = "NotificationMsg";
@@ -98,7 +98,7 @@ message ConversationNotification {
 
   // Package name of the application that posted this notification.
   string messaging_app_package_name = 2
-      [(datapol.semantic_type) = ST_SOFTWARE_ID];
+     ;
 
   // MessagingStyle metadata of this conversation.
   MessagingStyle messaging_style = 3;
@@ -156,7 +156,7 @@ message AvatarIconSync {
 
   // Package name of the application that posted this notification.
   string messaging_app_package_name = 3
-      [(datapol.semantic_type) = ST_SOFTWARE_ID];
+     ;
 }
 
 // Request to clear all internal data and remove notifications for
@@ -164,7 +164,7 @@ message AvatarIconSync {
 message ClearAppDataRequest {
   // Specifies which messaging app's data to remove.
   string messaging_app_package_name = 1
-      [(datapol.semantic_type) = ST_SOFTWARE_ID];
+     ;
 }
 
 // Message to inform whether user has disabled/enabled this feature.
@@ -214,7 +214,7 @@ message Action {
   ActionName action_name = 3;
 
   // Unique id of this action.
-  string request_id = 4 [(datapol.semantic_type) = ST_SESSION_ID];
+  string request_id = 4;
 }
 
 // Backwards compatible way of supporting a map.

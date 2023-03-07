@@ -19,14 +19,14 @@ import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
-import android.companion.AssociationRequest as CdmAssociationRequest
-import android.companion.BluetoothDeviceFilter
-import android.companion.BluetoothLeDeviceFilter
+import android.companion.AssociationInfo
 import android.companion.CompanionDeviceManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentSender
 import android.os.ParcelUuid
 import androidx.room.Room
+import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
@@ -49,7 +49,6 @@ import com.nhaarman.mockitokotlin2.spy
 import com.nhaarman.mockitokotlin2.verify
 import java.util.UUID
 import kotlin.random.Random
-import kotlin.test.fail
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -89,6 +88,13 @@ class AssociationManagerTest {
 
   private val testDispatcher = UnconfinedTestDispatcher()
   private val context = ApplicationProvider.getApplicationContext<Context>()
+  private val fakeCompanionDeviceManagerCallback =
+    object : CompanionDeviceManager.Callback() {
+      override fun onAssociationCreated(associationInfo: AssociationInfo) {}
+      override fun onAssociationPending(intentSender: IntentSender) {}
+      override fun onDeviceFound(intentSender: IntentSender) {}
+      override fun onFailure(error: CharSequence?) {}
+    }
 
   private lateinit var database: ConnectedCarDatabase
   private lateinit var bleManager: FakeBleManager
@@ -122,16 +128,22 @@ class AssociationManagerTest {
 
     car = Car(bluetoothGattManager, TEST_STREAM, TEST_IDENTIFICATION_KEY, TEST_DEVICE_ID)
 
-    associationManager =
-      AssociationManager(context, associatedCarManager, bleManager).apply {
-        registerDiscoveryCallback(discoveryCallback)
-        registerAssociationCallback(associationCallback)
-        registerDisassociationCallback(disassociationCallback)
-      }
-
     associationHandler =
-      spy(TestAssociationHandler()).also { associationManager.associationHandler = it }
-    associationManager.coroutineContext = testDispatcher
+      spy(TestAssociationHandler().apply { associatedDevices.add(TEST_MACADDRESS) })
+
+    associationManager =
+      AssociationManager(
+          context,
+          associatedCarManager,
+          bleManager,
+          associationHandler,
+          testDispatcher,
+        )
+        .apply {
+          registerDiscoveryCallback(discoveryCallback)
+          registerAssociationCallback(associationCallback)
+          registerDisassociationCallback(disassociationCallback)
+        }
   }
 
   @After
@@ -258,22 +270,6 @@ class AssociationManagerTest {
   }
 
   @Test
-  fun startSppDiscovery_bluetoothDisabled_returnsFalse() {
-    bleManager.isEnabled = false
-
-    assertThat(associationManager.startSppDiscovery()).isFalse()
-    assertThat(associationManager.isSppDiscoveryStarted).isFalse()
-  }
-
-  @Test
-  fun startSppDiscovery_startedSuccessfully_updateFlag() {
-    bleManager.isEnabled = true
-
-    assertThat(associationManager.startSppDiscovery()).isTrue()
-    assertThat(associationManager.isSppDiscoveryStarted).isTrue()
-  }
-
-  @Test
   fun associate_onAssociationFailed() {
     val mockBluetoothManager =
       mock<BluetoothConnectionManager> { onBlocking { connectToDevice() } doReturn false }
@@ -302,35 +298,88 @@ class AssociationManagerTest {
   }
 
   @Test
-  fun associate_stopSppDiscovery() {
-    assertThat(associationManager.startSppDiscovery()).isTrue()
+  fun startCdmDiscovery_deviceIdentifierSet_requestSingleDevice() {
+    ActivityScenario.launch(FakeActivity::class.java).use { scenario ->
+      scenario.onActivity { activity ->
+        val request =
+          DiscoveryRequest.Builder(activity).run {
+            deviceIdentifier = "deviceIdentifier".toByteArray()
+            build()
+          }
 
-    associationManager.coroutineContext = testDispatcher
-    val deviceName = SHORT_LOCAL_NAME
-    val scanRecord =
-      createScanRecord(
-        name = deviceName,
-        serviceUuids = listOf(TEST_UUID),
-        serviceData = emptyMap()
-      )
+        associationManager.startCdmDiscovery(request, fakeCompanionDeviceManagerCallback)
 
-    val scanResult = createScanResult(scanRecord)
-    // SPP UUID does not matter here.
-    val testDiscoveredCar =
-      DiscoveredCar(scanResult.device, deviceName, TEST_UUID, sppServiceUuid = null)
-
-    associationManager.associate(testDiscoveredCar)
-
-    assertThat(associationManager.isSppDiscoveryStarted).isFalse()
+        assertThat(associationHandler.request!!.isSingleDevice()).isTrue()
+      }
+    }
   }
 
   @Test
-  fun clearCurrentAssociation_stopSppDiscovery() {
-    assertThat(associationManager.startSppDiscovery()).isTrue()
+  fun startCdmDiscovery_deviceIdentifierNull_doesNotRequestSingleDevice() {
+    ActivityScenario.launch(FakeActivity::class.java).use { scenario ->
+      scenario.onActivity { activity ->
+        val request =
+          DiscoveryRequest.Builder(activity).run {
+            deviceIdentifier = null
+            build()
+          }
 
-    associationManager.clearCurrentAssociation()
+        associationManager.startCdmDiscovery(request, fakeCompanionDeviceManagerCallback)
 
-    assertThat(associationManager.isSppDiscoveryStarted).isFalse()
+        assertThat(associationHandler.request!!.isSingleDevice()).isFalse()
+      }
+    }
+  }
+
+  @Test
+  fun resolveConnection_bluetoothDisconnects_onAssociationFailed() {
+    runBlocking {
+      val mockBluetoothManager = mock<BluetoothConnectionManager>()
+
+      associationManager.resolveConnection(mockBluetoothManager, oobData = null)
+      val connectionCallback =
+        argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+          verify(mockBluetoothManager).registerConnectionCallback(capture())
+          firstValue
+        }
+      connectionCallback.onDisconnected()
+
+      verify(associationCallback).onAssociationFailed()
+    }
+  }
+
+  @Test
+  fun resolveConnection_bluetoothOnConnected_onAssociationFailed() {
+    runBlocking {
+      val mockBluetoothManager = mock<BluetoothConnectionManager>()
+
+      associationManager.resolveConnection(mockBluetoothManager, oobData = null)
+      val connectionCallback =
+        argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+          verify(mockBluetoothManager).registerConnectionCallback(capture())
+          firstValue
+        }
+      connectionCallback.onConnected()
+
+      verify(associationCallback).onAssociationFailed()
+    }
+  }
+
+  @Test
+  fun resolveConnection_bluetoothOnConnectionFailed_onAssociationFailed() {
+    runBlocking {
+      val mockBluetoothManager = mock<BluetoothConnectionManager>()
+
+      associationManager.resolveConnection(mockBluetoothManager, oobData = null)
+      val connectionCallback =
+        argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+          verify(mockBluetoothManager).registerConnectionCallback(capture())
+          firstValue
+        }
+      connectionCallback.onConnectionFailed()
+
+      verify(associationCallback).onAssociationFailed()
+    }
   }
 
   @Test
@@ -348,7 +397,7 @@ class AssociationManagerTest {
     associationManager.associate(request)
     associationManager.clearCurrentCdmAssociation()
 
-    verify(associationManager.associationHandler).disassociate(macAddress)
+    verify(associationHandler).disassociate(macAddress)
   }
 
   @Test
@@ -367,7 +416,7 @@ class AssociationManagerTest {
     associationManager.pendingCarCallback.onConnected(car)
     associationManager.clearCurrentCdmAssociation()
 
-    verify(associationManager.associationHandler, never()).disassociate(macAddress)
+    verify(associationHandler, never()).disassociate(macAddress)
   }
 
   @Test
@@ -375,7 +424,7 @@ class AssociationManagerTest {
     runBlocking {
       associatedCarManager.add(car)
       associationManager.clearCdmAssociatedCar(TEST_DEVICE_ID)
-      verify(associationManager.associationHandler).disassociate(TEST_MACADDRESS)
+      verify(associationHandler).disassociate(TEST_MACADDRESS)
     }
   }
 
@@ -384,57 +433,8 @@ class AssociationManagerTest {
     runBlocking {
       associationManager.clearAllCdmAssociatedCars()
 
-      verify(associationManager.associationHandler).disassociate(TEST_MACADDRESS)
+      verify(associationHandler).disassociate(TEST_MACADDRESS)
     }
-  }
-
-  @Test
-  fun testStartCdmDiscovery_doesNotIncludeSppDeviceFilter_ifSppDisabled() {
-    associationManager.isSppEnabled = false
-
-    val discoveryRequest = DiscoveryRequest.Builder(Activity()).build()
-    associationManager.startCdmDiscovery(discoveryRequest, mock())
-
-    // `AssocationRequest` is a final object, so cannot use an ArgumentCaptor to capture it.
-    val request =
-      checkNotNull(associationHandler.request) {
-        "Method `associate` was not called in startCdmDiscovery"
-      }
-
-    // `getDeviceFilters` is an @hide method.
-    val getDeviceFiltersMethod = request.javaClass.getMethod("getDeviceFilters")
-    val filters = getDeviceFiltersMethod.invoke(request)
-    if (filters !is List<*>) {
-      fail("Unexpected. `getDeviceFilters` returned wrong type. Did the method change?")
-    }
-
-    assertThat(filters).hasSize(1)
-    assertThat(filters.first()).isInstanceOf(BluetoothLeDeviceFilter::class.java)
-  }
-
-  @Test
-  fun testStartCdmDiscovery_doesIncludesSppDeviceFilter_ifSppEnabled() {
-    associationManager.isSppEnabled = true
-
-    val discoveryRequest = DiscoveryRequest.Builder(Activity()).build()
-    associationManager.startCdmDiscovery(discoveryRequest, mock())
-
-    // `AssocationRequest` is a final object, so cannot use an ArgumentCaptor to capture it.
-    val request =
-      checkNotNull(associationHandler.request) {
-        "Method `associate` was not called in startCdmDiscovery"
-      }
-
-    // `getDeviceFilters` is an @hide method.
-    val getDeviceFiltersMethod = request.javaClass.getMethod("getDeviceFilters")
-    val filters = getDeviceFiltersMethod.invoke(request)
-    if (filters !is List<*>) {
-      fail("Unexpected. `getDeviceFilters` returned wrong type. Did the method change?")
-    }
-
-    assertThat(filters).hasSize(2)
-    assertThat(filters.any { it is BluetoothDeviceFilter }).isTrue()
-    assertThat(filters.any { it is BluetoothLeDeviceFilter }).isTrue()
   }
 
   @Test
@@ -465,22 +465,5 @@ class AssociationManagerTest {
     return this.joinToString("") { String.format("%02X", it) }
   }
 
-  open class TestAssociationHandler() : AssociationHandler {
-    var request: CdmAssociationRequest? = null
-
-    override val associations = mutableListOf(TEST_MACADDRESS)
-
-    override fun associate(
-      activity: Activity,
-      request: CdmAssociationRequest,
-      callback: CompanionDeviceManager.Callback
-    ) {
-      this.request = request
-    }
-
-    override fun disassociate(macAddress: String): Boolean {
-      // No implementation
-      return true
-    }
-  }
+  class FakeActivity : Activity() {}
 }
