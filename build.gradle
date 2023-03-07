@@ -56,12 +56,6 @@ android {
                 'trusteddevice/src',
                 'connectionservice/src',
             ]
-<<<<<<< HEAD
-            proto {
-                srcDir java.srcDirs
-            }
-            // Resources are included by the dependencies.
-=======
             res.srcDirs = [
                 'trustagent/res',
                 'connectionservice/res',
@@ -69,7 +63,6 @@ android {
             proto {
                 srcDir java.srcDirs
             }
->>>>>>> 81a55f6 (Update build script.)
         }
         // No test is included at root project.
     }
