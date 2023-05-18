@@ -53,7 +53,7 @@ class PhoneToCarMessageDAOTest {
   private val key = "key"
   private val connectionTime = Instant.parse("2020-01-01T00:00:00Z")
   private val compressFormat = "image/png"
-  private val maxWidthAndHeight = 50
+  private val maxWidthAndHeight = 150
   private val msgAppPackageName = "app.package.com"
 
   /** The default sender with no avatar */
@@ -167,39 +167,6 @@ class PhoneToCarMessageDAOTest {
     assertThat(bitmap.width).isAtMost(maxWidthAndHeight)
     assertThat(bitmap.height).isAtMost(maxWidthAndHeight)
     assertThat(messageList).hasSize(1)
-  }
-
-  @Test
-  fun toMessage_alwaysSendsSenderAvatarInGroupConversation() {
-    val dao =
-      createDAO(
-        isNewConversation = false,
-        isGroupConversation = true,
-        listOfMessages = listOf(messageWithAvatar),
-        lastMessage = messageWithAvatar
-      )
-    val result = dao.toMessage()
-    val message = result.message
-    val avatarArray = message.sender.avatar.toByteArray()
-    val inputType = guessContentTypeFromStream(ByteArrayInputStream(avatarArray))
-    assertThat(inputType).isEqualTo(compressFormat)
-    val bitmap = BitmapFactory.decodeByteArray(avatarArray, /* offset= */ 0, avatarArray.size)
-    assertThat(bitmap.width <= maxWidthAndHeight).isTrue()
-    assertThat(bitmap.height <= maxWidthAndHeight).isTrue()
-  }
-
-  @Test
-  fun toMessage_preexistingOneOnOneConversationIgnoresSenderAvatar() {
-    val dao =
-      createDAO(
-        isNewConversation = false,
-        isGroupConversation = false,
-        listOfMessages = listOf(messageWithAvatar),
-        lastMessage = messageWithAvatar
-      )
-    val result = dao.toMessage()
-    assertThat(result.messageDataCase.name).isEqualTo(MESSAGE_DATA_TYPE)
-    assertThat(result.message.sender.avatar.toByteArray()).isEmpty()
   }
 
   @Test

@@ -56,13 +56,10 @@ android {
                 'trusteddevice/src',
                 'connectionservice/src',
             ]
-            res.srcDirs = [
-                'trustagent/res',
-                'connectionservice/res',
-            ]
             proto {
                 srcDir java.srcDirs
             }
+            // Resources are included by the dependencies.
         }
         // No test is included at root project.
     }

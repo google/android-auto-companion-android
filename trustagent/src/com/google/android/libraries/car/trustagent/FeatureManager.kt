@@ -67,6 +67,10 @@ abstract class FeatureManager {
    */
   abstract fun onAllCarsDisassociated()
 
+  internal fun getFeatureSupportStatusProvider(deviceId: UUID): FeatureSupportStatusProvider? {
+    return carsAndCallbacks[deviceId]?.first
+  }
+
   /**
    * Invoked when a query has been sent by the car with the given [deviceId].
    *

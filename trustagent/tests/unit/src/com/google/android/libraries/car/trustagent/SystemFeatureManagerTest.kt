@@ -15,9 +15,15 @@
 package com.google.android.libraries.car.trustagent
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.android.companionprotos.FeatureSupportResponse
 import com.google.android.companionprotos.SystemQuery
 import com.google.android.companionprotos.SystemQueryType
+import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import com.nhaarman.mockitokotlin2.any
+import com.nhaarman.mockitokotlin2.argumentCaptor
+import com.nhaarman.mockitokotlin2.doReturn
+import com.nhaarman.mockitokotlin2.eq
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.never
 import com.nhaarman.mockitokotlin2.verify
@@ -37,10 +43,7 @@ class SystemFeatureManagerTest {
   @Before
   fun setUp() {
     manager =
-      SystemFeatureManager(
-        deviceNameProvider = { DEVICE_NAME },
-        appNameProvider = { APP_NAME }
-      )
+      SystemFeatureManager(deviceNameProvider = { DEVICE_NAME }, appNameProvider = { APP_NAME })
   }
 
   @Test
@@ -63,6 +66,96 @@ class SystemFeatureManagerTest {
     manager.onQueryReceived(query, CAR_ID, onResponse)
 
     verify(onResponse).invoke(true, APP_NAME.toByteArray())
+  }
+
+  @Test
+  fun testIsFeatureSupported_disconnectedCar_featureNotSupported() {
+    val queriedFeatureId = UUID.randomUUID()
+    val request =
+      createSystemQueryProto(
+        SystemQueryType.IS_FEATURE_SUPPORTED,
+        payloads = listOf(queriedFeatureId.toString().toByteArray()),
+      )
+    val query = Query(request, parameters = null)
+    val onResponse: (Boolean, ByteArray) -> Unit = mock()
+
+    // CAR_ID is not notified as connected.
+    manager.onQueryReceived(query, CAR_ID, onResponse)
+
+    val response =
+      argumentCaptor<ByteArray>().run {
+        verify(onResponse).invoke(eq(true), capture())
+        firstValue
+      }
+    val featureSupportResponse = FeatureSupportResponse.parseFrom(response)
+    val status = featureSupportResponse.statusesList.first()
+
+    assertThat(UUID.fromString(status.featureId)).isEqualTo(queriedFeatureId)
+    assertThat(status.isSupported).isFalse()
+  }
+
+  @Test
+  fun testIsFeatureSupported_featureIsSupported_returnsSupported() {
+    val queriedFeatureId = UUID.randomUUID()
+    val request =
+      createSystemQueryProto(
+        SystemQueryType.IS_FEATURE_SUPPORTED,
+        payloads = listOf(queriedFeatureId.toString().toByteArray()),
+      )
+    val query = Query(request, parameters = null)
+    val onResponse: (Boolean, ByteArray) -> Unit = mock()
+
+    // Connect CAR_ID and registere the feature.
+    val mockCar: Car = mock {
+      on { deviceId } doReturn CAR_ID
+      on { isFeatureSupported(queriedFeatureId) } doReturn true
+    }
+    manager.notifyCarConnected(mockCar)
+
+    manager.onQueryReceived(query, CAR_ID, onResponse)
+
+    val response =
+      argumentCaptor<ByteArray>().run {
+        verify(onResponse).invoke(eq(true), capture())
+        firstValue
+      }
+    val featureSupportResponse = FeatureSupportResponse.parseFrom(response)
+    val status = featureSupportResponse.statusesList.first()
+
+    assertThat(UUID.fromString(status.featureId)).isEqualTo(queriedFeatureId)
+    assertThat(status.isSupported).isTrue()
+  }
+
+  @Test
+  fun testIsFeatureSupported_featureIsNotSupported_returnsNotSupported() {
+    val queriedFeatureId = UUID.randomUUID()
+    val request =
+      createSystemQueryProto(
+        SystemQueryType.IS_FEATURE_SUPPORTED,
+        payloads = listOf(queriedFeatureId.toString().toByteArray()),
+      )
+    val query = Query(request, parameters = null)
+    val onResponse: (Boolean, ByteArray) -> Unit = mock()
+
+    // Connect CAR_ID and registere the feature.
+    val mockCar: Car = mock {
+      on { deviceId } doReturn CAR_ID
+      on { isFeatureSupported(queriedFeatureId) } doReturn false
+    }
+    manager.notifyCarConnected(mockCar)
+
+    manager.onQueryReceived(query, CAR_ID, onResponse)
+
+    val response =
+      argumentCaptor<ByteArray>().run {
+        verify(onResponse).invoke(eq(true), capture())
+        firstValue
+      }
+    val featureSupportResponse = FeatureSupportResponse.parseFrom(response)
+    val status = featureSupportResponse.statusesList.first()
+
+    assertThat(UUID.fromString(status.featureId)).isEqualTo(queriedFeatureId)
+    assertThat(status.isSupported).isFalse()
   }
 
   @Test
@@ -103,6 +196,15 @@ class SystemFeatureManagerTest {
   }
 
   /** Returns a serialized [SystemQuery] with the given operation type. */
-  private fun createSystemQueryProto(type: SystemQueryType): ByteArray =
-    SystemQuery.newBuilder().setType(type).build().toByteArray()
+  private fun createSystemQueryProto(
+    type: SystemQueryType,
+    payloads: List<ByteArray> = emptyList()
+  ): ByteArray =
+    SystemQuery.newBuilder()
+      .run {
+        setType(type)
+        addAllPayloads(payloads.map { ByteString.copyFrom(it) })
+        build()
+      }
+      .toByteArray()
 }

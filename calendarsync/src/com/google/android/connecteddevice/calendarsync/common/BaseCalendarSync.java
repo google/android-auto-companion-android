@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2023 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.google.android.connecteddevice.calendarsync.common;
 
 import static com.google.common.collect.Sets.difference;
@@ -115,6 +131,7 @@ public abstract class BaseCalendarSync {
     }
     DeviceState state = getOrCreateState(deviceId);
     state.version = update.getVersion();
+    logger.info("The state version is " + state.version);
 
     logger.info(
         "Received %s with %d calendars and size %d from device %s",
@@ -168,7 +185,7 @@ public abstract class BaseCalendarSync {
    * <p>Must be called before using the other methods of this class.
    */
   public void start() {
-    logger.debug("Start");
+    logger.debug("Start.");
     calendarsObservationHandle = calendarsObservable.observe(this::onCalendarsChanged);
   }
 
@@ -178,7 +195,7 @@ public abstract class BaseCalendarSync {
    * <p>Updating the calendar can result in many change events being fired in rapid succession.
    */
   private void onCalendarsChanged() {
-    logger.debug("Calendars changed");
+    logger.debug("Calendars changed.");
     if (delayedChangeUpdate != null) {
       delayedChangeUpdate.cancel();
     }
@@ -235,6 +252,7 @@ public abstract class BaseCalendarSync {
       calendarStore.store(state.deviceId, currentCalendar);
       currentCalendars.add(currentCalendar);
     }
+    logger.info("Send device change update.");
 
     // Keep the store up-to-date with the calendars on the remove device.
     SetView<String> removedCalendarKeys =
@@ -299,7 +317,7 @@ public abstract class BaseCalendarSync {
     private final Map<String, Range<Instant>> calendarKeyToTimeRange = new HashMap<>();
 
     /**
-     * The protocol version used by this remove device.
+     * The protocol version used by this remote device.
      *
      * <p>Until a response is received from the remote device the version is assumed to be version 0
      * which does not support sending updates.

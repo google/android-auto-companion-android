@@ -16,7 +16,7 @@
 
 syntax = "proto3";
 
-package aae.calendarsync;
+package aae.calendarsync.deprecated;
 
 option java_package = "com.google.android.connecteddevice.calendarsync.proto";
 option java_multiple_files = true;

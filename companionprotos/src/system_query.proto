@@ -19,7 +19,6 @@ syntax = "proto3";
 package com.google.companionprotos;
 
 option java_package = "com.google.android.companionprotos";
-
 option java_multiple_files = true;
 
 // Potential system query types.
@@ -38,12 +37,21 @@ enum SystemQueryType {
 
   // Query that returns the current role of the user.
   USER_ROLE = 3;
+
+  // Query that returns whether the companion platform on the other side
+  // (phone/IHU) supports the queried features. Field |payloads| in the
+  // SystemQuery proto will be a list of strings that each represents a
+  // feature recipient UUID.
+  IS_FEATURE_SUPPORTED = 4;
 }
 
 // Definition proto for a system query.
 message SystemQuery {
   // Type indication for this query.
   SystemQueryType type = 1;
+
+  // Payload that accompanies the query.
+  repeated bytes payloads = 2;
 }
 
 // Potential user roles.
@@ -66,4 +74,18 @@ enum SystemUserRole {
 message SystemUserRoleResponse {
   // The user's current role.
   SystemUserRole role = 1;
+}
+
+// Response to a feature support status query.
+message FeatureSupportResponse {
+  repeated FeatureSupportStatus statuses = 1;
+}
+
+// The support status of a feature.
+message FeatureSupportStatus {
+  // The feature that is being queried.
+  string feature_id = 1;
+
+  // Whether the feature is supported.
+  bool is_supported = 2;
 }

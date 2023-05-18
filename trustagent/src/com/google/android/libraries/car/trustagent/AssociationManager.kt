@@ -59,7 +59,7 @@ import kotlinx.coroutines.launch
  * - initiating the association and notifying callbacks that require user interaction.
  *
  * @param associationHandler A representative of [CompanionDeviceManager], which will be used to
- * handle associate and disassociate requests.
+ *   handle associate and disassociate requests.
  */
 open internal class AssociationManager
 @VisibleForTesting
@@ -210,8 +210,8 @@ internal constructor(
    * be used as a shortcut for checking this state.
    *
    * @param namePrefix May be added to the beginning of the advertised names of cars that are found.
-   * This will be added only when doing so matches the advertisement name the car is currently
-   * displaying.
+   *   This will be added only when doing so matches the advertisement name the car is currently
+   *   displaying.
    */
   fun startDiscovery(namePrefix: String = ""): Boolean =
     startDiscovery(associationServiceUuid, namePrefix)
@@ -226,11 +226,10 @@ internal constructor(
    * be used as a shortcut for checking this state.
    *
    * @param filterService UUID used for discovery. This parameter takes precedence over the value
-   * that is specified via resource overlay as R.string.car_association_service_uuid.
-   *
+   *   that is specified via resource overlay as R.string.car_association_service_uuid.
    * @param namePrefix May be added to the beginning of the advertised names of cars that are found.
-   * This will be added only when doing so matches the advertisement name the car is currently
-   * displaying.
+   *   This will be added only when doing so matches the advertisement name the car is currently
+   *   displaying.
    */
   // TODO: Remove lint suppression once false positive lint error has been fixed. Same
   //  for all the [MissingPermission] lint suppression in this class.
@@ -287,7 +286,7 @@ internal constructor(
    * @param request Parameters that modify this discovery call.
    * @param callback Callback to be notified of success and failure events.
    */
-  internal fun startCdmDiscovery(
+  internal open fun startCdmDiscovery(
     request: DiscoveryRequest,
     callback: CompanionDeviceManager.Callback,
   ): Boolean {
@@ -785,8 +784,8 @@ internal constructor(
 
     /**
      * Decided by the maximum advertised data size(31) defined by [BluetoothLeAdvertiser]. The total
-     * advertisement data is consist of advertised data and scan response so has a maximum length of
-     * 62.
+     * advertisement data is consist of advertised data and scan response so has a maximum length
+     * of 62.
      */
     private const val ADVERTISEMENT_LENGTH = 62
 

@@ -31,7 +31,6 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.fail
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,7 +45,7 @@ private val OTHER_CAR_ID = UUID.fromString("829466cd-3321-4af5-ac6b-9d7e175d76dc
 class FeatureManagerTest {
   private val testDispatcher = UnconfinedTestDispatcher()
 
-  private lateinit var featureManger: FeatureManagerFake
+  private lateinit var featureManager: FeatureManagerFake
   private lateinit var car: Car
   private lateinit var otherCar: Car
 
@@ -72,13 +71,13 @@ class FeatureManagerTest {
           coroutineDispatcher = testDispatcher
         )
       )
-    featureManger = spy(FeatureManagerFake())
+    featureManager = spy(FeatureManagerFake())
   }
 
   @Test
   fun sendMessage_carNotConnected_returnsInvalidMessageId() {
     val message = "message".toByteArray()
-    val messageId = featureManger.sendMessage(message, CAR_ID)
+    val messageId = featureManager.sendMessage(message, CAR_ID)
     assertThat(messageId).isEqualTo(FeatureManager.INVALID_MESSAGE_ID)
   }
 
@@ -86,9 +85,9 @@ class FeatureManagerTest {
   fun sendMessage_writesToCorrectCar() {
     val message = "message".toByteArray()
 
-    featureManger.notifyCarConnected(car)
-    featureManger.notifyCarConnected(otherCar)
-    featureManger.sendMessage(message, CAR_ID)
+    featureManager.notifyCarConnected(car)
+    featureManager.notifyCarConnected(otherCar)
+    featureManager.sendMessage(message, CAR_ID)
 
     verify(car).sendMessage(message, FEATURE_ID)
     verify(otherCar, never()).sendMessage(any(), any())
@@ -99,10 +98,10 @@ class FeatureManagerTest {
     val expectedMessageId = 33
     doReturn(expectedMessageId).whenever(car).sendMessage(any(), any())
 
-    featureManger.notifyCarConnected(car)
+    featureManager.notifyCarConnected(car)
 
     val message = "message".toByteArray()
-    val messageId = featureManger.sendMessage(message, CAR_ID)
+    val messageId = featureManager.sendMessage(message, CAR_ID)
 
     assertThat(messageId).isEqualTo(expectedMessageId)
   }
@@ -111,9 +110,9 @@ class FeatureManagerTest {
   fun testSendQuery_carConnected_doesNotInvokeOnResponseWithFailure() {
     val query = Query("request".toByteArray(), parameters = null)
 
-    featureManger.notifyCarConnected(car)
+    featureManager.notifyCarConnected(car)
 
-    featureManger.sendQuery(query, CAR_ID) { fail("OnResponse invoked") }
+    featureManager.sendQuery(query, CAR_ID) { fail("OnResponse invoked") }
   }
 
   @Test
@@ -128,7 +127,7 @@ class FeatureManagerTest {
         response = byteArrayOf()
       )
 
-    featureManger.sendQuery(query, CAR_ID) { queryResponse ->
+    featureManager.sendQuery(query, CAR_ID) { queryResponse ->
       semaphore.release()
       assertThat(queryResponse).isEqualTo(expectedQueryResponse)
     }
@@ -142,9 +141,9 @@ class FeatureManagerTest {
     val onResponse: (QueryResponse) -> Unit = {}
     val query = Query("request".toByteArray(), parameters = null)
 
-    featureManger.notifyCarConnected(car)
-    featureManger.notifyCarConnected(otherCar)
-    featureManger.sendQuery(query, CAR_ID, onResponse)
+    featureManager.notifyCarConnected(car)
+    featureManager.notifyCarConnected(otherCar)
+    featureManager.sendQuery(query, CAR_ID, onResponse)
 
     verify(car).sendQuery(query, FEATURE_ID, onResponse)
     verify(otherCar, never()).sendQuery(any(), any(), any())
@@ -153,18 +152,18 @@ class FeatureManagerTest {
   @Test
   fun testOnQueryReceived_callsCallback() {
     val query = Query("request".toByteArray(), parameters = null)
-    featureManger.notifyCarConnected(car)
+    featureManager.notifyCarConnected(car)
 
     val callback = captureCallback(car)
     callback.onQueryReceived(queryId = 13, sender = SENDER_ID, query)
 
-    verify(featureManger).onQueryReceived(eq(query), eq(CAR_ID), any())
+    verify(featureManager).onQueryReceived(eq(query), eq(CAR_ID), any())
   }
 
   @Test
   fun testQueryResponseHandler_writesToCorrectCar() {
-    featureManger.notifyCarConnected(car)
-    featureManger.notifyCarConnected(otherCar)
+    featureManager.notifyCarConnected(car)
+    featureManager.notifyCarConnected(otherCar)
 
     val queryId = 13
     val query = Query("request".toByteArray(), parameters = null)
@@ -172,7 +171,7 @@ class FeatureManagerTest {
     callback.onQueryReceived(queryId, SENDER_ID, query)
 
     val handlerCaptor = argumentCaptor<(Boolean, ByteArray) -> Unit>()
-    verify(featureManger).onQueryReceived(eq(query), eq(CAR_ID), handlerCaptor.capture())
+    verify(featureManager).onQueryReceived(eq(query), eq(CAR_ID), handlerCaptor.capture())
 
     val responseHandler = handlerCaptor.firstValue
 
@@ -183,6 +182,19 @@ class FeatureManagerTest {
     val expectedQueryResponse = QueryResponse(queryId, isSuccessful, response)
     verify(car).sendQueryResponse(expectedQueryResponse, SENDER_ID)
     verify(otherCar, never()).sendQueryResponse(any(), any())
+  }
+
+  @Test
+  fun testGetFeatureSupportStatusProvider_connectedCar_returnsProvider() {
+    featureManager.notifyCarConnected(car)
+
+    assertThat(featureManager.getFeatureSupportStatusProvider(CAR_ID)).isNotNull()
+  }
+
+  @Test
+  fun testGetFeatureSupportStatusProvider_disconnectedCar_returnsNull() {
+    // Car is not connected.
+    assertThat(featureManager.getFeatureSupportStatusProvider(CAR_ID)).isNull()
   }
 
   /** Verifies that a callback was set on the provided [car] and returns that callback. */

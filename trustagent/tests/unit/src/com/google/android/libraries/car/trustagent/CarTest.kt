@@ -423,4 +423,21 @@ class CarTest {
       verify(callback).onQueryReceived(queryId2, sender2, query2)
     }
   }
+
+  @Test
+  fun testIsFeatureSupported_supportedFeature() {
+    val recipient = UUID.fromString("e284f45d-666f-479f-bd48-b8be0283977e")
+    val callback = mock<Car.Callback>()
+    car.setCallback(callback, recipient)
+
+    assertThat(car.isFeatureSupported(recipient)).isTrue()
+  }
+
+  @Test
+  fun testIsFeatureSupported_unsupportedFeature() {
+    // The recipient UUID is not registered.
+    val featureId = UUID.fromString("e284f45d-666f-479f-bd48-b8be0283977e")
+
+    assertThat(car.isFeatureSupported(featureId)).isFalse()
+  }
 }

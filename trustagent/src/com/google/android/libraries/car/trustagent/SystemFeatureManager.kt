@@ -16,11 +16,15 @@ package com.google.android.libraries.car.trustagent
 
 import android.bluetooth.BluetoothAdapter
 import android.content.Context
+import com.google.android.companionprotos.FeatureSupportResponse
+import com.google.android.companionprotos.FeatureSupportStatus
 import com.google.android.companionprotos.SystemQuery
 import com.google.android.companionprotos.SystemQueryType
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
+import com.google.android.libraries.car.trustagent.util.logw
 import com.google.protobuf.InvalidProtocolBufferException
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 /**
@@ -42,7 +46,7 @@ internal constructor(
     context: Context
   ) : this(
     deviceNameProvider = BluetoothAdapter.getDefaultAdapter()::getName,
-    appNameProvider = context::getAppName
+    appNameProvider = context::getAppName,
   )
 
   override fun onQueryReceived(
@@ -61,18 +65,19 @@ internal constructor(
     logi(TAG, "Received a query from $deviceId")
 
     try {
-      respondToQuery(queryProto, responseHandler)
+      respondToQuery(deviceId, queryProto, responseHandler)
     } catch (e: IllegalArgumentException) {
       loge(TAG, "Unable to send query response to car", e)
     }
   }
 
   /**
-   * Attempts to send a response to the given [queryProto] with the given [responseHandler].
+   * Sends a response to the given [queryProto] with the given [responseHandler] from [deviceId].
    *
    * Throws an [IllegalArgumentException] if the car is not connected at the time of send.
    */
   private fun respondToQuery(
+    deviceId: UUID,
     queryProto: SystemQuery,
     responseHandler: (Boolean, ByteArray) -> Unit
   ) {
@@ -87,6 +92,16 @@ internal constructor(
         logi(TAG, "Received app name query. Responding with $appName")
         responseHandler(/* isSuccessful= */ true, appName.toByteArray())
       }
+      SystemQueryType.IS_FEATURE_SUPPORTED -> {
+        logi(TAG, "Received feature support query.")
+        val queriedFeatureIds =
+          queryProto.payloadsList.map {
+            val uuidString = it.toByteArray().toString(StandardCharsets.UTF_8)
+            UUID.fromString(uuidString)
+          }
+        val response = generateFeatureSupportStatus(deviceId, queriedFeatureIds)
+        responseHandler(/* isSuccessful= */ true, response.toByteArray())
+      }
       else -> {
         loge(
           TAG,
@@ -95,6 +110,31 @@ internal constructor(
         )
         responseHandler(/* isSuccessful= */ false, byteArrayOf())
       }
+    }
+  }
+
+  private fun generateFeatureSupportStatus(
+    deviceId: UUID,
+    queriedFeatureIds: List<UUID>
+  ): FeatureSupportResponse {
+    val provider = getFeatureSupportStatusProvider(deviceId)
+    if (provider == null) {
+      val featureIds = queriedFeatureIds.joinToString { it.toString() }
+      logw(TAG, "No provider for $deviceId. Responding unsupported for all: $featureIds.")
+    }
+
+    val statuses =
+      queriedFeatureIds.map {
+        FeatureSupportStatus.newBuilder().run {
+          this.featureId = it.toString()
+          this.isSupported = provider?.isFeatureSupported(it) ?: false
+          build()
+        }
+      }
+
+    return FeatureSupportResponse.newBuilder().run {
+      addAllStatuses(statuses)
+      build()
     }
   }
 

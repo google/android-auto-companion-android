@@ -128,7 +128,7 @@ internal class MessagingNotificationHandler(
     val message = sbn.toMessageDAO()?.toMessage() ?: return
     sendMessage(message.toByteArray(), carId)
     notificationMap[sbn.key] = sbn.notification
-    DebugLogs.logMessageToCarSent(message.messageDataCase.name)
+    DebugLogs.logMessageToCarSent(message.message.textMessage)
   }
 
   @VisibleForTesting

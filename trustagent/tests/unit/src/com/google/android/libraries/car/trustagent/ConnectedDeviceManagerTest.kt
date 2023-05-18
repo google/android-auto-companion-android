@@ -69,6 +69,7 @@ class ConnectedDeviceManagerTest {
   private val mockFeature: FeatureManager = mock()
   private val mockAssociationManager: AssociationManager = mock {
     on { isBluetoothEnabled } doReturn true
+    on { startCdmDiscovery(any(), any()) } doReturn true
   }
   private val mockConnectionManager: ConnectionManager = mock {
     on { startScanForAssociatedCars(any<ScanCallback>()) } doReturn true
@@ -90,6 +91,60 @@ class ConnectedDeviceManagerTest {
         coroutineDispatcher = UnconfinedTestDispatcher(),
         backgroundDispatcher = UnconfinedTestDispatcher(),
       )
+  }
+
+  @Test
+  fun startDiscovery_doubleCalls_secondIsRejected() {
+    val discoveryRequest =
+      discoveryRequest(FakeActivity()) {
+        namePrefix = "namePrefix"
+        associationUuid = null
+        deviceIdentifier = null
+      }
+
+    assertThat(manager.startDiscovery(discoveryRequest)).isTrue()
+    // Second call is rejected.
+    assertThat(manager.startDiscovery(discoveryRequest)).isFalse()
+  }
+
+  @Test
+  fun startDiscovery_afterDiscoveryCallbackOnFailure_secondCallIsAccepted() {
+    val discoveryRequest =
+      discoveryRequest(FakeActivity()) {
+        namePrefix = "namePrefix"
+        associationUuid = null
+        deviceIdentifier = null
+      }
+
+    assertThat(manager.startDiscovery(discoveryRequest)).isTrue()
+    manager.companionDeviceManagerCallback.onFailure("error")
+
+    assertThat(manager.startDiscovery(discoveryRequest)).isTrue()
+  }
+
+  @Test
+  fun startDiscovery_afterDiscoveryCallbackOnDeviceFound_secondCallIsAccepted() {
+    val discoveryRequest =
+      discoveryRequest(FakeActivity()) {
+        namePrefix = "namePrefix"
+        associationUuid = null
+        deviceIdentifier = null
+      }
+    val intentSender =
+      RoboIntentSender(
+        PendingIntent.getActivity(
+          context,
+          /* requestCode= */ 0,
+          /* intent= */ FakeActivity.createIntent(context),
+          /* flags= */ 0,
+          /* options= */ null
+        )
+      )
+
+    assertThat(manager.startDiscovery(discoveryRequest)).isTrue()
+    manager.companionDeviceManagerCallback.onDeviceFound(intentSender)
+
+    assertThat(manager.startDiscovery(discoveryRequest)).isTrue()
   }
 
   @Test
@@ -377,8 +432,9 @@ class ConnectedDeviceManagerTest {
 
   @Test
   fun onAllCarsDisassociated_disconnectAllConnections() {
-    val mockCar1: Car = mock()
-    val mockCar2: Car = mock()
+    val mockCar1: Car = mock { on { deviceId } doReturn UUID.randomUUID() }
+    val mockCar2: Car = mock { on { deviceId } doReturn UUID.randomUUID() }
+
     testLifecycleOwner.currentState = Lifecycle.State.CREATED
     captureConnectionCallback().onConnected(mockCar1)
     captureConnectionCallback().onConnected(mockCar2)

@@ -54,7 +54,7 @@ open class Car(
   open val deviceId: UUID,
   open var name: String? = bluetoothManager.deviceName,
   private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.Main
-) {
+) : FeatureSupportStatusProvider {
   /** The BluetoothDevice that this object represents (and is being connected to). */
   open val bluetoothDevice = bluetoothManager.bluetoothDevice
 
@@ -379,6 +379,12 @@ open class Car(
   /** Converts this proto to its [QueryResponse] representation. */
   private fun QueryResponseProto.toQueryResponse(): QueryResponse =
     QueryResponse(queryId, success, response.toByteArray())
+
+  /**
+   * Determines the support status by checking if [featureId] has registered for message callback.
+   */
+  override fun isFeatureSupported(featureId: UUID): Boolean =
+    lock.withLock { callbacks.containsKey(featureId) }
 
   /** Callback for car interaction. */
   interface Callback {

@@ -97,11 +97,9 @@ internal class PhoneToCarMessageDAO(
       .setName(name.toString())
       .apply {
         icon?.let {
-          if (style.isGroupConversation || isNewConversation) {
-            avatar =
-              it.toIcon(context)
-                .toByteString(quality = AVATAR_QUALITY, maxWidthHeight = AVATAR_SIZE_PX)
-          }
+          avatar =
+            it.toIcon(context)
+              .toByteString(quality = AVATAR_QUALITY, maxWidthHeight = AVATAR_SIZE_PX)
         }
       }
       .build()
@@ -122,7 +120,11 @@ internal class PhoneToCarMessageDAO(
      */
     private const val ICON_QUALITY_DEFAULT = 100
     private const val AVATAR_QUALITY = 0
-    private const val AVATAR_SIZE_PX = 50
+    /**
+     * Length and height value for the avatar icon. This value is chosen as a balance between
+     * quality and file size.
+     */
+    private const val AVATAR_SIZE_PX = 150
     // PNG is required for icon transparency
     private val COMPRESS_FORMAT = Bitmap.CompressFormat.PNG
   }

@@ -38,6 +38,7 @@ import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logw
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,11 +53,9 @@ import kotlinx.coroutines.newSingleThreadContext
  * Manages connected devices.
  *
  * @param[lifecycle] Lifecycle that controls the connections. Reconnection will be started in
- * lifecycle#onCreate(), and cut-off in lifecycle#onDestroy().
- *
+ *   lifecycle#onCreate(), and cut-off in lifecycle#onDestroy().
  * @param[features] [FeatureManager]s that would be held by this manager. These features would be
- * notified of connection events.
- *
+ *   notified of connection events.
  * @param[coroutineDispatcher] Dispatcher for coroutines. Callbacks are made by this dispatcher.
  * @param[backgroundDispatcher] Dispatcher for background tasks. Must not be the main thread.
  */
@@ -87,11 +86,11 @@ internal constructor(
 
   private val retryHandler = Handler(Looper.getMainLooper())
 
-  private val _connectedCars = mutableSetOf<Car>()
+  private val _connectedCars = mutableMapOf<UUID, Car>()
   /** Returns the currently connected cars. */
   @get:PublicApi
   val connectedCars: List<AssociatedCar>
-    get() = _connectedCars.map { it.toAssociatedCar() }
+    get() = _connectedCars.values.map { it.toAssociatedCar() }
 
   private val associationManagerCallback =
     object : AssociationManager.AssociationCallback, AssociationManager.DisassociationCallback {
@@ -216,16 +215,25 @@ internal constructor(
       }
     }
 
+  // Tracks whether we have already requested a discovery through system service
+  // CompanionDeviceManager.
+  // This checking is necessary because the platform throws exception when the discovered result
+  // is presented twice (IntentSender started twice), which could be caused by startDiscovery()
+  // being invoked multiple times.
+  private val hasOngoingCdmDiscovery = AtomicBoolean(false)
+
   @VisibleForTesting
   internal val companionDeviceManagerCallback =
     object : CompanionDeviceManager.Callback() {
       override fun onDeviceFound(chooserLauncher: IntentSender) {
         logi(TAG, "Received $chooserLauncher from CompanionDeviceManager.")
+        hasOngoingCdmDiscovery.set(false)
         callbacks.forEach { it.onDeviceDiscovered(chooserLauncher) }
       }
 
       override fun onFailure(error: CharSequence?) {
         loge(TAG, "Received onFailure() from CompanionDeviceManager: $error.")
+        hasOngoingCdmDiscovery.set(false)
         callbacks.forEach { it.onDiscoveryFailed() }
       }
     }
@@ -329,7 +337,12 @@ internal constructor(
    */
   @PublicApi
   fun startDiscovery(request: DiscoveryRequest): Boolean {
+    if (!hasOngoingCdmDiscovery.compareAndSet(false, true)) {
+      logi(TAG, "Discovery already started. Ignored.")
+      return false
+    }
     logi(TAG, "StartDiscovery with $request.")
+
     return associationManager.startCdmDiscovery(request, companionDeviceManagerCallback)
   }
 
@@ -371,7 +384,7 @@ internal constructor(
     }
 
   private suspend fun handleCarDisassociated(deviceId: UUID) {
-    _connectedCars.firstOrNull { it.deviceId == deviceId }?.disconnect()
+    _connectedCars[deviceId]?.disconnect()
     if (!associationManager.loadIsAssociated().await()) {
       logi(TAG, "onCarDisassociated: no more associated cars; stopping.")
       stop()
@@ -401,6 +414,7 @@ internal constructor(
     ongoingAssociation = null
     associationManager.clearCurrentCdmAssociation()
   }
+
   /**
    * Attempts to start reconnection.
    *
@@ -426,8 +440,12 @@ internal constructor(
   @PublicApi
   fun stop() {
     connectionManager.stop()
-    _connectedCars.forEach { it.disconnect() }
+    for (car in _connectedCars.values) {
+      car.disconnect()
+    }
   }
+
+  internal fun getConnectedCar(deviceId: UUID): Car? = _connectedCars[deviceId]
 
   /** Registers the given [callback] to be notified of connection events. */
   @PublicApi
@@ -451,17 +469,17 @@ internal constructor(
     coroutineScope.future(backgroundDispatcher) {
       val isSuccessful = associationManager.renameCar(deviceId, name).await()
       if (isSuccessful) {
-        _connectedCars.firstOrNull { it.deviceId == deviceId }?.name = name
+        _connectedCars[deviceId]?.name = name
       }
       isSuccessful
     }
 
   private fun handleConnection(car: Car) {
     // Validity check.
-    if (_connectedCars.contains(car)) {
+    if (car.deviceId in _connectedCars) {
       logw(TAG, "onAssociated: ${car.deviceId} is already connected. Replaced.")
     }
-    _connectedCars.add(car)
+    _connectedCars[car.deviceId] = car
     registerDisconnectionCallback(car)
 
     features.forEach { it.notifyCarConnected(car) }
@@ -483,8 +501,8 @@ internal constructor(
         override fun onDisconnected() {
           val deviceId = car.deviceId
           logi(TAG, "$deviceId has disconnected.")
-          if (!_connectedCars.remove(car)) {
-            logw(TAG, "Attempted to remove $deviceId but it does not exist in $_connectedCars.")
+          if (_connectedCars.remove(deviceId) == null) {
+            logw(TAG, "Attempted to remove $deviceId but it is not connected.")
           }
 
           car.clearCallback(this, RECIPIENT_ID)
