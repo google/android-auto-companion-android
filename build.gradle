@@ -50,16 +50,23 @@ android {
             manifest.srcFile 'AndroidManifest.xml'
             java.srcDirs = [
                 'trustagent/src',
+                'encryptionrunner/src',
                 'calendarsync/src',
                 'communication/src',
                 'loggingsupport/src',
                 'trusteddevice/src',
                 'connectionservice/src',
             ]
-            proto {
-                srcDir java.srcDirs
-            }
-            // Resources are included by the dependencies.
+            proto.srcDirs = [
+                'companionprotos/src',
+                'communicationproto/src',
+                'trusteddeviceproto/src',
+            ]
+            res.srcDirs = [
+                'trustagent/res',
+                'connectionservice/res',
+                'communication/res',
+            ]
         }
         // No test is included at root project.
     }
@@ -70,6 +77,8 @@ android {
 }
 
 dependencies {
+    implementation files('encryptionrunner/ukey2.jar')
+
     implementation libs.androidx.room.runtime
     implementation libs.androidx.room.ktx
     implementation libs.dagger
