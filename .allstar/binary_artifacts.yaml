@@ -1,0 +1,4 @@
+---
+# Ignore reason: ukey2 artifact that cannot be pulled in as dependency.
+ignorePaths:
+  - encryptionrunner/ukey2.jar
