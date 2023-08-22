@@ -18,7 +18,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.CalendarContract.Calendars;
-import com.google.android.connecteddevice.calendarsync.proto.Calendar;
+import com.google.android.connecteddevice.calendarsync.Calendar;
 import java.time.Instant;
 
 /** Convert the contract provided by {@code Calendars} into the proto object {@code Calendar}. */
@@ -51,10 +51,10 @@ final class CalendarConverter extends BaseConverter<Calendar> {
     long calendarId = getLong(cursor, BaseColumns._ID);
     Calendar.Builder calendar = Calendar.newBuilder();
     calendar
-        .setUuid(String.valueOf(calendarId))
+        .setKey(String.valueOf(calendarId))
         .setAccountName(getString(cursor, Calendars.ACCOUNT_NAME))
         .setTitle(getString(cursor, Calendars.NAME))
-        .addAllEvent(eventRepository.getEvents(calendarId, startInstant, endInstant));
+        .addAllEvents(eventRepository.getEvents(calendarId, startInstant, endInstant));
 
     if (isNonNull(cursor, Calendars.CALENDAR_COLOR)) {
       calendar.setColor(toProtoColor(getInt(cursor, Calendars.CALENDAR_COLOR)));

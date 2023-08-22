@@ -20,17 +20,17 @@ import com.google.android.companionprotos.SystemQuery
 import com.google.android.companionprotos.SystemQueryType
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.eq
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.never
-import com.nhaarman.mockitokotlin2.verify
 import java.util.UUID
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 
 private val CAR_ID = UUID.fromString("b9592993-2f53-40a8-8b87-e218e592c165")
 private const val DEVICE_NAME = "deviceName"

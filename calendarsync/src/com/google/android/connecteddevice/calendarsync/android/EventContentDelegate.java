@@ -445,6 +445,7 @@ final class EventContentDelegate extends BaseContentDelegate<Event> {
   /** The type of event regarding recurrence. */
   private enum RecurrenceType {
 
+    // LINT.IfChange
     /** An event that only occurs once. */
     SINGLE("S"),
 
@@ -456,6 +457,7 @@ final class EventContentDelegate extends BaseContentDelegate<Event> {
      * regular meeting.
      */
     EXCEPTION("X");
+    // LINT.ThenChange(//depot/google3/third_party/swift/AndroidAutoCalendarSync/Sources/AndroidAutoCalendarSync/EventKit+Extensions.swift)
 
     /** The code to include in the key. */
     final String code;

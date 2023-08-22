@@ -58,6 +58,9 @@ message TrustedDeviceMessage {
     // Indicates that the payload contains data necessary to sync the current
     // state of trusted device between two devices.
     STATE_SYNC = 7;
+
+    // A request from IHU to device to dismiss its lock screen.
+    UNLOCK_REQUEST = 8;
   }
 
   // The type of this message.

@@ -16,7 +16,7 @@ package com.google.android.libraries.car.calendarsync.feature.repository;
 
 import android.content.ContentResolver;
 import android.provider.CalendarContract.Attendees;
-import com.google.android.connecteddevice.calendarsync.proto.Attendee;
+import com.google.android.connecteddevice.calendarsync.Attendee;
 import com.google.common.collect.ImmutableList;
 
 /**

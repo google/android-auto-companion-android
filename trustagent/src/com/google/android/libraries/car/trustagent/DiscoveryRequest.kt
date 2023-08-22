@@ -32,8 +32,8 @@ private constructor(
    * A builder for [DiscoveryResult]s.
    *
    * @property activity The [Activity] that will handle the discovery result, which is an
-   * [IntentSender] returned through [ConnectedDeviceManager.Callback]. The discovery will be
-   * stopped if the activity is destroyed.
+   *   [IntentSender] returned through [ConnectedDeviceManager.Callback]. The discovery will be
+   *   stopped if the activity is destroyed.
    */
   @PublicApi
   class Builder(private val activity: Activity) {
@@ -80,9 +80,9 @@ private constructor(
  *
  * Refer to [DiscoveryRequest.Builder] for documentation on the properties that can be modified.
  *
- * @property activity The [Activity] that will handle the discovery result, which is an
- * [IntentSender] returned through [ConnectedDeviceManager.Callback]. The discovery will be stopped
- * if the activity is destroyed.
+ * @param activity The [Activity] that will handle the discovery result, which is an [IntentSender]
+ *   returned through [ConnectedDeviceManager.Callback]. The discovery will be stopped if the
+ *   activity is destroyed.
  * @param block Lambda with a receiver of [DiscoveryRequest.Builder].
  */
 inline fun discoveryRequest(

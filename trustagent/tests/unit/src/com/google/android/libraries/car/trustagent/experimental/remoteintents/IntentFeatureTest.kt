@@ -16,16 +16,16 @@ package com.google.android.libraries.car.trustagent.experimental.remoteintents
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.libraries.car.trustagent.Car
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.never
-import com.nhaarman.mockitokotlin2.spy
-import com.nhaarman.mockitokotlin2.verify
 import java.util.UUID
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.spy
+import org.mockito.kotlin.verify
 
 private val CAR_ID = UUID.fromString("b9592993-2f53-40a8-8b87-e218e592c165")
 private val OTHER_CAR_ID = UUID.fromString("829466cd-3321-4af5-ac6b-9d7e175d76dc")

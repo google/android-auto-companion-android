@@ -21,6 +21,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.libraries.car.trustagent.Car
 import com.google.android.libraries.car.trusteddevice.TrustedDeviceFeature.EnrollmentError
+import com.google.android.libraries.car.trusteddevice.TrustedDeviceFeature.UnlockingError
 import com.google.android.libraries.car.trusteddevice.TrustedDeviceManager.Companion.FEATURE_ID
 import com.google.android.libraries.car.trusteddevice.TrustedDeviceManager.Companion.VERSION
 import com.google.android.libraries.car.trusteddevice.storage.TrustedDeviceDatabase
@@ -31,14 +32,6 @@ import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.T
 import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceMessage
 import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceState
 import com.google.protobuf.ByteString
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
-import com.nhaarman.mockitokotlin2.atLeastOnce
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.eq
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.never
-import com.nhaarman.mockitokotlin2.times
 import java.time.Clock
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
@@ -50,6 +43,14 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.verify
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.atLeastOnce
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.robolectric.Shadows
 
 private const val DEVICE_NAME = "device_name"
@@ -74,6 +75,11 @@ private val ACK_MESSAGE =
   TrustedDeviceMessage.newBuilder()
     .setVersion(VERSION)
     .setType(TrustedDeviceMessage.MessageType.ACK)
+    .build()
+private val UNLOCK_REQUEST_MESSAGE =
+  TrustedDeviceMessage.newBuilder()
+    .setVersion(VERSION)
+    .setType(TrustedDeviceMessage.MessageType.UNLOCK_REQUEST)
     .build()
 
 @ExperimentalCoroutinesApi
@@ -169,6 +175,22 @@ class TrustedDeviceManagerTest {
   }
 
   @Test
+  fun testDeviceSecured_enrollInitiated() {
+    shadowKeyguardManager.setIsDeviceSecure(true)
+
+    trustedDeviceManager.notifyCarConnected(mockCar)
+    trustedDeviceManager.enroll(DEVICE_ID)
+
+    argumentCaptor<ByteArray>().apply {
+      verify(mockCar).sendMessage(capture(), eq(FEATURE_ID))
+
+      with(TrustedDeviceMessage.parseFrom(firstValue)) {
+        assertThat(type).isEqualTo(TrustedDeviceMessage.MessageType.ESCROW_TOKEN)
+      }
+    }
+  }
+
+  @Test
   fun testEnroll_sendMessage_enrollStart() {
     shadowKeyguardManager.setIsDeviceSecure(true)
 
@@ -255,6 +277,43 @@ class TrustedDeviceManagerTest {
   }
 
   @Test
+  fun testEnrollSucceeds_whenPasscodeDisabled() {
+    trustedDeviceManager.isPasscodeRequired = false
+    shadowKeyguardManager.setIsDeviceSecure(false)
+
+    trustedDeviceManager.notifyCarConnected(mockCar)
+    trustedDeviceManager.enroll(DEVICE_ID)
+
+    argumentCaptor<ByteArray>().apply {
+      verify(mockCar).sendMessage(capture(), eq(FEATURE_ID))
+
+      with(TrustedDeviceMessage.parseFrom(firstValue)) {
+        assertThat(type).isEqualTo(TrustedDeviceMessage.MessageType.ESCROW_TOKEN)
+      }
+    }
+  }
+
+  @Test
+  fun testDeviceNotSecured_enrollFails() {
+    shadowKeyguardManager.setIsDeviceSecure(false)
+
+    trustedDeviceManager.notifyCarConnected(mockCar)
+    trustedDeviceManager.enroll(DEVICE_ID)
+
+    verify(mockCallback).onEnrollmentFailure(DEVICE_ID, EnrollmentError.PASSCODE_NOT_SET)
+    argumentCaptor<ByteArray>().apply {
+      verify(mockCar).sendMessage(capture(), eq(FEATURE_ID))
+
+      with(TrustedDeviceMessage.parseFrom(firstValue)) {
+        assertThat(type).isEqualTo(TrustedDeviceMessage.MessageType.ERROR)
+        with(TrustedDeviceError.parseFrom(payload)) {
+          assertThat(type).isEqualTo(TrustedDeviceError.ErrorType.DEVICE_NOT_SECURED)
+        }
+      }
+    }
+  }
+
+  @Test
   fun testReenroll_receiveStartEnrollmentMessage_startEnrollment() {
     shadowKeyguardManager.setIsDeviceSecure(true)
 
@@ -286,6 +345,35 @@ class TrustedDeviceManagerTest {
         assertThat(type).isEqualTo(TrustedDeviceMessage.MessageType.ESCROW_TOKEN)
       }
     }
+  }
+
+  @Test
+  fun testUnlock_carEnrolled_sendCredentials() {
+    completeEnrollmentFromPhone(mockCar)
+
+    trustedDeviceManager.onMessageReceived(UNLOCK_REQUEST_MESSAGE.toByteArray(), DEVICE_ID)
+
+    // Sends unlocking credentials
+    // Sending 3 messages in total
+    //  1. Escrow token message
+    //  2. Ack message
+    //  3. Unlock credentials message
+    argumentCaptor<ByteArray>().apply {
+      verify(mockCar, times(3)).sendMessage(capture(), eq(FEATURE_ID))
+      with(TrustedDeviceMessage.parseFrom(lastValue)) {
+        assertThat(type).isEqualTo(TrustedDeviceMessage.MessageType.UNLOCK_CREDENTIALS)
+      }
+    }
+  }
+
+  @Test
+  fun testUnlock_carNotEnrolled_doNotSendCredentials() {
+    trustedDeviceManager.notifyCarConnected(mockCar)
+
+    trustedDeviceManager.onMessageReceived(UNLOCK_REQUEST_MESSAGE.toByteArray(), DEVICE_ID)
+
+    // No message should be sent
+    verify(mockCar, never()).sendMessage(any(), any())
   }
 
   @Test
@@ -422,59 +510,6 @@ class TrustedDeviceManagerTest {
     }
 
   @Test
-  fun testDeviceSecured_enrollInitiated() {
-    shadowKeyguardManager.setIsDeviceSecure(true)
-
-    trustedDeviceManager.notifyCarConnected(mockCar)
-    trustedDeviceManager.enroll(DEVICE_ID)
-
-    argumentCaptor<ByteArray>().apply {
-      verify(mockCar).sendMessage(capture(), eq(FEATURE_ID))
-
-      with(TrustedDeviceMessage.parseFrom(firstValue)) {
-        assertThat(type).isEqualTo(TrustedDeviceMessage.MessageType.ESCROW_TOKEN)
-      }
-    }
-  }
-
-  @Test
-  fun testEnrollSucceeds_whenPasscodeDisabled() {
-    trustedDeviceManager.isPasscodeRequired = false
-    shadowKeyguardManager.setIsDeviceSecure(false)
-
-    trustedDeviceManager.notifyCarConnected(mockCar)
-    trustedDeviceManager.enroll(DEVICE_ID)
-
-    argumentCaptor<ByteArray>().apply {
-      verify(mockCar).sendMessage(capture(), eq(FEATURE_ID))
-
-      with(TrustedDeviceMessage.parseFrom(firstValue)) {
-        assertThat(type).isEqualTo(TrustedDeviceMessage.MessageType.ESCROW_TOKEN)
-      }
-    }
-  }
-
-  @Test
-  fun testDeviceNotSecured_enrollFails() {
-    shadowKeyguardManager.setIsDeviceSecure(false)
-
-    trustedDeviceManager.notifyCarConnected(mockCar)
-    trustedDeviceManager.enroll(DEVICE_ID)
-
-    verify(mockCallback).onEnrollmentFailure(DEVICE_ID, EnrollmentError.PASSCODE_NOT_SET)
-    argumentCaptor<ByteArray>().apply {
-      verify(mockCar).sendMessage(capture(), eq(FEATURE_ID))
-
-      with(TrustedDeviceMessage.parseFrom(firstValue)) {
-        assertThat(type).isEqualTo(TrustedDeviceMessage.MessageType.ERROR)
-        with(TrustedDeviceError.parseFrom(payload)) {
-          assertThat(type).isEqualTo(TrustedDeviceError.ErrorType.DEVICE_NOT_SECURED)
-        }
-      }
-    }
-  }
-
-  @Test
   fun testDeviceNotSecured_unlockNotStarted() {
     completeEnrollmentFromPhone(mockCar)
 
@@ -482,6 +517,7 @@ class TrustedDeviceManagerTest {
     trustedDeviceManager.notifyCarConnected(mockCar)
 
     verify(mockCallback, never()).onUnlockingStarted(DEVICE_ID)
+    verify(mockCallback).onUnlockingFailure(DEVICE_ID, UnlockingError.PASSCODE_NOT_SET)
     verify(mockCallback).onUnlockingFailure(DEVICE_ID)
   }
 
@@ -523,6 +559,7 @@ class TrustedDeviceManagerTest {
 
     trustedDeviceManager.notifyCarConnected(mockCar)
 
+    verify(mockCallback).onUnlockingFailure(DEVICE_ID, UnlockingError.DEVICE_LOCKED)
     verify(mockCallback).onUnlockingFailure(DEVICE_ID)
   }
 
@@ -535,8 +572,6 @@ class TrustedDeviceManagerTest {
     shadowKeyguardManager.setIsDeviceLocked(true)
 
     trustedDeviceManager.notifyCarConnected(mockCar)
-
-    verify(mockCallback).onUnlockingFailure(DEVICE_ID)
 
     shadowKeyguardManager.setIsDeviceLocked(false)
     trustedDeviceManager.handlePhoneUnlocked()
@@ -568,6 +603,27 @@ class TrustedDeviceManagerTest {
     trustedDeviceManager.notifyCarConnected(mockCar)
 
     verify(mockCallback).onUnlockingStarted(DEVICE_ID)
+  }
+
+  @Test
+  fun testDeviceDisconnection_unlockPending_unlockNotStarted() {
+    completeEnrollmentFromPhone(mockCar)
+
+    trustedDeviceManager.setDeviceUnlockRequired(DEVICE_ID, true)
+    shadowKeyguardManager.setIsDeviceSecure(true)
+    shadowKeyguardManager.setIsDeviceLocked(true)
+
+    trustedDeviceManager.notifyCarConnected(mockCar)
+    verify(mockCallback).onUnlockingFailure(DEVICE_ID, UnlockingError.DEVICE_LOCKED)
+    verify(mockCallback).onUnlockingFailure(DEVICE_ID)
+
+    shadowKeyguardManager.setIsDeviceLocked(false)
+    trustedDeviceManager.onCarDisconnected(DEVICE_ID)
+    trustedDeviceManager.handlePhoneUnlocked()
+
+    verify(mockCallback, never()).onUnlockingStarted(DEVICE_ID)
+    verify(mockCallback).onUnlockingFailure(DEVICE_ID, UnlockingError.CAR_NOT_CONNECTED)
+    verify(mockCallback, times(2)).onUnlockingFailure(DEVICE_ID)
   }
 
   @Test

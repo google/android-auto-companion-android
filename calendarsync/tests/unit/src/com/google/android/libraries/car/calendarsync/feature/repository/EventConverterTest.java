@@ -35,8 +35,8 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import android.provider.CalendarContract.Instances;
-import com.google.android.connecteddevice.calendarsync.proto.Event;
-import com.google.android.connecteddevice.calendarsync.proto.Event.Status;
+import com.google.android.connecteddevice.calendarsync.Event;
+import com.google.android.connecteddevice.calendarsync.Event.Status;
 import com.google.android.libraries.car.calendarsync.util.FakeCursor;
 import java.time.Instant;
 import java.util.Arrays;
@@ -83,12 +83,12 @@ public class EventConverterTest {
   @Test
   public void demoEventCursor_valuesCorrectInProto() {
     Event event = getEventFromCursorObject(demoEvent);
-    assertEquals(1L, Long.parseLong(event.getExternalIdentifier()));
+    assertEquals(1L, Long.parseLong(event.getKey()));
     assertFalse(event.getIsAllDay());
-    assertEquals(START_DATE_SECONDS, event.getStartDate().getSeconds());
+    assertEquals(START_DATE_SECONDS, event.getBeginTime().getSeconds());
     assertEquals(BERLIN_TIMEZONE, event.getTimeZone().getName());
     assertEquals(DESCRIPTION, event.getDescription());
-    assertEquals(END_DATE_SECONDS, event.getEndDate().getSeconds());
+    assertEquals(END_DATE_SECONDS, event.getEndTime().getSeconds());
     assertEquals(ARGB_COLOR, event.getColor().getArgb());
     assertEquals(BERLIN_TIMEZONE, event.getEndTimeZone().getName());
     assertEquals(LOCATION, event.getLocation());
@@ -102,7 +102,6 @@ public class EventConverterTest {
     demoEvent[3] = null;
     Event event = getEventFromCursorObject(demoEvent);
     assertEquals(GMT, event.getTimeZone().getName());
-    assertEquals(0, event.getTimeZone().getSecondsFromGmt());
   }
 
   /** Fallback to GMT when a timezone of unknown/wrong ID is passed. */
@@ -111,7 +110,6 @@ public class EventConverterTest {
     demoEvent[3] = INVALID_TIMEZONE;
     Event event = getEventFromCursorObject(demoEvent);
     assertEquals(GMT, event.getTimeZone().getName());
-    assertEquals(0, event.getTimeZone().getSecondsFromGmt());
   }
 
   /** Set Europe/Berlin time and match for either summer or winter time offset from GMT. */
@@ -120,7 +118,6 @@ public class EventConverterTest {
     demoEvent[3] = BERLIN_TIMEZONE;
     Event event = getEventFromCursorObject(demoEvent);
     assertEquals(demoEvent[3], event.getTimeZone().getName());
-    assertThat(event.getTimeZone().getSecondsFromGmt(), anyOf(is(60 * 60L), is(2 * 60 * 60L)));
   }
 
   @Test

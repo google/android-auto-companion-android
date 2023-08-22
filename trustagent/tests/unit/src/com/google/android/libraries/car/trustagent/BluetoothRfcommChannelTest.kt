@@ -22,10 +22,6 @@ import com.google.android.companionprotos.outOfBandAssociationToken
 import com.google.android.libraries.car.trustagent.blemessagestream.SppManager
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.verify
-import com.nhaarman.mockitokotlin2.verifyZeroInteractions
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.SecureRandom
@@ -41,6 +37,10 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoMoreInteractions
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
@@ -112,7 +112,7 @@ class BluetoothRfcommChannelTest {
 
     runBlocking {
       oobDiscovery.join()
-      verifyZeroInteractions(mockCallback)
+      verifyNoMoreInteractions(mockCallback)
     }
   }
 

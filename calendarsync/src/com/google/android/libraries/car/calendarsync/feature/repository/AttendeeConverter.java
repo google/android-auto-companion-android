@@ -17,8 +17,8 @@ package com.google.android.libraries.car.calendarsync.feature.repository;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.CalendarContract.Attendees;
-import com.google.android.connecteddevice.calendarsync.proto.Attendee;
-import com.google.android.connecteddevice.calendarsync.proto.Attendee.Status;
+import com.google.android.connecteddevice.calendarsync.Attendee;
+import com.google.android.connecteddevice.calendarsync.Attendee.Status;
 
 /** Convert the contract provided by {@code Attendees} into the proto object {@code Attendee}. */
 final class AttendeeConverter extends BaseConverter<Attendee> {

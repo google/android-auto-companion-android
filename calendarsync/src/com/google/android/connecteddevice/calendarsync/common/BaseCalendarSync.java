@@ -333,7 +333,7 @@ public abstract class BaseCalendarSync {
     }
 
     public Set<String> getCalendarKeys() {
-      return calendarKeyToTimeRange.keySet();
+      return ImmutableSet.copyOf(calendarKeyToTimeRange.keySet());
     }
 
     public void setCalendarTimeRanges(Set<String> calendarKeys, Range<Instant> range) {

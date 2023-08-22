@@ -22,28 +22,26 @@ import com.google.android.libraries.car.trustagent.blemessagestream.version2.Mes
 import com.google.android.libraries.car.trustagent.blemessagestream.version2.getTotalPacketNumber
 import com.google.android.libraries.car.trustagent.blemessagestream.version2.makePackets
 import com.google.common.truth.Truth.assertThat
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.spy
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
-import com.nhaarman.mockitokotlin2.whenever
 import java.util.concurrent.Semaphore
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.spy
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 private const val IS_MESSAGE_ENCRYPTED = false
 private const val MESSAGE_ID = 1
 private val OPERATION_TYPE = OperationType.CLIENT_MESSAGE
 
-/**
- * Test the receive and send message functions of [BleMessageStream]
- */
+/** Test the receive and send message functions of [BleMessageStream] */
 @RunWith(AndroidJUnit4::class)
 class BluetoothMessageStreamV2Test {
 
@@ -59,9 +57,10 @@ class BluetoothMessageStreamV2Test {
   @Before
   fun setUp() {
     managerCallbacks = mutableListOf()
-    stream = BluetoothMessageStreamV2(mockBluetothManager, isCompressionEnabled = false).apply {
-      messageIdGenerator = mockMessageIdGenerator
-    }
+    stream =
+      BluetoothMessageStreamV2(mockBluetothManager, isCompressionEnabled = false).apply {
+        messageIdGenerator = mockMessageIdGenerator
+      }
 
     // BleStream registers a gatt callback during initialization. Capture it here for delivering
     // messages to BleStream.
@@ -184,9 +183,7 @@ class BluetoothMessageStreamV2Test {
     val payloadSize = 100
     val maxSize = 20
     val payload = makePayload(payloadSize)
-    val packets = makePackets(
-      createStreamMessage(payload), maxSize, MESSAGE_ID
-    )
+    val packets = makePackets(createStreamMessage(payload), maxSize, MESSAGE_ID)
 
     packets.forEach { packet ->
       managerCallbacks.forEach { it.onMessageReceived(packet.toByteArray()) }
@@ -204,9 +201,8 @@ class BluetoothMessageStreamV2Test {
     val semaphore = Semaphore(0)
     val listenerSpy = spy(StreamCallback(semaphore))
     stream.registerMessageEventCallback(listenerSpy)
-    val incoming = makePackets(
-      createStreamMessage(message), maxSize, MESSAGE_ID
-    ).last().toByteArray()
+    val incoming =
+      makePackets(createStreamMessage(message), maxSize, MESSAGE_ID).last().toByteArray()
 
     managerCallbacks.forEach { it.onMessageReceived(incoming) }
 
@@ -266,32 +262,32 @@ class BluetoothMessageStreamV2Test {
     return stream.sendMessage(createStreamMessage(message))
   }
 
-  /**
-   * Make a random message with a fixed length.
-   */
+  /** Make a random message with a fixed length. */
   private fun makePayload(length: Int): ByteArray {
     val message = ByteArray(length)
     ThreadLocalRandom.current().nextBytes(message)
     return message
   }
 
-  private fun createStreamMessage(payload: ByteArray) = StreamMessage(
-    payload, OPERATION_TYPE, IS_MESSAGE_ENCRYPTED, originalMessageSize = 0, recipient = null
-  )
+  private fun createStreamMessage(payload: ByteArray) =
+    StreamMessage(
+      payload,
+      OPERATION_TYPE,
+      IS_MESSAGE_ENCRYPTED,
+      originalMessageSize = 0,
+      recipient = null
+    )
 
   /**
-   * Add the thread control logic into [MessageStream.Callback]; only for
-   * spy purpose.
+   * Add the thread control logic into [MessageStream.Callback]; only for spy purpose.
    *
    * Each invocation of callback releases the semaphore which should be held by a test thread,
    * effectively resuming the test to verify the effects of receiving a message.
    *
-   * This is necessary because the code under test uses [notifyCallbacks] method, which starts a
-   * new thread for callbacks.
+   * This is necessary because the code under test uses [notifyCallbacks] method, which starts a new
+   * thread for callbacks.
    */
-  open class StreamCallback(
-    private val semaphore: Semaphore
-  ) : MessageStream.Callback {
+  open class StreamCallback(private val semaphore: Semaphore) : MessageStream.Callback {
     override fun onMessageReceived(streamMessage: StreamMessage) {
       semaphore.release()
     }

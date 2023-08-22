@@ -34,13 +34,6 @@ import com.google.android.libraries.car.notifications.SettingsNotificationHelper
 import com.google.common.truth.Truth.assertThat
 import com.google.protos.aae.messenger.NotificationMsg
 import com.google.protos.aae.messenger.NotificationMsg.PhoneToCarMessage
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.never
-import com.nhaarman.mockitokotlin2.reset
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -49,6 +42,13 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.reset
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 
 @RunWith(AndroidJUnit4::class)
 @ExperimentalCoroutinesApi

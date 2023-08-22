@@ -18,9 +18,6 @@ import android.bluetooth.BluetoothSocket
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
-import com.nhaarman.mockitokotlin2.spy
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
 import java.io.InputStream
 import java.util.concurrent.Executors
 import java.util.concurrent.Semaphore
@@ -28,6 +25,9 @@ import java.util.concurrent.TimeUnit
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.spy
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadow.api.Shadow
 
@@ -56,9 +56,9 @@ class ReadMessageTaskTest {
 
   @Test
   fun testRun_oneMessage_informCallback() {
-    shadowOf(shadowBluetoothSocket).inputStreamFeeder.write(
-      SppManager.wrapWithArrayLength(testData1)
-    )
+    shadowOf(shadowBluetoothSocket)
+      .inputStreamFeeder
+      .write(SppManager.wrapWithArrayLength(testData1))
 
     executor.execute(readMessageTask)
 
@@ -68,12 +68,12 @@ class ReadMessageTaskTest {
 
   @Test
   fun testRun_twoCombinedMessage_informCallback() {
-    shadowOf(shadowBluetoothSocket).inputStreamFeeder.write(
-      SppManager.wrapWithArrayLength(testData1)
-    )
-    shadowOf(shadowBluetoothSocket).inputStreamFeeder.write(
-      SppManager.wrapWithArrayLength(testData2)
-    )
+    shadowOf(shadowBluetoothSocket)
+      .inputStreamFeeder
+      .write(SppManager.wrapWithArrayLength(testData1))
+    shadowOf(shadowBluetoothSocket)
+      .inputStreamFeeder
+      .write(SppManager.wrapWithArrayLength(testData2))
     executor.execute(readMessageTask)
 
     assertThat(tryAcquire(semaphore, 1000)).isTrue()
@@ -99,12 +99,10 @@ class ReadMessageTaskTest {
    *
    * The callback will release the semaphore which hold by one test when this callback is called,
    * telling the test that it can verify certain behaviors which will only occurred after the
-   * callback is notified. This is needed mainly because of the [ReadMessageTask] is running in
-   * a different thread.
+   * callback is notified. This is needed mainly because of the [ReadMessageTask] is running in a
+   * different thread.
    */
-  open class ReadMessageTaskCallback(
-    private val semaphore: Semaphore
-  ) : ReadMessageTask.Callback {
+  open class ReadMessageTaskCallback(private val semaphore: Semaphore) : ReadMessageTask.Callback {
     override fun onMessageReceived(message: ByteArray) {
       semaphore.release()
     }
@@ -118,10 +116,8 @@ class ReadMessageTaskTest {
    * Fake input stream that can track the number of [read] method calls and should only be used in
    * test.
    */
-  class FakeInputStream(
-    private val messageSplitLength: Int,
-    var methodCalls: Int = 0
-  ) : InputStream() {
+  class FakeInputStream(private val messageSplitLength: Int, var methodCalls: Int = 0) :
+    InputStream() {
     override fun read(): Int {
       return 0
     }

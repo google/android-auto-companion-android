@@ -43,7 +43,15 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 
 private const val TAG = "CalendarSyncManagerV2"
-private const val DEFAULT_DAYS_TO_SYNC = 2
+
+// LINT.IfChange(DEFAULT_DAYS_TO_SYNC)
+private const val DEFAULT_DAYS_TO_SYNC = 3
+// LINT.ThenChange(
+//  //depot/google3/googlemac/iPhone/AndroidAuto/TrustedDeviceApp/ios/CalendarSyncMethodChannel.swift:daysToSync)
+
+fun createCalendarSyncManager(context: Context): FeatureManager {
+    return CalendarSyncManagerV2(context)
+}
 
 /**
  * A [FeatureManager] that synchronizes local calendar data with connected cars.

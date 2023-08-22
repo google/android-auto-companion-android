@@ -20,9 +20,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -33,6 +30,9 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 private val TEST_CAR_ID1 = UUID.fromString("e0ee1a8c-5f03-4010-97ba-cd4d6a560caa")
 private val TEST_CAR_ID2 = UUID.fromString("cd51c0a3-7250-461d-a4bd-9737f9daff09")

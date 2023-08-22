@@ -22,17 +22,17 @@ import com.google.android.companionprotos.LoggingMessageProto.LoggingMessage.Mes
 import com.google.android.libraries.car.trustagent.Car
 import com.google.android.libraries.car.trustagent.util.LogRecord
 import com.google.gson.Gson
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
-import com.nhaarman.mockitokotlin2.eq
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.verify
-import com.nhaarman.mockitokotlin2.whenever
 import java.io.File
 import java.util.UUID
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 /** Unit tests for the [LoggingManager] */
 @RunWith(AndroidJUnit4::class)
@@ -56,8 +56,8 @@ class LoggingManagerTest {
 
   @Test
   fun onMessageReceived_sendRequest() {
-    val mockLogRequestMessage = LogMessageUtil
-      .createRequestMessage(LoggingManager.LOGGING_MESSAGE_VERSION)
+    val mockLogRequestMessage =
+      LogMessageUtil.createRequestMessage(LoggingManager.LOGGING_MESSAGE_VERSION)
     loggingManager.onMessageReceived(mockLogRequestMessage, testConnectedCar)
     argumentCaptor<ByteArray>().apply {
       verify(mockCar).sendMessage(capture(), eq(LoggingManager.FEATURE_ID))
@@ -106,10 +106,8 @@ class LoggingManagerTest {
 
   private fun mockLogMessageReceived(size: Int): ByteArray {
     val mockReceivedLogs = createRandomLogRecords(size)
-    val mockLogMessage = LogMessageUtil.createMessage(
-      mockReceivedLogs,
-      LoggingManager.LOGGING_MESSAGE_VERSION
-    )
+    val mockLogMessage =
+      LogMessageUtil.createMessage(mockReceivedLogs, LoggingManager.LOGGING_MESSAGE_VERSION)
     loggingManager.onMessageReceived(mockLogMessage, testConnectedCar)
     return mockReceivedLogs
   }

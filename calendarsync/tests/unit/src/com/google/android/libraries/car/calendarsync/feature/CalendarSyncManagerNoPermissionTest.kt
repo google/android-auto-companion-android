@@ -17,20 +17,20 @@ package com.google.android.libraries.car.calendarsync.feature
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.google.android.connecteddevice.calendarsync.proto.Calendars
+import com.google.android.connecteddevice.calendarsync.UpdateCalendars
 import com.google.android.libraries.car.calendarsync.feature.repository.CalendarRepository
 import com.google.android.libraries.car.trustagent.Car
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.anyOrNull
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
 import java.time.Clock
 import java.util.UUID
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
+import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 private val CAR_ID = UUID.fromString("eefeb989-e593-4a50-a2c7-623dbfc408f4")
 
@@ -38,26 +38,20 @@ private val CAR_ID = UUID.fromString("eefeb989-e593-4a50-a2c7-623dbfc408f4")
 class CalendarSyncManagerNoPermissionTest {
 
   private val context = ApplicationProvider.getApplicationContext<Context>()
-  private val mockCar: Car = mock {
-    on { deviceId } doReturn CAR_ID
-  }
+  private val mockCar: Car = mock { on { deviceId } doReturn CAR_ID }
 
-  private lateinit var calendarSyncManager: CalendarSyncManager
+  private lateinit var calendarSyncManager: CalendarSyncManagerV2
   private lateinit var mockCalendarRepository: CalendarRepository
 
   @Before
   fun setUp() {
     mockCalendarRepository = mock()
 
-    whenever(
-      mockCalendarRepository.getCalendars(any(), any())
-    ) doReturn Calendars.getDefaultInstance()
+    whenever(mockCalendarRepository.getCalendars(any(), any())) doReturn
+      UpdateCalendars.getDefaultInstance()
 
-    calendarSyncManager = CalendarSyncManager(
-      context,
-      mockCalendarRepository,
-      Clock.systemDefaultZone()
-    )
+    calendarSyncManager =
+      CalendarSyncManagerV2(context, daysToSync = 3)
   }
 
   @Test

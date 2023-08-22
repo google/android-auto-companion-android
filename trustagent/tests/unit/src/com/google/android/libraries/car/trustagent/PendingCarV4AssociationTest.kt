@@ -36,11 +36,6 @@ import com.google.android.libraries.car.trustagent.testutils.FakeMessageStream
 import com.google.android.libraries.car.trustagent.util.uuidToBytes
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.spy
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
 import java.lang.IllegalStateException
 import java.util.UUID
 import kotlin.test.assertFailsWith
@@ -51,6 +46,11 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.spy
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 
 @ExperimentalCoroutinesApi
 @RunWith(AndroidJUnit4::class)
@@ -231,7 +231,6 @@ class PendingCarV4AssociationTest {
    * Continues association by acting as IHU.
    *
    * Responds with messages from IHU. Also checks the expected messages.
-   *
    * - feed the 2nd mobile message to UKEY2 runner (1st message is UKEY2 INIT);
    * - parse the 3rd mobile message as visual verification request;
    * - confirm the encryption on the IHU side;

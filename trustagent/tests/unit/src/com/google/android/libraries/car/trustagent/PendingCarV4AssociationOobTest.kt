@@ -38,10 +38,6 @@ import com.google.android.libraries.car.trustagent.util.uuidToBytes
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
 import com.google.protobuf.ByteString
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
 import java.security.SecureRandom
 import java.util.UUID
 import javax.crypto.Cipher
@@ -56,6 +52,10 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.robolectric.shadow.api.Shadow
 
 @ExperimentalCoroutinesApi
@@ -147,10 +147,8 @@ class PendingCarV4AssociationOobTest {
    * Continues association by acting as IHU.
    *
    * Responds with messages from IHU. Also checks the expected messages.
-   *
    * - feed the 2nd mobile message to UKEY2 runner (1st message is UKEY2 INIT);
-   * - parse the 3rd mobile message as OOB verification request;
-   * -
+   * - parse the 3rd mobile message as OOB verification request; -
    * - decrypt the mobile message with mobile IV;
    * - verify it's the same as UKEY verification code;
    * - confirm the encryption on the IHU side;

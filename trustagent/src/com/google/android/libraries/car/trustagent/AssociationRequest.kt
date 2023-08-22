@@ -23,10 +23,10 @@ data class AssociationRequest private constructor(val intent: Intent, val oobDat
   /**
    * Builder for [AssociationRequest].
    *
-   * @param Intent that contains the device that user selected to associate.
-   * [ConnectedDeviceManager.Callback.onDeviceDiscovered] returns an [IntentSender]. Launching the
-   * IntentSender allows the user to select a device to associate. The user selection is pass back
-   * to [Activity.onActivityResult] as an [Intent]. The Intent should be set in this request.
+   * @param intent Intent that contains the device that user selected to associate.
+   *   [ConnectedDeviceManager.Callback.onDeviceDiscovered] returns an [IntentSender]. Launching the
+   *   IntentSender allows the user to select a device to associate. The user selection is pass back
+   *   to [Activity.onActivityResult] as an [Intent]. The Intent should be set in this request.
    */
   @PublicApi
   class Builder(private val intent: Intent) {
@@ -48,9 +48,9 @@ data class AssociationRequest private constructor(val intent: Intent, val oobDat
  *
  * Refer to [AssociationRequest.Builder] for documentation on the properties that can be modified.
  *
- * @property activity The [Activity] that will handle the discovery result, which is an
- * [IntentSender] returned through [ConnectedDeviceManager.Callback]. The discovery will be stopped
- * if the activity is destroyed.
+ * @param intent The [Intent] that will handle the discovery result, which is an [IntentSender]
+ *   returned through [ConnectedDeviceManager.Callback]. The discovery will be stopped if the
+ *   activity is destroyed.
  * @param block Lambda with a receiver of [AssociationRequest.Builder].
  */
 inline fun associationRequest(

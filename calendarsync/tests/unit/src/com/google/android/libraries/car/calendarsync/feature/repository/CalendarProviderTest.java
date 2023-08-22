@@ -35,9 +35,9 @@ import static org.mockito.Mockito.when;
 import android.content.ContentResolver;
 import android.provider.CalendarContract.Attendees;
 import android.provider.CalendarContract.Instances;
-import com.google.android.connecteddevice.calendarsync.proto.Attendee;
-import com.google.android.connecteddevice.calendarsync.proto.Calendars;
-import com.google.android.connecteddevice.calendarsync.proto.Event;
+import com.google.android.connecteddevice.calendarsync.Attendee;
+import com.google.android.connecteddevice.calendarsync.Event;
+import com.google.android.connecteddevice.calendarsync.UpdateCalendars;
 import com.google.android.libraries.car.calendarsync.util.FakeCursor;
 import java.util.Arrays;
 import java.util.List;
@@ -102,8 +102,8 @@ public class CalendarProviderTest {
 
   @Test
   public void totalNumberOfCalendars_equalToCalendarArrayLength() {
-    Calendars calendars = calendarProvider.getCalendars(EPOCH, ofEpochMilli(Long.MAX_VALUE));
-    assertThat(calendars.getCalendarList()).hasSize(calendarData.length);
+    UpdateCalendars calendars = calendarProvider.getCalendars(EPOCH, ofEpochMilli(Long.MAX_VALUE));
+    assertThat(calendars.getCalendarsList()).hasSize(calendarData.length);
   }
 
   @Test
@@ -111,9 +111,9 @@ public class CalendarProviderTest {
     List<Event> eventList =
         calendarProvider
             .getCalendars(EPOCH, ofEpochMilli(Long.MAX_VALUE))
-            .getCalendarList()
+            .getCalendarsList()
             .get(0)
-            .getEventList();
+            .getEventsList();
     assertThat(eventList).hasSize(eventData.length);
   }
 
@@ -122,19 +122,19 @@ public class CalendarProviderTest {
     List<Attendee> attendeeList =
         calendarProvider
             .getCalendars(EPOCH, ofEpochMilli(Long.MAX_VALUE))
-            .getCalendarList()
+            .getCalendarsList()
             .get(0)
-            .getEventList()
+            .getEventsList()
             .get(0)
-            .getAttendeeList();
+            .getAttendeesList();
     assertThat(attendeeList).hasSize(attendeeData.length);
   }
 
   @Test
   public void totalNumberOfEventsInCalendar_equalToDemoEventLength() {
-    Calendars calendars = calendarProvider.getCalendars(EPOCH, ofEpochMilli(Long.MAX_VALUE));
-    assertThat(calendars.getCalendarList()).hasSize(calendarData.length);
-    assertThat(calendars.getCalendarList().get(0).getEventList()).hasSize(eventData.length);
+    UpdateCalendars calendars = calendarProvider.getCalendars(EPOCH, ofEpochMilli(Long.MAX_VALUE));
+    assertThat(calendars.getCalendarsList()).hasSize(calendarData.length);
+    assertThat(calendars.getCalendarsList().get(0).getEventsList()).hasSize(eventData.length);
   }
 
   @Test
@@ -142,11 +142,11 @@ public class CalendarProviderTest {
     List<Event> eventList =
         calendarProvider
             .getCalendars(EPOCH, ofEpochMilli(Long.MAX_VALUE))
-            .getCalendarList()
+            .getCalendarsList()
             .get(0)
-            .getEventList();
+            .getEventsList();
     assertThat(eventList).hasSize(eventData.length);
-    assertThat(eventList.get(0).getAttendeeList()).hasSize(attendeeData.length);
+    assertThat(eventList.get(0).getAttendeesList()).hasSize(attendeeData.length);
   }
 
   private static void initializeContentResolverForCalendar(ContentResolver contentResolver) {

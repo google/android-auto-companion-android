@@ -69,7 +69,7 @@ dependencies {
 
     testImplementation libs.dexmaker
     testImplementation libs.truth
-    testImplementation libs.nhaarman.mockito.kotlin
+    testImplementation libs.mockito.kotlin
     testImplementation libs.kotlin.junit.test
     testImplementation libs.kotlin.coroutines.test
     testImplementation libs.mockito

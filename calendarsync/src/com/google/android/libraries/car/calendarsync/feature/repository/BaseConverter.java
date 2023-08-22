@@ -19,11 +19,9 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import android.database.Cursor;
 import android.net.Uri;
 import androidx.annotation.Nullable;
-import com.google.android.connecteddevice.calendarsync.proto.Color;
-import com.google.android.connecteddevice.calendarsync.proto.TimeZone;
-import com.google.android.connecteddevice.calendarsync.proto.Timestamp;
-import java.util.Calendar;
-import java.util.Locale;
+import com.google.android.connecteddevice.calendarsync.Color;
+import com.google.android.connecteddevice.calendarsync.TimeZone;
+import com.google.android.connecteddevice.calendarsync.Timestamp;
 
 /** A Base class for convert the contract provided by Android's {@code cursor} into proto object. */
 abstract class BaseConverter<T> {
@@ -80,11 +78,7 @@ abstract class BaseConverter<T> {
     if (id == null) {
       id = java.util.TimeZone.getDefault().getID();
     }
-    Calendar gmt = Calendar.getInstance(java.util.TimeZone.getTimeZone("GMT"), Locale.getDefault());
     java.util.TimeZone timeZone = java.util.TimeZone.getTimeZone(id);
-    return TimeZone.newBuilder()
-        .setName(timeZone.getID())
-        .setSecondsFromGmt(MILLISECONDS.toSeconds(timeZone.getOffset(gmt.getTimeInMillis())))
-        .build();
+    return TimeZone.newBuilder().setName(timeZone.getID()).build();
   }
 }

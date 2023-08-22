@@ -17,6 +17,9 @@ import javax.inject.Inject;
 public class ReplicaCalendarSync extends BaseCalendarSync {
   private static final String TAG = "ReplicaCalendarSync";
 
+  // Disable syncing data from car to phone since phone should be the source of truth.
+  private static final boolean SYNC_CAR_TO_PHONE = false;
+
   private final ContentCleanerDelegate contentCleanerDelegate;
 
   @Inject
@@ -51,6 +54,11 @@ public class ReplicaCalendarSync extends BaseCalendarSync {
   protected void send(UpdateCalendars update, String deviceId) {
     // A legacy source device that is not updatable cannot receive any messages.
     DeviceState state = getOrCreateState(deviceId);
+    // Only allows sending "Acknowledge" message from car to phone. No other messages allowed.
+    if (update.getType() != UpdateCalendars.Type.ACKNOWLEDGE && !SYNC_CAR_TO_PHONE) {
+      logger.info("Not sending changes from car to phone.");
+      return;
+    }
     if (isUpdatable(state)) {
       super.send(update, deviceId);
     } else {

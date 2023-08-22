@@ -21,10 +21,6 @@ import com.google.android.libraries.car.notifications.CoroutineTestRule
 import com.google.android.libraries.car.notifications.SettingsNotificationHelper.grantNotificationAccess
 import com.google.android.libraries.car.notifications.SettingsNotificationHelper.revokeAllNotificationAccess
 import com.google.common.truth.Truth.assertThat
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.never
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -33,10 +29,12 @@ import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 
-/**
- * Tests for [MessagingUtils].
- */
+/** Tests for [MessagingUtils]. */
 @RunWith(AndroidJUnit4::class)
 @ExperimentalCoroutinesApi
 class MessagingUtilsTest {
@@ -48,8 +46,7 @@ class MessagingUtilsTest {
   private lateinit var onSuccess: () -> Unit
   private lateinit var onFailure: () -> Unit
 
-  @get:Rule
-  var coroutinesTestRule = CoroutineTestRule()
+  @get:Rule var coroutinesTestRule = CoroutineTestRule()
 
   @Before
   fun setup() {

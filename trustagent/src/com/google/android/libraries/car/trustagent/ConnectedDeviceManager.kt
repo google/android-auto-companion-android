@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+
 // Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -318,8 +320,11 @@ internal constructor(
   // TODO: Remove default overrides when b/138957824 is resolved.
   // These empty overrides are currently required by granular.
   override fun onResume(owner: LifecycleOwner) {}
+
   override fun onPause(owner: LifecycleOwner) {}
+
   override fun onStart(owner: LifecycleOwner) {}
+
   override fun onStop(owner: LifecycleOwner) {}
 
   /**

@@ -19,8 +19,8 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.CalendarContract.Instances;
-import com.google.android.connecteddevice.calendarsync.proto.Event;
-import com.google.android.connecteddevice.calendarsync.proto.Event.Status;
+import com.google.android.connecteddevice.calendarsync.Event;
+import com.google.android.connecteddevice.calendarsync.Event.Status;
 import java.time.Instant;
 
 /** Convert the contract provided by {@code Events} into the proto object {@code Event}. */
@@ -67,18 +67,18 @@ final class EventConverter extends BaseConverter<Event> {
   Event convert(Cursor cursor) {
     Event.Builder event = Event.newBuilder();
     event
-        .setExternalIdentifier(String.valueOf(getLong(cursor, BaseColumns._ID)))
+        .setKey(String.valueOf(getLong(cursor, BaseColumns._ID)))
         .setIsAllDay(getBoolean(cursor, Instances.ALL_DAY))
-        .setStartDate(toProtoTimestamp(getLong(cursor, Instances.BEGIN)))
+        .setBeginTime(toProtoTimestamp(getLong(cursor, Instances.BEGIN)))
         .setTimeZone(toProtoTimeZone(getString(cursor, Instances.CALENDAR_TIME_ZONE)))
         .setDescription(getString(cursor, Instances.DESCRIPTION))
-        .setEndDate(toProtoTimestamp(getLong(cursor, Instances.END)))
+        .setEndTime(toProtoTimestamp(getLong(cursor, Instances.END)))
         .setEndTimeZone(toProtoTimeZone(getString(cursor, Instances.EVENT_END_TIMEZONE)))
         .setLocation(getString(cursor, Instances.EVENT_LOCATION))
         .setOrganizer(getString(cursor, Instances.ORGANIZER))
         .setStatus(getStatus(getInt(cursor, Instances.STATUS)))
         .setTitle(getString(cursor, Instances.TITLE))
-        .addAllAttendee(attendeeRepository.getAttendees(getLong(cursor, Instances.EVENT_ID)));
+        .addAllAttendees(attendeeRepository.getAttendees(getLong(cursor, Instances.EVENT_ID)));
 
     if (isNonNull(cursor, Instances.DISPLAY_COLOR)) {
       event.setColor(toProtoColor(getInt(cursor, Instances.DISPLAY_COLOR)));

@@ -18,11 +18,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.companionprotos.OperationProto.OperationType
 import com.google.android.libraries.car.trustagent.blemessagestream.version2.BluetoothMessageStreamV2
 import com.google.common.truth.Truth.assertThat
-import com.nhaarman.mockitokotlin2.mock
 import kotlin.test.assertFailsWith
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.mock
 
 @RunWith(AndroidJUnit4::class)
 class MessageStreamTest {

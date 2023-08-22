@@ -23,7 +23,7 @@ import static java.time.Instant.ofEpochMilli;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-import com.google.android.connecteddevice.calendarsync.proto.Calendar;
+import com.google.android.connecteddevice.calendarsync.Calendar;
 import com.google.android.libraries.car.calendarsync.util.FakeCursor;
 import java.util.Arrays;
 import org.junit.Before;
@@ -55,7 +55,7 @@ public class CalendarConverterTest {
     calendarCursor.setResults(new Object[][] {calendarValid});
     calendarCursor.moveToNext();
     Calendar calendar = calendarConverter.convert(calendarCursor);
-    assertEquals(calendarValid[0], Long.parseLong(calendar.getUuid()));
+    assertEquals(calendarValid[0], Long.parseLong(calendar.getKey()));
     assertEquals(calendarValid[1], calendar.getAccountName());
     assertEquals(calendarValid[2], calendar.getColor().getArgb());
     assertEquals(calendarValid[3], calendar.getTitle());
@@ -88,7 +88,7 @@ public class CalendarConverterTest {
     calendarCursor.setResults(new Object[][] {calendarNegatives});
     calendarCursor.moveToNext();
     Calendar calendar = calendarConverter.convert(calendarCursor);
-    assertEquals(calendarNegatives[0], Long.parseLong(calendar.getUuid()));
+    assertEquals(calendarNegatives[0], Long.parseLong(calendar.getKey()));
     assertEquals(calendarNegatives[2], calendar.getColor().getArgb());
   }
 

@@ -21,8 +21,8 @@ import java.util.UUID
 /**
  * Trusted device is a device that unlocks the user profile on another Android device.
  *
- * This feature interface provides methods to `enroll` this device as a trusted device, and
- * act as trusted device to `unlock` the user profile.
+ * This feature interface provides methods to `enroll` this device as a trusted device, and act as
+ * trusted device to `unlock` the user profile.
  */
 @PublicApi
 interface TrustedDeviceFeature {
@@ -41,8 +41,8 @@ interface TrustedDeviceFeature {
    * `true` if this feature should store unlock history.
    *
    * If this value is enabled, then the date will be stored internally for successful unlock
-   * attempts. These values can get retrieved by calling [getUnlockHistory]. No unlock history
-   * will be stored if the value is disabled.
+   * attempts. These values can get retrieved by calling [getUnlockHistory]. No unlock history will
+   * be stored if the value is disabled.
    *
    * Setting this value should persist unless app data is cleared.
    *
@@ -50,9 +50,7 @@ interface TrustedDeviceFeature {
    */
   var isUnlockHistoryEnabled: Boolean
 
-  /**
-   * Returns `true` if trusted device feature is enabled by the car with ID [carId].
-   */
+  /** Returns `true` if trusted device feature is enabled by the car with ID [carId]. */
   suspend fun isEnabled(carId: UUID): Boolean
 
   /**
@@ -63,14 +61,10 @@ interface TrustedDeviceFeature {
    */
   fun enroll(carId: UUID)
 
-  /**
-   * Returns `true` if this device is required to be unlocked before unlocking [carId].
-   */
+  /** Returns `true` if this device is required to be unlocked before unlocking [carId]. */
   fun isDeviceUnlockRequired(carId: UUID): Boolean
 
-  /**
-   * Sets whether this device is required to be unlocked before unlocking [carId].
-   */
+  /** Sets whether this device is required to be unlocked before unlocking [carId]. */
   fun setDeviceUnlockRequired(carId: UUID, isRequired: Boolean)
 
   /**
@@ -83,8 +77,8 @@ interface TrustedDeviceFeature {
   /**
    * Unlocks [carId] by sending phone authentication.
    *
-   * If [carId] has not be enrolled, this method takes no op and returns silently.
-   * If unlock [carId] has already been requested, no-op for subsequent calls for the same [carId].
+   * If [carId] has not be enrolled, this method takes no op and returns silently. If unlock [carId]
+   * has already been requested, no-op for subsequent calls for the same [carId].
    *
    * Result will be notified by [Callback]. If successful, the event will be persisted. If
    * [isUnlockHistoryEnabled] is `true`, then the dates of unlocks can be retrieved by
@@ -95,8 +89,8 @@ interface TrustedDeviceFeature {
   /**
    * Returns the unlock history for [carId]; sorted from oldest to newest.
    *
-   * Each entry in the history is the number of milliseconds from the epoch.
-   * Returns an empty list if there is no unlock history for the car.
+   * Each entry in the history is the number of milliseconds from the epoch. Returns an empty list
+   * if there is no unlock history for the car.
    */
   suspend fun getUnlockHistory(carId: UUID): List<Instant>
 
@@ -109,16 +103,14 @@ interface TrustedDeviceFeature {
   /** Unregisters to stop receiving [Callback] of trusted device events. */
   fun unregisterCallback(callback: Callback)
 
-  /**
-   * Callbacks that will be invoked for enrollment and unlock progress and result.
-   */
+  /** Callbacks that will be invoked for enrollment and unlock progress and result. */
   @PublicApi
   interface Callback {
     /**
      * Invoked when [carId] requests to start enrollment.
      *
-     * Upon this callback, enrollment has already been automatically started,
-     * namely [enroll] invoked for [carId].
+     * Upon this callback, enrollment has already been automatically started, namely [enroll]
+     * invoked for [carId].
      */
     fun onEnrollmentRequested(carId: UUID)
 
@@ -130,35 +122,34 @@ interface TrustedDeviceFeature {
      */
     fun onEnrollmentSuccess(carId: UUID, initiatedFromCar: Boolean)
 
-    /**
-     * Invoked when attempt to enroll as Trusted Device for [carId] failed.
-     */
+    /** Invoked when attempt to enroll as Trusted Device for [carId] failed. */
     fun onEnrollmentFailure(carId: UUID, error: EnrollmentError)
 
     /**
      * Invoked when the car with the given [carId] has unenrolled from the trusted device feature.
      *
-     * The user will need to re-enroll in order for the feature to work again. This method will
-     * only fire for a `carId` that had been previously enrolled in the feature.
+     * The user will need to re-enroll in order for the feature to work again. This method will only
+     * fire for a `carId` that had been previously enrolled in the feature.
      *
      * This unenrollment can be triggered by the remote car, in which case [initiatedFomrCar] will
      * be `true`.
      */
     fun onUnenroll(carId: UUID, initiatedFromCar: Boolean)
 
-    /**
-     * Invoked when this device started to unlock [carId].
-     */
+    /** Invoked when this device started to unlock [carId]. */
     fun onUnlockingStarted(carId: UUID)
 
     /**
      * Invoked when attempt to unlock [carId] failed.
+     *
+     * @deprecated: Don't use this, use onUnlockFailure(carId, error) instead.
      */
-    fun onUnlockingFailure(carId: UUID)
+    @Deprecated("use onUnlockFailure(carId, error) instead.") fun onUnlockingFailure(carId: UUID)
 
-    /**
-     * Invoked when this device successfully unlocked [carId].
-     */
+    /** Invoked when attempt to unlock [carId] failed because of [error]. */
+    fun onUnlockingFailure(carId: UUID, error: UnlockingError) {}
+
+    /** Invoked when this device successfully unlocked [carId]. */
     fun onUnlockingSuccess(carId: UUID)
   }
 
@@ -172,6 +163,22 @@ interface TrustedDeviceFeature {
     PASSCODE_NOT_SET,
 
     /** The car to enroll is not currently connected and enrollment cannot occur. */
+    CAR_NOT_CONNECTED
+  }
+
+  /** Code for error encountered during trusted device unlocking. */
+  @PublicApi
+  enum class UnlockingError {
+    /** There was an unrecoverable internal error. */
+    INTERNAL,
+
+    /** There is no passcode set on the current device. */
+    PASSCODE_NOT_SET,
+
+    /** Device is locked when more secured option is selected. */
+    DEVICE_LOCKED,
+
+    /** The car to unlock is not currently connected and unlocking cannot occur. */
     CAR_NOT_CONNECTED
   }
 }

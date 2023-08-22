@@ -26,8 +26,6 @@ import com.google.android.libraries.car.trustagent.testutils.FakeSecretKey
 import com.google.common.truth.Correspondence
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -35,6 +33,8 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
 
 // Randomly generated UUID.
 private val TEST_ID_1 = UUID.fromString("8a16e891-d4ad-455d-8194-cbc2dfbaebdf")

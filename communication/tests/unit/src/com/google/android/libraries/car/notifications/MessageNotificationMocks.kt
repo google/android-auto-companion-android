@@ -36,10 +36,10 @@ import androidx.core.app.Person
 import androidx.core.app.RemoteInput
 import androidx.core.graphics.drawable.IconCompat.createFromIcon
 import androidx.test.core.app.ApplicationProvider
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.spy
-import com.nhaarman.mockitokotlin2.whenever
 import java.time.Instant
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.spy
+import org.mockito.kotlin.whenever
 
 /**
  * Builds mocks specifically for testing message notifications For other types of notifications
@@ -147,37 +147,37 @@ object MessageNotificationMocks {
     postSpecificMessage: Message? = null
   ): Notification {
     return spy(
-      NotificationCompat.Builder(context, "123")
-        .setContentTitle("2 new messages with $sender")
-        .setContentText("subject")
-        .apply {
-          if (hasMessagingStyle) {
-            setStyle(buildStyle(isOldMessage, connectionTime, postSpecificMessage))
-          }
-          if (hasReplyAction) {
-            val semanticAction =
-              if (hasReplyWrongSemanticAction) {
-                Action.SEMANTIC_ACTION_NONE
+        NotificationCompat.Builder(context, "123")
+          .setContentTitle("2 new messages with $sender")
+          .setContentText("subject")
+          .apply {
+            if (hasMessagingStyle) {
+              setStyle(buildStyle(isOldMessage, connectionTime, postSpecificMessage))
+            }
+            if (hasReplyAction) {
+              val semanticAction =
+                if (hasReplyWrongSemanticAction) {
+                  Action.SEMANTIC_ACTION_NONE
+                } else {
+                  SEMANTIC_ACTION_REPLY
+                }
+              val action = replyAction(showsUI, semanticAction)
+              if (useInvisibleActions) {
+                addInvisibleAction(action)
               } else {
-                SEMANTIC_ACTION_REPLY
+                addAction(action)
               }
-            val action = replyAction(showsUI, semanticAction)
-            if (useInvisibleActions) {
-              addInvisibleAction(action)
-            } else {
-              addAction(action)
+            }
+            if (hasMarkAsRead) {
+              if (useInvisibleActions) {
+                addInvisibleAction(markAsReadAction)
+              } else {
+                addAction(markAsReadAction)
+              }
             }
           }
-          if (hasMarkAsRead) {
-            if (useInvisibleActions) {
-              addInvisibleAction(markAsReadAction)
-            } else {
-              addAction(markAsReadAction)
-            }
-          }
-        }
-        .build()
-    )
+          .build()
+      )
       .also { whenever(it.smallIcon).thenReturn(appIcon) }
   }
 

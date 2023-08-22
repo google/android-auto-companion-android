@@ -24,9 +24,6 @@ import androidx.test.rule.GrantPermissionRule
 import com.google.android.libraries.car.trustagent.testutils.Base64CryptoHelper
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.spy
-import com.nhaarman.mockitokotlin2.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.After
@@ -34,6 +31,9 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.spy
+import org.mockito.kotlin.verify
 
 /**
  * Collection of unit tests for [AssociationManager] where Bluetooth permissions are not granted.

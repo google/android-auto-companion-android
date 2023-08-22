@@ -16,16 +16,14 @@ package com.google.android.libraries.car.notifications
 
 import android.service.notification.StatusBarNotification
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.never
-import com.nhaarman.mockitokotlin2.verify
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 
-/**
- * Tests for [NotificationSyncManager].
- */
+/** Tests for [NotificationSyncManager]. */
 @RunWith(AndroidJUnit4::class)
 class NotificationSyncManagerTest {
   private lateinit var handler: NotificationHandler

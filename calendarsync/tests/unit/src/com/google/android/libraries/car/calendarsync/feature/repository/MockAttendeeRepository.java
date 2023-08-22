@@ -14,7 +14,7 @@
 
 package com.google.android.libraries.car.calendarsync.feature.repository;
 
-import com.google.android.connecteddevice.calendarsync.proto.Attendee;
+import com.google.android.connecteddevice.calendarsync.Attendee;
 import com.google.common.collect.ImmutableList;
 
 /** A simple mock that returns an empty list of attendees for any content resolver. */

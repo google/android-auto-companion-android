@@ -25,13 +25,14 @@ import com.google.android.libraries.car.trustagent.util.logd
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trusteddevice.TrustedDeviceFeature.EnrollmentError
+import com.google.android.libraries.car.trusteddevice.TrustedDeviceFeature.UnlockingError
 import com.google.android.libraries.car.trusteddevice.storage.TrustedDeviceManagerStorage
-import com.google.protobuf.ByteString
-import com.google.protobuf.InvalidProtocolBufferException
 import com.google.companionprotos.trusteddevice.PhoneAuth.PhoneCredentials
 import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceError
 import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceMessage
 import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceState
+import com.google.protobuf.ByteString
+import com.google.protobuf.InvalidProtocolBufferException
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Instant
@@ -134,6 +135,8 @@ internal constructor(
         coroutineScope.launch { handleUnlockAckMessage(carId) }
       TrustedDeviceMessage.MessageType.STATE_SYNC ->
         coroutineScope.launch { handleStateSyncMessage(protoMessage.payload, carId) }
+      TrustedDeviceMessage.MessageType.UNLOCK_REQUEST ->
+        coroutineScope.launch { handleUnlockRequestMessage(carId) }
       else -> {
         loge(
           TAG,
@@ -345,7 +348,7 @@ internal constructor(
         TAG,
         "Could not unlock car with id $carId since passcode has not been set on this device."
       )
-      callbacks.forEach { it.onUnlockingFailure(carId) }
+      notifyUnlockingError(carId, UnlockingError.PASSCODE_NOT_SET)
       return
     }
 
@@ -356,7 +359,7 @@ internal constructor(
       if (isDeviceUnlockRequired(carId) && isDeviceLocked(context)) {
         logi(TAG, "Could not unlock because device needs to be unlocked first.")
         unlockPendingCars.add(carId)
-        callbacks.forEach { it.onUnlockingFailure(carId) }
+        notifyUnlockingError(carId, UnlockingError.DEVICE_LOCKED)
         return@runBlocking
       }
 
@@ -473,7 +476,7 @@ internal constructor(
   private fun handlePendingUnlockDisconnection(carId: UUID) {
     unlockPendingCars.remove(carId)
     loge(TAG, "Car $carId disconnected before pending unlock completes. Aborted.")
-    callbacks.forEach { it.onUnlockingFailure(carId) }
+    notifyUnlockingError(carId, UnlockingError.CAR_NOT_CONNECTED)
   }
 
   private suspend fun handleStateSyncMessage(payload: ByteString, carId: UUID) {
@@ -507,6 +510,22 @@ internal constructor(
     clearEnrollment(carId, syncToCar = false, initiatedFromCar = true)
   }
 
+  private fun handleUnlockRequestMessage(carId: UUID) {
+    logd(TAG, "Received unlock message from car $carId. Removing it from unlocking lists.")
+    unlockingCars.remove(carId)
+    unlockPendingCars.remove(carId)
+    // Use `runBlocking` instead of `launch` to ensure the immediate execution of `unlock()`.
+    // Launching as coroutine allows other features to enqueue their messages first, delaying the
+    // delivery of unlock message.
+    val enrolled = runBlocking { trustedDeviceManagerStorage.containsCredential(carId) }
+    logd(TAG, "Car $carId connected. Enrolled: $enrolled. Sending credential to unlock.")
+
+    // No need to sync status during connected session.
+    if (enrolled) {
+      unlock(carId)
+    }
+  }
+
   /** Returns `null` for invalid message, i.e. version is not expected. */
   private fun parseAndValidate(message: ByteArray): TrustedDeviceMessage? {
     with(TrustedDeviceMessage.parseFrom(message)) {
@@ -514,6 +533,13 @@ internal constructor(
         return null
       }
       return this
+    }
+  }
+
+  private fun notifyUnlockingError(carId: UUID, error: UnlockingError) {
+    for (callback in callbacks) {
+      callback.onUnlockingFailure(carId, error)
+      callback.onUnlockingFailure(carId)
     }
   }
 

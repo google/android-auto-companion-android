@@ -24,15 +24,15 @@ import com.google.android.encryptionrunner.HandshakeMessage.HandshakeState
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
 import com.google.android.libraries.car.trustagent.blemessagestream.StreamMessage
 import com.google.common.truth.Truth.assertThat
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
-import com.nhaarman.mockitokotlin2.whenever
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 private const val INIT_MESSAGE_ID = 1
 private const val CONT_MESSAGE_ID = 2

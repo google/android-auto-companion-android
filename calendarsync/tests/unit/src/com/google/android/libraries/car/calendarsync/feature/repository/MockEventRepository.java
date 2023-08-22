@@ -14,7 +14,7 @@
 
 package com.google.android.libraries.car.calendarsync.feature.repository;
 
-import com.google.android.connecteddevice.calendarsync.proto.Event;
+import com.google.android.connecteddevice.calendarsync.Event;
 import com.google.common.collect.ImmutableList;
 import java.time.Instant;
 

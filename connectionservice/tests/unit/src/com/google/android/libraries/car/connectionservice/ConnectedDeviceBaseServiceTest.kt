@@ -23,12 +23,12 @@ import com.google.android.libraries.car.trustagent.AssociatedCar
 import com.google.android.libraries.car.trustagent.FeatureManager
 import com.google.android.libraries.car.trustagent.testutils.FakeSecretKey
 import com.google.common.truth.Truth.assertThat
-import com.nhaarman.mockitokotlin2.mock
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.mock
 import org.robolectric.Robolectric
 import org.robolectric.Shadows
 

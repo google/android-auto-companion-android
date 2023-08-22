@@ -20,16 +20,16 @@ import com.google.android.companionprotos.PacketProto.Packet
 import com.google.android.libraries.car.trustagent.blemessagestream.version2.PacketPayloadStream
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.never
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
 import kotlin.test.assertFailsWith
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 
 private val PAYLOAD = "payload".toByteArray(Charsets.UTF_8)
 private val ANOTHER_PAYLOAD = "another_payload".toByteArray(Charsets.UTF_8)
@@ -42,9 +42,7 @@ class PacketPayloadStreamTest {
   @Before
   fun setUp() {
     mockStreamListener = mock()
-    stream = PacketPayloadStream().apply {
-      listener = mockStreamListener
-    }
+    stream = PacketPayloadStream().apply { listener = mockStreamListener }
   }
 
   @Test
@@ -148,10 +146,8 @@ class PacketPayloadStreamTest {
     messageId: Int,
     packetCount: Int
   ): List<Packet> {
-    val bleDeviceMessage = Message.newBuilder()
-      .setPayload(ByteString.copyFrom(payload))
-      .build()
-      .toByteArray()
+    val bleDeviceMessage =
+      Message.newBuilder().setPayload(ByteString.copyFrom(payload)).build().toByteArray()
 
     val packets = mutableListOf<Packet>()
     for (i in 1 until packetCount) {
@@ -165,9 +161,12 @@ class PacketPayloadStreamTest {
           .build()
       )
     }
-    val lastPayload = ByteString.copyFrom(
-      bleDeviceMessage, packetCount - 1, bleDeviceMessage.size - packetCount + 1
-    )
+    val lastPayload =
+      ByteString.copyFrom(
+        bleDeviceMessage,
+        packetCount - 1,
+        bleDeviceMessage.size - packetCount + 1
+      )
     packets.add(
       Packet.newBuilder()
         // The last packet contains the remaining payload.

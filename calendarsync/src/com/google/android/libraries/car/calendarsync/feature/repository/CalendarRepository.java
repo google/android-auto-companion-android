@@ -14,18 +14,15 @@
 
 package com.google.android.libraries.car.calendarsync.feature.repository;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import android.content.ContentResolver;
 import android.provider.CalendarContract;
 import androidx.annotation.Nullable;
-import com.google.android.connecteddevice.calendarsync.proto.Calendar;
-import com.google.android.connecteddevice.calendarsync.proto.Calendars;
-import com.google.android.connecteddevice.calendarsync.proto.TimeZone;
+import com.google.android.connecteddevice.calendarsync.Calendar;
+import com.google.android.connecteddevice.calendarsync.UpdateCalendars;
 import com.google.common.collect.ImmutableList;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -42,11 +39,11 @@ public class CalendarRepository extends BaseRepository {
     this.eventRepository = new EventRepository(contentResolver);
   }
 
-  public Calendars getCalendars(Instant startInstant, Instant endInstant) {
+  public UpdateCalendars getCalendars(Instant startInstant, Instant endInstant) {
     return getCalendars(/* calendarIds= */ null, startInstant, endInstant);
   }
 
-  public Calendars getCalendars(
+  public UpdateCalendars getCalendars(
       @Nullable Set<Integer> calendarIds, Instant startInstant, Instant endInstant) {
     if (calendarIds == null || calendarIds.isEmpty()) {
       return toCalendars(
@@ -67,21 +64,9 @@ public class CalendarRepository extends BaseRepository {
             selectionArgs));
   }
 
-  private static Calendars toCalendars(ImmutableList<Calendar> calendarList) {
-    Calendars.Builder builder = Calendars.newBuilder();
-    builder.addAllCalendar(calendarList);
-    builder.setDeviceTimeZone(getDeviceTimezone());
+  private static UpdateCalendars toCalendars(ImmutableList<Calendar> calendarList) {
+    UpdateCalendars.Builder builder = UpdateCalendars.newBuilder();
+    builder.addAllCalendars(calendarList);
     return builder.build();
-  }
-
-  private static TimeZone getDeviceTimezone() {
-    String timezoneId = java.util.TimeZone.getDefault().getID();
-    java.util.Calendar gmt =
-        java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("GMT"), Locale.getDefault());
-    java.util.TimeZone timeZone = java.util.TimeZone.getTimeZone(timezoneId);
-    return TimeZone.newBuilder()
-        .setName(timeZone.getID())
-        .setSecondsFromGmt(MILLISECONDS.toSeconds(timeZone.getOffset(gmt.getTimeInMillis())))
-        .build();
   }
 }

@@ -19,8 +19,8 @@ import static com.google.android.libraries.car.calendarsync.feature.repository.C
 import static junit.framework.TestCase.assertEquals;
 
 import android.provider.CalendarContract.Attendees;
-import com.google.android.connecteddevice.calendarsync.proto.Attendee;
-import com.google.android.connecteddevice.calendarsync.proto.Attendee.Status;
+import com.google.android.connecteddevice.calendarsync.Attendee;
+import com.google.android.connecteddevice.calendarsync.Attendee.Status;
 import com.google.android.libraries.car.calendarsync.util.FakeCursor;
 import java.util.Arrays;
 import org.junit.Before;

@@ -22,20 +22,20 @@ import com.google.android.connecteddevice.calendarsync.common.SourceCalendarSync
 import com.google.android.libraries.car.trustagent.Car
 import com.google.android.libraries.car.trustagent.Car.Callback
 import com.google.common.truth.Truth.assertThat
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.doAnswer
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.eq
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.never
-import com.nhaarman.mockitokotlin2.verify
-import com.nhaarman.mockitokotlin2.whenever
 import java.util.UUID
 import java.util.function.Consumer
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.doAnswer
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 @Suppress("FunctionName")
 @RunWith(AndroidJUnit4::class)
@@ -61,18 +61,17 @@ class CalendarSyncManagerV2Test {
       on { start() } doAnswer { calendarSyncAccessStarted = true }
       on { stop() } doAnswer { calendarSyncAccessStarted = false }
       on { isStarted } doAnswer { calendarSyncAccessStarted }
-      on { access(any()) } doAnswer { invocation ->
-        @Suppress("UNCHECKED_CAST")
-        (invocation.arguments.first() as Consumer<SourceCalendarSync>).accept(mockCalendarSync)
-      }
+      on { access(any()) } doAnswer
+        { invocation ->
+          @Suppress("UNCHECKED_CAST")
+          (invocation.arguments.first() as Consumer<SourceCalendarSync>).accept(mockCalendarSync)
+        }
     }
     val mockCalendarSyncAccessFactory: CalendarSyncAccess.Factory<SourceCalendarSync> = mock {
       on { create(any()) } doReturn mockCalendarSyncAccess
     }
     manager = CalendarSyncManagerV2(context, daysToSync, mockCalendarSyncAccessFactory)
-    mockCar = mock {
-      on { deviceId } doReturn carId
-    }
+    mockCar = mock { on { deviceId } doReturn carId }
   }
 
   @Test
@@ -152,9 +151,10 @@ class CalendarSyncManagerV2Test {
   @Test
   fun onCarDisconnected_noneConnected_doesStop() {
     var callback: Callback? = null
-    whenever(mockCar.setCallback(any(), any())) doAnswer {
-      callback = it.arguments.first() as Callback
-    }
+    whenever(mockCar.setCallback(any(), any())) doAnswer
+      {
+        callback = it.arguments.first() as Callback
+      }
 
     manager.enableCar(carId)
     manager.notifyCarConnected(mockCar)
@@ -167,13 +167,12 @@ class CalendarSyncManagerV2Test {
   @Test
   fun onCarDisconnected_oneEnabledConnected_doesNotStop() {
     val carId2 = UUID.randomUUID()
-    val mockCar2: Car = mock {
-      on { deviceId } doReturn carId2
-    }
+    val mockCar2: Car = mock { on { deviceId } doReturn carId2 }
     var callback: Callback? = null
-    whenever(mockCar.setCallback(any(), any())) doAnswer {
-      callback = it.arguments.first() as Callback
-    }
+    whenever(mockCar.setCallback(any(), any())) doAnswer
+      {
+        callback = it.arguments.first() as Callback
+      }
 
     // Enable and connect both cars.
     manager.enableCar(carId)

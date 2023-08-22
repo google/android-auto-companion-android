@@ -32,14 +32,6 @@ import com.google.android.libraries.car.trustagent.testutils.Base64CryptoHelper
 import com.google.android.libraries.car.trustagent.util.uuidToBytes
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.never
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
-import com.nhaarman.mockitokotlin2.verifyZeroInteractions
-import com.nhaarman.mockitokotlin2.whenever
 import java.security.SecureRandom
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
@@ -50,6 +42,14 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoMoreInteractions
+import org.mockito.kotlin.whenever
 import org.robolectric.shadow.api.Shadow
 
 /** Test for [PendingCarV3Association] that verifies its out-of-band connection. */
@@ -162,7 +162,7 @@ class PendingCarV3AssociationOobTest {
     }
 
     verify(mockStream, never()).sendMessage(any())
-    verifyZeroInteractions(mockPendingCarCallback)
+    verifyNoMoreInteractions(mockPendingCarCallback)
   }
 
   /**
