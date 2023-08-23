@@ -58,6 +58,7 @@ android {
                 'connectionservice/src',
             ]
             proto.srcDirs = [
+                'calendarsync/src',
                 'companionprotos/src',
                 'communicationproto/src',
                 'trusteddeviceproto/src',
