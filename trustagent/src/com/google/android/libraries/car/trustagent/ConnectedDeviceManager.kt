@@ -235,6 +235,13 @@ internal constructor(
 
       override fun onFailure(error: CharSequence?) {
         loge(TAG, "Received onFailure() from CompanionDeviceManager: $error.")
+        // On some builds, CDM would make 2 consecutive callbacks: onDeviceFound() followed by
+        // onFailure(). To avoid confusing the caller, we check if there is an active/ongoing
+        // discovery before propagating the failure callback.
+        if (!hasOngoingCdmDiscovery.get()) {
+          logi(TAG, "No ongoing CDM discovery, or a result has already been received. Ignored.")
+          return
+        }
         hasOngoingCdmDiscovery.set(false)
         callbacks.forEach { it.onDiscoveryFailed() }
       }

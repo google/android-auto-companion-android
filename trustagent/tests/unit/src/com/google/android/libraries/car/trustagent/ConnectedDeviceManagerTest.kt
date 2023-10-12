@@ -123,6 +123,36 @@ class ConnectedDeviceManagerTest {
   }
 
   @Test
+  fun startDiscovery_afterSuccessDiscoveryCallback_onFailureIsIgnored() {
+    val discoveryRequest =
+      discoveryRequest(FakeActivity()) {
+        namePrefix = "namePrefix"
+        associationUuid = null
+        deviceIdentifier = null
+      }
+    val intentSender =
+      RoboIntentSender(
+        PendingIntent.getActivity(
+          context,
+          /* requestCode= */ 0,
+          /* intent= */ FakeActivity.createIntent(context),
+          /* flags= */ 0,
+          /* options= */ null
+        )
+      )
+    val mockCallback: ConnectedDeviceManager.Callback = mock()
+    manager.registerCallback(mockCallback)
+    // Request discovery and receive a success callback.
+    assertThat(manager.startDiscovery(discoveryRequest)).isTrue()
+    manager.companionDeviceManagerCallback.onDeviceFound(intentSender)
+
+    // The following failure callback should be ignored.
+    manager.companionDeviceManagerCallback.onFailure("error")
+
+    verify(mockCallback, never()).onDiscoveryFailed()
+  }
+
+  @Test
   fun startDiscovery_afterDiscoveryCallbackOnDeviceFound_secondCallIsAccepted() {
     val discoveryRequest =
       discoveryRequest(FakeActivity()) {
@@ -273,6 +303,13 @@ class ConnectedDeviceManagerTest {
   fun connectedDeviceManager_onFailure() {
     val mockCallback: ConnectedDeviceManager.Callback = mock()
     manager.registerCallback(mockCallback)
+    val discoveryRequest =
+      discoveryRequest(FakeActivity()) {
+        namePrefix = "namePrefix"
+        associationUuid = null
+        deviceIdentifier = null
+      }
+    assertThat(manager.startDiscovery(discoveryRequest)).isTrue()
 
     manager.companionDeviceManagerCallback.onFailure("error")
 

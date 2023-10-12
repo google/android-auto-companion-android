@@ -22,8 +22,11 @@ import androidx.annotation.VisibleForTesting
 import com.google.android.libraries.car.trustagent.AssociatedCar
 import com.google.android.libraries.car.trustagent.ConnectedDeviceManager
 import com.google.android.libraries.car.trustagent.FeatureManager
+import com.google.android.libraries.car.trustagent.R
 import com.google.android.libraries.car.trustagent.api.PublicApi
 import com.google.android.libraries.car.trustagent.util.logi
+import java.io.FileDescriptor
+import java.io.PrintWriter
 
 /**
  * A service that is responsible for creating [FeatureManager]s and posting foreground notification
@@ -76,7 +79,11 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
 
   @CallSuper
   override fun onCreate() {
-    logi(TAG, "onCreate.")
+    logi(
+      TAG,
+      "Service created. Companion SDK version is " +
+        "${getResources().getString(R.string.android_companion_sdk_version)}"
+    )
     super.onCreate()
 
     connectedDeviceManager =
@@ -108,6 +115,15 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
     EventLog.onServiceStopped()
 
     super.onDestroy()
+  }
+
+  @CallSuper
+  override protected fun dump(fd: FileDescriptor, writer: PrintWriter, args: Array<String>) {
+    super.dump(fd, writer, args)
+    writer.printf(
+      "Companion SDK version is %s\n",
+      getResources().getString(R.string.android_companion_sdk_version)
+    )
   }
 
   private fun handleConnection(associatedCar: AssociatedCar) {
