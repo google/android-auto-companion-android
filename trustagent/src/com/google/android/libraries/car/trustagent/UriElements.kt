@@ -35,6 +35,13 @@ private constructor(
   val deviceIdentifier: ByteArray?,
   val queries: Map<String, String?>
 ) {
+  /**
+   * Whether the URI was started for RemoteSetup.
+   *
+   * Equivalent to checking if [queries] contains [IS_STARTED_FOR_SETUP_PROFILE_KEY].
+   */
+  val isSetupProfile: Boolean = queries[IS_STARTED_FOR_SETUP_PROFILE_KEY]?.toBoolean() ?: false
+
   // Override to avoid [oobData] being logged.
   override fun toString(): String {
     val redactedOobData = if (oobData == null) "null" else "REDACTED"
@@ -46,6 +53,9 @@ private constructor(
 
   @PublicApi
   companion object {
+    /** The URI query parameter key that indicates the association was started for RemoteSetup. */
+    const val IS_STARTED_FOR_SETUP_PROFILE_KEY = "isSetupProfile"
+
     private const val TAG = "UriElements"
     /**
      * The key name of the companion device out-of-band data.

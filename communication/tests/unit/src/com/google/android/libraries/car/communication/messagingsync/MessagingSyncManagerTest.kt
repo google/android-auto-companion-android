@@ -32,7 +32,7 @@ import org.junit.runner.RunWith
 @ExperimentalCoroutinesApi
 class MessagingSyncManagerTest {
   private val context: Context = ApplicationProvider.getApplicationContext()
-  private val carId = UUID.fromString("c2337f28-18ff-4f92-a0cf-4df63ab2c881")
+  private val deviceId = UUID.fromString("c2337f28-18ff-4f92-a0cf-4df63ab2c881")
   private val messagingSyncManager = MessagingSyncManager(context)
   private val handlers: Map<*, *>
     get() {
@@ -54,60 +54,96 @@ class MessagingSyncManagerTest {
   fun initialState() {
     assertThat(messagingSyncManager.isNotificationAccessEnabled()).isTrue()
     assertThat(messagingSyncManager.isNotificationAccessEnabled()).isTrue()
-    assertThat(messagingSyncManager.isMessagingSyncEnabled(carId.toString())).isFalse()
+    assertThat(messagingSyncManager.isMessagingSyncEnabled(deviceId.toString())).isFalse()
   }
 
   @Test
   fun onCarConnected_newHandlerIsCreated() {
-    messagingSyncManager.onCarConnected(carId)
-    val handler = handlers[carId] as? MessagingNotificationHandler
+    messagingSyncManager.onCarConnected(deviceId)
+    val handler = handlers[deviceId] as? MessagingNotificationHandler
     assertThat(handler).isNotNull()
     assertThat(handler?.isCarConnected).isTrue()
   }
 
   @Test
   fun onCarConnected_CalledTwice_PreviousHandlerReused() {
-    messagingSyncManager.onCarConnected(carId)
-    val handler = handlers[carId] as MessagingNotificationHandler
-    messagingSyncManager.onCarConnected(carId)
-    assertThat(handlers[carId] == handler).isTrue()
+    messagingSyncManager.onCarConnected(deviceId)
+    val handler = handlers[deviceId] as MessagingNotificationHandler
+    messagingSyncManager.onCarConnected(deviceId)
+    assertThat(handlers[deviceId] == handler).isTrue()
     assertThat(handler.isCarConnected).isTrue()
   }
 
   @Test
   fun onCarDisconnected_handlerDisconnectedAndRemoved() {
-    messagingSyncManager.onCarConnected(carId)
-    val previousHandler = handlers[carId] as MessagingNotificationHandler
-    messagingSyncManager.onCarDisconnected(carId)
-    assertThat(handlers[carId]).isNull()
+    messagingSyncManager.onCarConnected(deviceId)
+    val previousHandler = handlers[deviceId] as MessagingNotificationHandler
+    messagingSyncManager.onCarDisconnected(deviceId)
+    assertThat(handlers[deviceId]).isNull()
     assertThat(previousHandler.isCarConnected).isFalse()
   }
 
   @Test
+  fun onCarDisassociated() {
+    messagingSyncManager.onCarConnected(deviceId)
+    val previousHandler = handlers[deviceId] as MessagingNotificationHandler
+    messagingSyncManager.onCarDisassociated(deviceId)
+    assertThat(handlers[deviceId]).isNull()
+    assertThat(previousHandler.isCarConnected).isFalse()
+    assertThat(messagingSyncManager.isMessagingSyncEnabled(deviceId.toString())).isFalse()
+  }
+
+  @Test
+  fun onAllCarsDisassociated() {
+    messagingSyncManager.onCarConnected(deviceId)
+    val previousHandler = handlers[deviceId] as MessagingNotificationHandler
+    messagingSyncManager.onAllCarsDisassociated()
+    assertThat(handlers).isEmpty()
+    assertThat(previousHandler.isCarConnected).isFalse()
+    assertThat(messagingSyncManager.isMessagingSyncEnabled(deviceId.toString())).isFalse()
+  }
+
+  @Test
+  fun reassociateCar_disableMessagingSync() {
+    messagingSyncManager.onCarConnected(deviceId)
+    val previousHandler = handlers[deviceId] as MessagingNotificationHandler
+    messagingSyncManager.onCarDisassociated(deviceId)
+    assertThat(handlers[deviceId]).isNull()
+    assertThat(previousHandler.isCarConnected).isFalse()
+    assertThat(messagingSyncManager.isMessagingSyncEnabled(deviceId.toString())).isFalse()
+
+    messagingSyncManager.onCarConnected(deviceId)
+    val handler = handlers[deviceId] as? MessagingNotificationHandler
+    assertThat(handler).isNotNull()
+    assertThat(handler?.isCarConnected).isTrue()
+    assertThat(messagingSyncManager.isMessagingSyncEnabled(deviceId.toString())).isFalse()
+  }
+
+  @Test
   fun isMessagingSyncEnabled_ReturnsTrueWhenEnabled() {
-    messagingSyncManager.enableMessagingSync(carId.toString(), {}, {})
-    val result = messagingSyncManager.isMessagingSyncEnabled(carId.toString())
+    messagingSyncManager.enableMessagingSync(deviceId.toString(), {}, {})
+    val result = messagingSyncManager.isMessagingSyncEnabled(deviceId.toString())
     assertThat(result).isTrue()
   }
 
   @Test
   fun isMessagingSyncEnabled_ReturnsFalseWhenEnabled() {
-    messagingSyncManager.disableMessagingSync(carId.toString())
-    val result = messagingSyncManager.isMessagingSyncEnabled(carId.toString())
+    messagingSyncManager.disableMessagingSync(deviceId.toString())
+    val result = messagingSyncManager.isMessagingSyncEnabled(deviceId.toString())
     assertThat(result).isFalse()
   }
 
   @Test
   fun enableMessagingSync_enables() {
-    messagingSyncManager.enableMessagingSync(carId.toString(), {}, {})
-    assertThat(messagingSyncManager.isMessagingSyncEnabled(carId.toString())).isTrue()
+    messagingSyncManager.enableMessagingSync(deviceId.toString(), {}, {})
+    assertThat(messagingSyncManager.isMessagingSyncEnabled(deviceId.toString())).isTrue()
   }
 
   @Test
   fun enableMessagingSync_disables() {
-    messagingSyncManager.enableMessagingSync(carId.toString(), {}, {})
-    messagingSyncManager.disableMessagingSync(carId.toString())
-    assertThat(messagingSyncManager.isMessagingSyncEnabled(carId.toString())).isFalse()
+    messagingSyncManager.enableMessagingSync(deviceId.toString(), {}, {})
+    messagingSyncManager.disableMessagingSync(deviceId.toString())
+    assertThat(messagingSyncManager.isMessagingSyncEnabled(deviceId.toString())).isFalse()
   }
 
   @Test

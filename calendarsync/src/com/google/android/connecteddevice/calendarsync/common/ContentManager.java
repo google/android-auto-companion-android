@@ -320,7 +320,7 @@ abstract class ContentManager<
     clearChildren(builder);
   }
 
-  private void maybeSetChildren(BuilderT builder, String key, Object id) {
+  private void maybeSetChildren(BuilderT builder, String key, @Nullable Object id) {
     ContentManager<ChildMessageT, ChildBuilderT, ?, ?> childManager = getChildManager(key);
     if (childManager != null) {
       ImmutableList<ChildMessageT> children = childManager.readAll(id);

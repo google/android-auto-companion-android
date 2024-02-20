@@ -105,7 +105,11 @@ class CalendarManager extends ContentManager<Calendar, Calendar.Builder, Event, 
   @Override
   protected void onCreateBuilder(Calendar.Builder builder) {
     // Add the time range to every calendar that is read.
-    Range<Instant> range = calendarKeyToTimeRange.get(builder.getKey());
+    String calendarKey = builder.getKey();
+    Range<Instant> range = calendarKeyToTimeRange.get(calendarKey);
+    if (range == null) {
+      throw new IllegalStateException("Missing range for calendar: " + calendarKey);
+    }
     builder.setRange(toTimeRange(range));
   }
 
@@ -134,7 +138,13 @@ class CalendarManager extends ContentManager<Calendar, Calendar.Builder, Event, 
   @Override
   protected void onContentUpdated(Object parentId, Calendar update) {
     // Must read the calendar to capture the updates applied.
-    calendarStore.store((String) parentId, read(parentId, update.getKey()));
+    Calendar calendar = read(parentId, update.getKey());
+    if (calendar == null) {
+      logger.info(
+          "No calendar with parentId %s and update key %s. Ignored.", parentId, update.getKey());
+      return;
+    }
+    calendarStore.store((String) parentId, calendar);
   }
 
   /**
@@ -146,6 +156,9 @@ class CalendarManager extends ContentManager<Calendar, Calendar.Builder, Event, 
     Range<Instant> timeRange = null;
     if (calendar.hasRange()) {
       timeRange = toInstantRange(calendar.getRange());
+    }
+    if (timeRange == null) {
+      throw new IllegalStateException("Calendar does not have range: " + calendar.getKey());
     }
     calendarKeyToTimeRange.put(calendar.getKey(), timeRange);
   }

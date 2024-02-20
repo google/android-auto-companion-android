@@ -42,10 +42,10 @@ public interface PlatformContentDelegate<MessageT extends MessageLite> {
 
   /** Reads a single content item with the given parent id and key. */
   @Nullable
-  Content<MessageT> read(Object parentId, String key);
+  Content<MessageT> read(@Nullable Object parentId, String key);
 
   /** Reads all content items for the given parent. */
-  ImmutableList<Content<MessageT>> readAll(Object parentId);
+  ImmutableList<Content<MessageT>> readAll(@Nullable Object parentId);
 
   /**
    * Inserts the content item with the given {@code parentId} and returns the id of the new item.

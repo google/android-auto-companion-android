@@ -54,13 +54,13 @@ import org.mockito.kotlin.verify
 @ExperimentalCoroutinesApi
 class MessagingNotificationHandlerTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
-  private val carId = UUID.fromString("c2337f28-18ff-4f92-a0cf-4df63ab2c881")
+  private val deviceId = UUID.fromString("c2337f28-18ff-4f92-a0cf-4df63ab2c881")
   private val sharedState = NotificationHandlerSharedState()
   private val replyMessages = sharedState.replyMessages
   private val messagingUtils = MessagingUtils(context)
   private val defaultKey = "key"
 
-  private lateinit var sendMessage: (data: ByteArray, carId: UUID) -> Int
+  private lateinit var sendMessage: (data: ByteArray, deviceId: UUID) -> Int
   private lateinit var connectionTime: Instant
   private lateinit var handler: MessagingNotificationHandler
 
@@ -72,7 +72,7 @@ class MessagingNotificationHandlerTest {
     handler = createHandler().also { it.onCarConnected() }
     connectionTime = Instant.now()
     grantNotificationAccess(context)
-    messagingUtils.enableMessagingSync(carId.toString(), {}, {})
+    messagingUtils.enableMessagingSync(deviceId.toString(), {}, {})
   }
 
   @After
@@ -83,7 +83,7 @@ class MessagingNotificationHandlerTest {
 
   @Test
   fun setup_assertExpectedState() {
-    assertThat(messagingUtils.isMessagingSyncEnabled(carId.toString())).isTrue()
+    assertThat(messagingUtils.isMessagingSyncEnabled(deviceId.toString())).isTrue()
   }
 
   @Test
@@ -117,8 +117,8 @@ class MessagingNotificationHandlerTest {
     val anotherSBN = createSBN(connectionTime = connectionTime)
     handler.onNotificationReceived(anotherSBN)
     val byteArrayCaptor = argumentCaptor<ByteArray>()
-    val carIdCaptor = argumentCaptor<UUID>()
-    verify(sendMessage, times(2)).invoke(byteArrayCaptor.capture(), carIdCaptor.capture())
+    val deviceIdCaptor = argumentCaptor<UUID>()
+    verify(sendMessage, times(2)).invoke(byteArrayCaptor.capture(), deviceIdCaptor.capture())
     val firstMessage = PhoneToCarMessage.parseFrom(byteArrayCaptor.firstValue)
     val secondMessage = PhoneToCarMessage.parseFrom(byteArrayCaptor.secondValue)
     assertThat(firstMessage.messageDataCase.name).isEqualTo(CONVERSATION_DATA_TYPE)
@@ -130,9 +130,9 @@ class MessagingNotificationHandlerTest {
     val sbn = createSBN()
     handler.onNotificationReceived(sbn)
     val byteArrayCaptor = argumentCaptor<ByteArray>()
-    val carIdCaptor = argumentCaptor<UUID>()
-    verify(sendMessage).invoke(byteArrayCaptor.capture(), carIdCaptor.capture())
-    assertThat(carIdCaptor.firstValue).isEqualTo(carId)
+    val deviceIdCaptor = argumentCaptor<UUID>()
+    verify(sendMessage).invoke(byteArrayCaptor.capture(), deviceIdCaptor.capture())
+    assertThat(deviceIdCaptor.firstValue).isEqualTo(deviceId)
     val phoneToCarMessage = PhoneToCarMessage.parseFrom(byteArrayCaptor.firstValue)
     assertThat(phoneToCarMessage.notificationKey).isEqualTo(defaultKey)
   }
@@ -162,12 +162,12 @@ class MessagingNotificationHandlerTest {
       )
     handler.onNotificationReceived(anotherSBN)
     val byteArrayCaptor = argumentCaptor<ByteArray>()
-    val carIdCaptor = argumentCaptor<UUID>()
-    verify(sendMessage, times(2)).invoke(byteArrayCaptor.capture(), carIdCaptor.capture())
+    val deviceIdCaptor = argumentCaptor<UUID>()
+    verify(sendMessage, times(2)).invoke(byteArrayCaptor.capture(), deviceIdCaptor.capture())
     val firstMessage = PhoneToCarMessage.parseFrom(byteArrayCaptor.firstValue)
     val secondMessage = PhoneToCarMessage.parseFrom(byteArrayCaptor.secondValue)
-    assertThat(carIdCaptor.firstValue).isEqualTo(carId)
-    assertThat(carIdCaptor.secondValue).isEqualTo(carId)
+    assertThat(deviceIdCaptor.firstValue).isEqualTo(deviceId)
+    assertThat(deviceIdCaptor.secondValue).isEqualTo(deviceId)
     assertThat(firstMessage.notificationKey).isEqualTo(defaultKey)
     assertThat(secondMessage.notificationKey).isEqualTo(defaultKey)
     assertThat(firstMessage.messageDataCase.name).isEqualTo(CONVERSATION_DATA_TYPE)
@@ -181,12 +181,12 @@ class MessagingNotificationHandlerTest {
     val anotherSBN = createSBN(key = "${defaultKey}_2")
     handler.onNotificationReceived(anotherSBN)
     val byteArrayCaptor = argumentCaptor<ByteArray>()
-    val carIdCaptor = argumentCaptor<UUID>()
-    verify(sendMessage, times(2)).invoke(byteArrayCaptor.capture(), carIdCaptor.capture())
+    val deviceIdCaptor = argumentCaptor<UUID>()
+    verify(sendMessage, times(2)).invoke(byteArrayCaptor.capture(), deviceIdCaptor.capture())
     val firstMessage = PhoneToCarMessage.parseFrom(byteArrayCaptor.firstValue)
     val secondMessage = PhoneToCarMessage.parseFrom(byteArrayCaptor.secondValue)
-    assertThat(carIdCaptor.firstValue).isEqualTo(carId)
-    assertThat(carIdCaptor.secondValue).isEqualTo(carId)
+    assertThat(deviceIdCaptor.firstValue).isEqualTo(deviceId)
+    assertThat(deviceIdCaptor.secondValue).isEqualTo(deviceId)
     assertThat(firstMessage.notificationKey).isEqualTo(defaultKey)
     assertThat(secondMessage.notificationKey).isEqualTo("${defaultKey}_2")
     assertThat(firstMessage.messageDataCase.name).isEqualTo(CONVERSATION_DATA_TYPE)
@@ -195,7 +195,7 @@ class MessagingNotificationHandlerTest {
 
   @Test
   fun onNotificationReceived_featureDisabled() {
-    messagingUtils.disableMessagingSync(carId.toString())
+    messagingUtils.disableMessagingSync(deviceId.toString())
     val sbn = createSBN()
     assertThat(handler.canHandleNotification(sbn)).isFalse()
     assertThat(handler.cannotHandleNotificationReasons(sbn))
@@ -306,7 +306,7 @@ class MessagingNotificationHandlerTest {
   private fun createHandler() =
     MessagingNotificationHandler(
       context,
-      carId,
+      deviceId,
       sendMessage,
       messagingUtils,
       SystemTimeProvider(),

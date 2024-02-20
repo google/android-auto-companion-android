@@ -36,8 +36,8 @@ internal class MessagingUtils constructor(private val context: Context) {
       Context.MODE_PRIVATE
     )
 
-  fun isMessagingSyncEnabled(carId: String) =
-    enabledCars.contains(carId) &&
+  fun isMessagingSyncEnabled(deviceId: String) =
+    enabledCars.contains(deviceId) &&
       NotificationAccessUtils.hasNotificationAccess(context)
 
   fun isNotificationAccessEnabled() =
@@ -46,13 +46,13 @@ internal class MessagingUtils constructor(private val context: Context) {
   /**
    * Handles the user flow to request user permissions and turn on messaging sync.
    */
-  fun enableMessagingSync(carId: String, onSuccess: () -> Unit, onFailure: (() -> Unit)?) =
+  fun enableMessagingSync(deviceId: String, onSuccess: () -> Unit, onFailure: (() -> Unit)?) =
     CoroutineScope(Dispatchers.Main).launch {
       val notificationGranted =
         NotificationAccessUtils.requestNotificationAccess(context)
 
       if (notificationGranted) {
-        enableMessagingSyncSharedPreferences(carId)
+        enableMessagingSyncSharedPreferences(deviceId)
         DebugLogs.logMessagingSyncFeatureEnabled()
         onSuccess()
       } else {
@@ -63,21 +63,27 @@ internal class MessagingUtils constructor(private val context: Context) {
   /**
    * Turns off messaging sync feature.
    */
-  fun disableMessagingSync(carId: String) =
+  fun disableMessagingSync(deviceId: String) =
     sharedPreferences.putStringSet(
       ENABLED_CARS_KEY,
       enabledCars.apply {
-        remove(carId)
+        remove(deviceId)
       }
     ).also {
       DebugLogs.logMessagingSyncFeatureDisabled()
     }
 
-  private fun enableMessagingSyncSharedPreferences(carId: String) =
+  /**
+   * Turns off messaging sync feature for all cars.
+   */
+  fun disableMessagingSyncForAll() =
+    sharedPreferences.edit().remove(ENABLED_CARS_KEY).apply()
+
+  private fun enableMessagingSyncSharedPreferences(deviceId: String) =
     sharedPreferences.putStringSet(
       ENABLED_CARS_KEY,
       enabledCars.apply {
-        add(carId)
+        add(deviceId)
       }
     )
 

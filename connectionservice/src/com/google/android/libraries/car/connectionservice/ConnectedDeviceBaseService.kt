@@ -17,6 +17,9 @@ package com.google.android.libraries.car.connectionservice
 import android.app.Notification
 import android.content.Intent
 import android.content.IntentSender
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.Build.VERSION_CODES
 import androidx.annotation.CallSuper
 import androidx.annotation.VisibleForTesting
 import com.google.android.libraries.car.trustagent.AssociatedCar
@@ -135,7 +138,11 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
       logi(TAG, "A device has connected. Starting foreground.")
 
       EventLog.onStartForeground()
-      startForeground(notificationId, notification)
+      if (Build.VERSION.SDK_INT >= VERSION_CODES.Q) {
+        startForeground(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST)
+      } else {
+        startForeground(notificationId, notification)
+      }
     }
   }
 

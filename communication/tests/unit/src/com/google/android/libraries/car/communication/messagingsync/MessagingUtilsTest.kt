@@ -31,7 +31,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
-import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 
 /** Tests for [MessagingUtils]. */
@@ -41,7 +40,7 @@ class MessagingUtilsTest {
   private val context: Context = ApplicationProvider.getApplicationContext()
   private val messagingUtils = MessagingUtils(context)
 
-  private val carId = "carId"
+  private val deviceId = "deviceId"
   private val packageName = "com.package.com"
   private lateinit var onSuccess: () -> Unit
   private lateinit var onFailure: () -> Unit
@@ -57,13 +56,13 @@ class MessagingUtilsTest {
 
   @After
   fun teardown() {
-    messagingUtils.disableMessagingSync(carId)
+    messagingUtils.disableMessagingSync(deviceId)
     revokeAllNotificationAccess(context.contentResolver)
   }
 
   @Test
   fun testInitialState() {
-    assertThat(messagingUtils.isMessagingSyncEnabled(carId)).isFalse()
+    assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isFalse()
     assertThat(messagingUtils.isNotificationAccessEnabled()).isTrue()
     revokeAllNotificationAccess(context.contentResolver)
     assertThat(messagingUtils.isNotificationAccessEnabled()).isFalse()
@@ -71,42 +70,49 @@ class MessagingUtilsTest {
 
   @Test
   fun enableMessagingSync_enables_onSuccessCallbackCalled() {
-    messagingUtils.enableMessagingSync(carId, onSuccess, onFailure)
-    assertThat(messagingUtils.isMessagingSyncEnabled(carId)).isTrue()
+    messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
+    assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isTrue()
     verify(onSuccess).invoke()
     verify(onFailure, never()).invoke()
   }
 
   @Test
   fun isMessagingSyncEnabled_revokedAccess_enabledStateReturnsFalse() {
-    messagingUtils.enableMessagingSync(carId, onSuccess, onFailure)
+    messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
     revokeAllNotificationAccess(context.contentResolver)
-    assertThat(messagingUtils.isMessagingSyncEnabled(carId)).isFalse()
+    assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isFalse()
   }
 
   @Test
   fun enableMessagingSync_failsWhenNotificationAccessIsNotGranted() {
     revokeAllNotificationAccess(context.contentResolver)
-    messagingUtils.enableMessagingSync(carId, onSuccess, onFailure)
-    assertThat(messagingUtils.isMessagingSyncEnabled(carId)).isFalse()
+    messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
+    assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isFalse()
   }
 
   @Test
   @Ignore // TODO: Fails under coroutines 1.6.0: runBlocking hangs until timeout
   fun enableMessagingSync_succeedsIfNotificationAccessIsGranted() {
     revokeAllNotificationAccess(context.contentResolver)
-    val coroutineScope = messagingUtils.enableMessagingSync(carId, onSuccess, onFailure)
+    val coroutineScope = messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
     grantNotificationAccess(context)
     runBlocking { coroutineScope.join() }
-    assertThat(messagingUtils.isMessagingSyncEnabled(carId)).isTrue()
+    assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isTrue()
     verify(onSuccess).invoke()
     verify(onFailure, never()).invoke()
   }
 
   @Test
   fun disableMessagingSync_disables() {
-    messagingUtils.enableMessagingSync(carId, onSuccess, onFailure)
-    messagingUtils.disableMessagingSync(carId)
-    assertThat(messagingUtils.isMessagingSyncEnabled(carId)).isFalse()
+    messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
+    messagingUtils.disableMessagingSync(deviceId)
+    assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isFalse()
+  }
+
+  @Test
+  fun disableMessagingSync_all() {
+    messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
+    messagingUtils.disableMessagingSyncForAll()
+    assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isFalse()
   }
 }

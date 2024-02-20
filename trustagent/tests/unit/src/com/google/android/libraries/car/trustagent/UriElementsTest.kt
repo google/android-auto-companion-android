@@ -105,6 +105,33 @@ class UriElementsTest {
   }
 
   @Test
+  fun parseIsSetupProfile_true() {
+    val uri = createUri(UriElements.IS_STARTED_FOR_SETUP_PROFILE_KEY to "true")
+
+    val uriElements = decode(uri)!!
+
+    assertThat(uriElements.isSetupProfile).isTrue()
+  }
+
+  @Test
+  fun parseIsSetupProfile_false() {
+    val uri = createUri(UriElements.IS_STARTED_FOR_SETUP_PROFILE_KEY to "false")
+
+    val uriElements = decode(uri)!!
+
+    assertThat(uriElements.isSetupProfile).isFalse()
+  }
+
+  @Test
+  fun parseIsSetupProfile_defaultToFalse() {
+    val uri = createUri()
+
+    val uriElements = decode(uri)!!
+
+    assertThat(uriElements.isSetupProfile).isFalse()
+  }
+
+  @Test
   fun protoFieldsNotSet_classPropertyIsNull() {
     val encoded = Base64.encodeToString(outOfBandAssociationData {}.toByteArray(), Base64.URL_SAFE)
     val uri = createUri(UriElements.OOB_DATA_PARAMETER_KEY to encoded)

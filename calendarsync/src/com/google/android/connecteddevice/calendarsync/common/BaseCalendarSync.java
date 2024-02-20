@@ -253,6 +253,7 @@ public abstract class BaseCalendarSync {
       currentCalendars.add(currentCalendar);
     }
     logger.info("Send device change update.");
+    logger.info(currentCalendars.toString());
 
     // Keep the store up-to-date with the calendars on the remove device.
     SetView<String> removedCalendarKeys =
@@ -356,6 +357,9 @@ public abstract class BaseCalendarSync {
   /** Gets a {@link CalendarManager} for the given remote {@code deviceId}. */
   protected CalendarManager getCalendarManager(String deviceId) {
     DeviceState state = deviceIdToState.get(deviceId);
+    if (state == null) {
+      throw new IllegalStateException("Missing DeviceState for device ID: " + deviceId);
+    }
     return getCalendarManager(state);
   }
 

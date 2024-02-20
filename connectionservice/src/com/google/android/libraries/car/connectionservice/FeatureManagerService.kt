@@ -16,6 +16,7 @@ package com.google.android.libraries.car.connectionservice
 
 import androidx.lifecycle.LifecycleService
 import com.google.android.libraries.car.trustagent.FeatureManager
+import com.google.android.libraries.car.trustagent.PeriodicPingManager
 import com.google.android.libraries.car.trustagent.SystemFeatureManager
 import com.google.android.libraries.car.trustagent.api.PublicApi
 
@@ -34,6 +35,7 @@ abstract class FeatureManagerService : LifecycleService() {
     // feature manager that is responsible for handling device-level queries.
     createFeatureManagers().toMutableList().apply {
       add(SystemFeatureManager(context = this@FeatureManagerService))
+      add(PeriodicPingManager())
     }
   }
 

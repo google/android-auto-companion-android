@@ -27,6 +27,7 @@ import com.google.android.libraries.car.communication.messagingsync.DebugLogs.Ca
 import com.google.android.libraries.car.communication.messagingsync.DebugLogs.CarToPhoneMessageError.UNKNOWN_ACTION
 import com.google.android.libraries.car.communication.messagingsync.DebugLogs.PhoneToCarMessageError.DUPLICATE_MESSAGE
 import com.google.android.libraries.car.communication.messagingsync.DebugLogs.PhoneToCarMessageError.MESSAGING_SYNC_FEATURE_DISABLED
+import com.google.android.libraries.car.communication.messagingsync.DebugLogs.PhoneToCarMessageError.NON_CAR_COMPATIBLE_MESSAGE_NO_MARK_AS_READ
 import com.google.android.libraries.car.communication.messagingsync.DebugLogs.PhoneToCarMessageError.NON_CAR_COMPATIBLE_MESSAGE_NO_MESSAGING_STYLE
 import com.google.android.libraries.car.communication.messagingsync.DebugLogs.PhoneToCarMessageError.NON_CAR_COMPATIBLE_MESSAGE_NO_REPLY
 import com.google.android.libraries.car.communication.messagingsync.DebugLogs.PhoneToCarMessageError.NON_CAR_COMPATIBLE_MESSAGE_SHOWS_UI
@@ -59,8 +60,8 @@ import kotlin.math.abs
  */
 internal class MessagingNotificationHandler(
   private val context: Context,
-  private val carId: UUID,
-  private val sendMessage: (data: ByteArray, carId: UUID) -> Int,
+  private val deviceId: UUID,
+  private val sendMessage: (data: ByteArray, deviceId: UUID) -> Int,
   private val messagingUtils: MessagingUtils,
   private val timeSource: TimeProvider,
   sharedState: NotificationHandlerSharedState
@@ -88,8 +89,7 @@ internal class MessagingNotificationHandler(
     }
 
   /**
-   * Enables handler to listen for notifications and post to car.
-   * Clears car-level caching.
+   * Enables handler to listen for notifications and post to car. Clears car-level caching.
    *
    * Example use:
    * ```
@@ -126,7 +126,7 @@ internal class MessagingNotificationHandler(
     }
     DebugLogs.logMessageNotificationReceived(sbn.packageName)
     val message = sbn.toMessageDAO()?.toMessage() ?: return
-    sendMessage(message.toByteArray(), carId)
+    sendMessage(message.toByteArray(), deviceId)
     notificationMap[sbn.key] = sbn.notification
     DebugLogs.logMessageToCarSent(message.message.textMessage)
   }
@@ -147,16 +147,21 @@ internal class MessagingNotificationHandler(
   @VisibleForTesting
   fun cannotHandleNotificationReasons(sbn: StatusBarNotification): List<String> {
     val reasons = buildList {
+      if (!isAllowlistedForRelaxedReqs(sbn.packageName)) {
+        if (sbn.notification.markAsReadAction == null) {
+          add("${NON_CAR_COMPATIBLE_MESSAGE_NO_MARK_AS_READ.name}")
+        }
+      }
       if (!isFeatureEnabled()) {
         add("${MESSAGING_SYNC_FEATURE_DISABLED.name}")
       }
       if (sbn.notification.messagingStyle == null) {
         add("${NON_CAR_COMPATIBLE_MESSAGE_NO_MESSAGING_STYLE.name}")
       }
-      if (sbn.notification.replyAction == null ) {
+      if (sbn.notification.replyAction == null) {
         add("${NON_CAR_COMPATIBLE_MESSAGE_NO_REPLY.name}")
       }
-      if (sbn.notification.showsUI ) {
+      if (sbn.notification.showsUI) {
         add("${NON_CAR_COMPATIBLE_MESSAGE_SHOWS_UI.name}")
       }
       if (!isUnique(sbn)) {
@@ -178,7 +183,7 @@ internal class MessagingNotificationHandler(
     return reasons
   }
 
-  private fun isFeatureEnabled() = messagingUtils.isMessagingSyncEnabled(carId.toString())
+  private fun isFeatureEnabled() = messagingUtils.isMessagingSyncEnabled(deviceId.toString())
 
   private fun StatusBarNotification.toMessageDAO(): PhoneToCarMessageDAO? {
     val isNewConversation = notificationMap[key] == null
@@ -233,10 +238,12 @@ internal class MessagingNotificationHandler(
    * Allowlisted applications do not require mark as read intent to be present in the notification.
    */
   private fun isCarCompatibleNotification(sbn: StatusBarNotification) =
-    if (isAllowlistedForRelaxedReqs(sbn.packageName))
+    if (isAllowlistedForRelaxedReqs(sbn.packageName)) {
+      DebugLogs.logI("Relaxing requirements on: " + sbn.packageName)
       sbn.notification.passesRelaxedCarMsgRequirements
-    else
+    } else {
       sbn.notification.passesStrictCarMsgRequirements
+    }
 
   private fun isAllowlistedForRelaxedReqs(packageName: String): Boolean {
     val allowList = context.getString(R.string.relaxedAllowlist).split(",")
@@ -252,7 +259,6 @@ internal class MessagingNotificationHandler(
     Telephony.Sms.getDefaultSmsPackage(context) == packageName
 
   /**
-   *
    * Previous, unread messages are occasionally reposted in new notifications.
    *
    * When a new notification is received, we check to see if the phone is connected to a car before
@@ -271,9 +277,10 @@ internal class MessagingNotificationHandler(
   }
 
   /**
-   * Returns true if this is a non-duplicate/unique notification It is a known issue that WhatsApp
-   * sends out the same message multiple times. To handle this, we check the timestamp to make sure
-   * this is not a duplicate message
+   * Returns true if this is a non-duplicate/unique notification.
+   *
+   * It is a known issue that WhatsApp sends out the same message multiple times. To handle this,
+   * we check the timestamp to make sure this is not a duplicate message.
    */
   private fun isUnique(sbn: StatusBarNotification): Boolean {
     val newStyle = sbn.notification.messagingStyle
@@ -289,18 +296,14 @@ internal class MessagingNotificationHandler(
   }
 
   /**
-   * Returns true if this is a notification update representing the user's reply to a message.
+   * Returns true if this is a notification update representing the user's reply to a message
+   * from the IHU.
    *
    * We compare the last known reply message from our internal cache to the latest message in the
    * Status Bar Notification to verify this notification is not a reply repost.
    *
    * It is important to note that user can trigger a response outside of IHU interactions. The reply
-   * cache will not know of these responses, so we also check to see if there are other indications
-   * that this message is clearly from the user with a call to [isMessageClearlyFromUser] which
-   * checks to see if unique identifiers such as user key or user uri are present.
-   *
-   * These identifiers are optional and not always present in message notifications, so the reply
-   * cache is still necessary as a fallback to check for replies by the user triggered by the IHU.
+   * cache will not know of these responses and will allow the notification to pass this check.
    *
    * The reply timestamp is an approximation of the expected reply timestamp, created when we send a
    * reply intent to the 3p messaging app. The 3p messaging app sets the true timestamp for the
@@ -308,7 +311,6 @@ internal class MessagingNotificationHandler(
    * 2 seconds, plus or minus of our approximation.
    */
   private fun isReplyRepost(sbn: StatusBarNotification): Boolean {
-    if (isMessageClearlyFromUser(sbn)) return true
     val replyMessage = replyMessages[sbn.key] ?: return false
     val lastMessage = sbn.notification.messagingStyle?.lastMessage ?: return false
     val isWithinTimeInterval =
@@ -316,26 +318,6 @@ internal class MessagingNotificationHandler(
     return isWithinTimeInterval &&
       lastMessage.person?.name == replyMessage.person?.name &&
       lastMessage.text == replyMessage.text
-  }
-
-  /**
-   * Returns true if the message notification is clearly from current user, using unique identifiers
-   * such as key or uri. Sender name is not a sufficient unique identifier as there can be multiple
-   * users with the same name. The unique identifiers (uri and key) are optional and may not be set
-   * by the messaging app. If method returns false, it means more checks need to be made to
-   * determine if the message is from the current user, such as checking the last reply cache sent
-   * directly from the IHU.
-   */
-  private fun isMessageClearlyFromUser(sbn: StatusBarNotification): Boolean {
-    val messagingStyle = sbn.notification.messagingStyle ?: return false
-    val lastMessage = messagingStyle.lastMessage ?: return false
-    lastMessage.person?.key?.let {
-      return it == messagingStyle.user.key
-    }
-    lastMessage.person?.uri?.let {
-      return it == messagingStyle.user.uri
-    }
-    return false
   }
 
   companion object {

@@ -37,29 +37,36 @@ class MessagingSyncManager constructor(
   /**
    * Assigns the car to all known handlers
    */
-  override fun onCarConnected(carId: UUID) {
+  override fun onCarConnected(deviceId: UUID) {
     // reuse the existing messaging handler before creating a new one
-    messagingHandlers.getOrPut(carId, { createMessagingHandler(carId) }).onCarConnected()
+    messagingHandlers.getOrPut(deviceId, { createMessagingHandler(deviceId) }).onCarConnected()
   }
 
-  override fun onCarDisconnected(carId: UUID) {
-    messagingHandlers.remove(carId)?.onCarDisconnected()
+  override fun onCarDisconnected(deviceId: UUID) {
+    messagingHandlers.remove(deviceId)?.onCarDisconnected()
   }
 
-  override fun onMessageReceived(message: ByteArray, carId: UUID) {
-    messagingHandlers[carId]?.onMessageReceived(message)
+  override fun onMessageReceived(message: ByteArray, deviceId: UUID) {
+    messagingHandlers[deviceId]?.onMessageReceived(message)
   }
 
-  override fun onMessageSent(messageId: Int, carId: UUID) {}
+  override fun onMessageSent(messageId: Int, deviceId: UUID) {}
 
-  override fun onCarDisassociated(carId: UUID) {}
+  override fun onCarDisassociated(deviceId: UUID) {
+    messagingHandlers.remove(deviceId)?.onCarDisconnected()
+    messagingUtils.disableMessagingSync(deviceId.toString())
+  }
 
   override fun onAllCarsDisassociated() {
-    // No-op
+    for (carHandler in messagingHandlers.values) {
+      carHandler.onCarDisconnected()
+    }
+    messagingHandlers.clear()
+    messagingUtils.disableMessagingSyncForAll()
   }
 
-  fun isMessagingSyncEnabled(carId: String): Boolean =
-    messagingUtils.isMessagingSyncEnabled(carId)
+  fun isMessagingSyncEnabled(deviceId: String): Boolean =
+    messagingUtils.isMessagingSyncEnabled(deviceId)
 
   fun isNotificationAccessEnabled() =
     messagingUtils.isNotificationAccessEnabled()
@@ -67,18 +74,18 @@ class MessagingSyncManager constructor(
   /**
    * Handles the user flow to request user permissions and turn on messaging sync.
    */
-  fun enableMessagingSync(carId: String, onSuccess: () -> Unit, onFailure: (() -> Unit)?) =
-    messagingUtils.enableMessagingSync(carId, onSuccess, onFailure)
+  fun enableMessagingSync(deviceId: String, onSuccess: () -> Unit, onFailure: (() -> Unit)?) =
+    messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
 
   /**
    * Turns off messaging sync feature.
    */
-  fun disableMessagingSync(carId: String) =
-    messagingUtils.disableMessagingSync(carId)
+  fun disableMessagingSync(deviceId: String) =
+    messagingUtils.disableMessagingSync(deviceId)
 
-  private fun createMessagingHandler(carId: UUID) = MessagingNotificationHandler(
+  private fun createMessagingHandler(deviceId: UUID) = MessagingNotificationHandler(
     context,
-    carId,
+    deviceId,
     ::sendMessage,
     messagingUtils,
     timeProvider,

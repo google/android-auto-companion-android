@@ -180,7 +180,7 @@ abstract class BaseContentDelegate<MessageT extends MessageLite>
    * Creates a {@link ContentValues} containing the field values for the {@code parentId} and {@code
    * key}.
    */
-  private ContentValues createKeyConstraints(Object parentId, String key) {
+  private ContentValues createKeyConstraints(@Nullable Object parentId, String key) {
     ContentValues constraints = new ContentValues();
     addParentConstraint(constraints, parentId);
     keyField.set(key, constraints);

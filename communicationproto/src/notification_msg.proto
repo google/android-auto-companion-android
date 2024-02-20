@@ -23,6 +23,8 @@ option java_outer_classname = "NotificationMsg";
 
 // Message to be sent from the phone SDK to the IHU SDK.
 message PhoneToCarMessage {
+  reserved 5;
+
   // The unique key of the message notification, same in phone and car.
   // This will be the StatusBarNotification id of the original message
   // notification posted on the phone.
@@ -38,8 +40,6 @@ message PhoneToCarMessage {
     // Fulfillment update of an action that was requested previously by
     // the IHU SDK.
     ActionStatusUpdate status_update = 4;
-    // Metadata of a new sender avatar icon.
-    AvatarIconSync avatar_icon_sync = 5;
     // Request to remove all data related to a messaging application.
     ClearAppDataRequest clear_app_data_request = 6;
     // Informs SDK whether this feature has been enabled/disabled.
@@ -143,20 +143,6 @@ message MessagingStyleMessage {
 
   // If the message is read on the phone.
   bool is_read = 4;
-}
-
-// Sends over an avatar icon. This should be sent once per unique sender
-// (per unique app) during a phone to car connection.
-message AvatarIconSync {
-  // Metadata of the person.
-  Person person = 1;
-
-  // Display name of the application that posted this notification.
-  string messaging_app_display_name = 2;
-
-  // Package name of the application that posted this notification.
-  string messaging_app_package_name = 3
-     ;
 }
 
 // Request to clear all internal data and remove notifications for

@@ -84,6 +84,7 @@ open class BluetoothGattManager(
     RETRIEVING_NAME,
     DISCOVERY_COMPLETED
   }
+
   private var gattState = GattState.DISCONNECTED
 
   // Helps to resume the connection flow in case a GATT onMtuChanged() callback was not triggered.
@@ -773,8 +774,12 @@ open class BluetoothGattManager(
      * The attribute protocol uses 3 bytes to encode the command type and attribute ID. These bytes
      * need to be subtracted from the reported MTU size and the resulting value will represent the
      * total amount of bytes that can be sent in a write.
+     *
+     * On Android 14 (U) the default MTU size is 517 bytes. For GATT writes that are longer than 255
+     * bytes, we need to reserve 5 bytes. See:
+     * https://developer.android.com/about/versions/14/behavior-changes-all#mtu-set-to-517
      */
-    private const val ATT_PAYLOAD_RESERVED_BYTES = 3
+    private const val ATT_PAYLOAD_RESERVED_BYTES = 5
 
     /**
      * The UUID of the Generic Access Profile, which contains services common to all BLE
@@ -814,11 +819,10 @@ open class BluetoothGattManager(
     /**
      * The maximum supported MTU for Android.
      *
-     * If a default MTU has not been configured by [setDefaultMtu], this is the default value.
-     * This value is defined by the framework. See `system/bt/stack/include/gatt_api.h`.
+     * If a default MTU has not been configured by [setDefaultMtu], this is the default value. This
+     * value is defined by the framework. See `system/bt/stack/include/gatt_api.h`.
      */
-    // This value is lower than the max MTU (517) defined by the framework - see b/260904308
-    internal const val MAXIMUM_MTU = 512
+    internal const val MAXIMUM_MTU = 517
 
     internal const val SHARED_PREF = "com.google.android.libraries.car.trustagent.ConnectionManager"
     private const val KEY_DEFAULT_MTU = "default_mtu"

@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.Set;
 import java.util.function.Supplier;
 import javax.inject.Inject;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 /**
  * Sends calendar data to a remote device in a defined time range and receives back changes.
@@ -22,6 +23,7 @@ import javax.inject.Inject;
 public class SourceCalendarSync extends BaseCalendarSync {
   private static final String TAG = "SourceCalendarSync";
   private final Supplier<TimeWindow> timeWindowSupplier;
+  @MonotonicNonNull // Initialized through start() method.
   private ScheduledTaskHandle scheduledTaskHandle;
 
   @Inject
