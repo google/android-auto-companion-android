@@ -30,7 +30,7 @@ android {
 }
 
 dependencies {
-    implementation files('ukey2.jar')
+    implementation project(path: ':libs:ukey2')
 
     implementation libs.guava
     implementation libs.androidx.annotation

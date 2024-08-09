@@ -28,9 +28,9 @@ import com.google.android.libraries.car.trusteddevice.storage.TrustedDeviceDatab
 import com.google.android.libraries.car.trusteddevice.storage.TrustedDeviceManagerStorage
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
-import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceError
-import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceMessage
-import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceState
+import com.google.companionprotos.trusteddevice.TrustedDeviceMessageProto.TrustedDeviceError
+import com.google.companionprotos.trusteddevice.TrustedDeviceMessageProto.TrustedDeviceMessage
+import com.google.companionprotos.trusteddevice.TrustedDeviceMessageProto.TrustedDeviceState
 import com.google.protobuf.ByteString
 import java.time.Clock
 import java.util.UUID

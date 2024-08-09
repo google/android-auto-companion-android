@@ -17,7 +17,7 @@
 
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <!-- The version code for the SDK. -->
-    <string name="android_companion_sdk_version" translatable="false">3.2.1</string>
+    <string name="android_companion_sdk_version" translatable="false">3.3.5</string>
 
     <!-- GATT service UUID for association. -->
     <string name="car_association_service_uuid" translatable="false">5e2a68a4-27be-43f9-8d1e-4546976fabd7</string>

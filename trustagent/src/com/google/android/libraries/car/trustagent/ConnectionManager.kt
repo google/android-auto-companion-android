@@ -49,9 +49,9 @@ import kotlinx.coroutines.launch
  * Provides methods to connect to [Car]s that this device has previously associated with.
  *
  * @param context To connect in the background, the context should outlive this object. Consider a
- * service or application context.
+ *   service or application context.
  * @param executor Handles the platform callback and executes the methods that return a
- * ListenableFuture. Defaults to the executor in which is object is instantiated.
+ *   ListenableFuture. Defaults to the executor in which is object is instantiated.
  */
 // TODO: Add unit test when robolectric shadows support BluetoothLeScanner.
 open internal class ConnectionManager
@@ -143,7 +143,7 @@ internal constructor(
 
   private fun startScanForAssociatedCarsInternal(
     pendingIntent: PendingIntent?,
-    scanCallback: ScanCallback?
+    scanCallback: ScanCallback?,
   ): Boolean {
     logi(TAG, "Scanning associated cars for reconnection.")
 
@@ -300,7 +300,7 @@ internal constructor(
     if (!checkPermissionsForBluetoothConnection(context)) {
       loge(
         TAG,
-        "Missing required permission to connect to bluetooth device, ignore the connect call."
+        "Missing required permission to connect to bluetooth device, ignore the connect call.",
       )
       return
     }
@@ -348,7 +348,7 @@ internal constructor(
           device = device,
           bluetoothManager = manager,
           oobChannelTypes = emptyList(),
-          oobData = null
+          oobData = null,
         )
         .apply { callback = pendingCarCallback }
 
@@ -429,7 +429,7 @@ internal constructor(
       BluetoothGattHandle(device, context.gattTransport),
       serviceUuid,
       V2_CLIENT_WRITE_CHARACTERISTIC_UUID,
-      V2_SERVER_WRITE_CHARACTERISTIC_UUID
+      V2_SERVER_WRITE_CHARACTERISTIC_UUID,
     )
 
   /**
@@ -441,7 +441,7 @@ internal constructor(
    */
   private suspend fun resolveAdvertisedData(
     manager: BluetoothConnectionManager,
-    scanResult: ScanResult
+    scanResult: ScanResult,
   ): ByteArray? {
     // Car advertises phone's device ID - scan result does not contain advertise data.
     if (!scanResult.containsService(serviceUuid)) {
@@ -461,7 +461,7 @@ internal constructor(
     if (!associatedCarManager.updateEncryptionKey(car)) {
       loge(
         TAG,
-        "Could not store secure session for car ${car.deviceId}. Car needs to be re-associated."
+        "Could not store secure session for car ${car.deviceId}. Car needs to be re-associated.",
       )
       return
     }
@@ -526,28 +526,11 @@ internal constructor(
     val V2_SERVICE_UUID = UUID.fromString("000000e0-0000-1000-8000-00805f9b34fb")
 
     /**
-     * The UUID that serves as the key for data within the advertisement packet in security version
-     * 2.
+     * The UUID that serves as the key for data within the advertisement packet in security
+     * version 2.
      *
      * This UUID is only valid for security version 2. It is the "Google Manufacturer Data Type".
      */
     val V2_DATA_UUID = UUID.fromString("00000020-0000-1000-8000-00805f9b34fb")
-
-    /**
-     * Sets the default GATT MTU.
-     *
-     * GATT MTU depends on hardware support, and is negotiated as part of establishing connection.
-     * This method sets the MTU to request. The value will be persisted and used in future GATT
-     * connections.
-     *
-     * Also this value will be used as the default in case the MTU request callback was not received
-     * (a problem for some Android phone models). It should be configured according to the hardware
-     * capability of the connected device.
-     *
-     * @return `true` if the value was persisted successfully.
-     */
-    @JvmStatic
-    fun setDefaultGattMtu(context: Context, mtu: Int): Boolean =
-      BluetoothGattManager.setDefaultMtu(context, mtu)
   }
 }

@@ -34,6 +34,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.google.android.libraries.car.trustagent.api.PublicApi
+import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothGattManager
 import com.google.android.libraries.car.trustagent.util.logd
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
@@ -84,7 +85,7 @@ internal constructor(
 
   /** Tracks the ongoing connection and connected devices. */
   private var ongoingAssociation: AssociationRequest? = null
-  private val ongoingReconnections = mutableSetOf<BluetoothDevice>()
+  @VisibleForTesting internal val ongoingReconnections = mutableSetOf<BluetoothDevice>()
 
   private val retryHandler = Handler(Looper.getMainLooper())
 
@@ -122,6 +123,7 @@ internal constructor(
         start()
 
         callbacks.forEach { it.onAssociated(car.toAssociatedCar()) }
+        features.forEach { it.onCarAssociated(car.deviceId) }
       }
 
       override fun onAssociationFailed() {
@@ -247,7 +249,8 @@ internal constructor(
       }
     }
 
-  private val bluetoothStateChangeReceiver =
+  @VisibleForTesting
+  internal val bluetoothStateChangeReceiver =
     object : BroadcastReceiver() {
       override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != BluetoothAdapter.ACTION_STATE_CHANGED) {
@@ -455,6 +458,7 @@ internal constructor(
     for (car in _connectedCars.values) {
       car.disconnect()
     }
+    ongoingReconnections.clear()
   }
 
   internal fun getConnectedCar(deviceId: UUID): Car? = _connectedCars[deviceId]
@@ -570,5 +574,23 @@ internal constructor(
   companion object {
     private const val TAG = "ConnectedDeviceManager"
     internal val RECIPIENT_ID = UUID.fromString("5efd8b16-21d6-4fb1-b00a-a904720d1320")
+
+    /**
+     * Sets the default GATT MTU.
+     *
+     * GATT MTU depends on hardware support, and is negotiated as part of establishing connection.
+     * This method sets the MTU to request. The value will be persisted and used in future GATT
+     * connections.
+     *
+     * Also this value will be used as the default in case the MTU request callback was not received
+     * (a problem for some Android phone models). It should be configured according to the hardware
+     * capability of the connected device.
+     *
+     * @return `true` if the value was persisted successfully.
+     */
+    @JvmStatic
+    @PublicApi
+    fun setDefaultGattMtu(context: Context, mtu: Int): Boolean =
+      BluetoothGattManager.setDefaultMtu(context, mtu)
   }
 }

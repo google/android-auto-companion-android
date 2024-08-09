@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,18 +14,19 @@
 
 syntax = "proto3";
 
-package aae.trustagent;
+package com.google.companionprotos;
 
-option java_package = "com.google.companionprotos.trusteddevice";
-option java_outer_classname = "PhoneAuthProto";
+option java_package = "com.google.android.companionprotos";
+option java_outer_classname = "BeaconMessageProto";
 
-// Represents the all the data necessary to unlock a user on a car.
-message PhoneCredentials {
-  // Required field representing the escrow token that needs to be sent for
-  // authenticating the user
-  bytes escrow_token = 1;
+// A message specific to the beacon feature.
+message BeaconMessage {
+  enum MessageType {
+    UNKNOWN = 0;
+    QUERY = 1;
+    ACK = 2;
+  }
 
-  // Required field representing the handle associated with the escrow token
-  // that needs to be sent for authenticating the user
-  bytes handle = 2;
+  // The type of this message.
+  MessageType message_type = 1;
 }

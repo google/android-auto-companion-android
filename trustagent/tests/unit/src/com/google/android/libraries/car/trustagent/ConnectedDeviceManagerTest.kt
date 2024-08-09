@@ -16,6 +16,7 @@ package com.google.android.libraries.car.trustagent
 
 import android.app.Activity
 import android.app.PendingIntent
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
@@ -63,7 +64,7 @@ class ConnectedDeviceManagerTest {
       deviceId = DEVICE_ID,
       name = "NAME",
       macAddress = "MACADDRESS",
-      identificationKey = FakeSecretKey()
+      identificationKey = FakeSecretKey(),
     )
 
   private val mockFeature: FeatureManager = mock()
@@ -137,7 +138,7 @@ class ConnectedDeviceManagerTest {
           /* requestCode= */ 0,
           /* intent= */ FakeActivity.createIntent(context),
           /* flags= */ 0,
-          /* options= */ null
+          /* options= */ null,
         )
       )
     val mockCallback: ConnectedDeviceManager.Callback = mock()
@@ -167,7 +168,7 @@ class ConnectedDeviceManagerTest {
           /* requestCode= */ 0,
           /* intent= */ FakeActivity.createIntent(context),
           /* flags= */ 0,
-          /* options= */ null
+          /* options= */ null,
         )
       )
 
@@ -248,11 +249,21 @@ class ConnectedDeviceManagerTest {
   }
 
   @Test
-  fun onAssociated_notifyFeatures() {
+  fun onAssociated_notifyFeaturesCarConnected() {
     testLifecycleOwner.currentState = Lifecycle.State.CREATED
     captureAssociationCallback().onAssociated(mockCar)
 
     verify(mockFeature).notifyCarConnected(mockCar)
+  }
+
+  @Test
+  fun onAssociated_notifyFeaturesCarAssociated() {
+    whenever(mockAssociationManager.loadIsAssociated()).doReturn(Futures.immediateFuture(false))
+    testLifecycleOwner.currentState = Lifecycle.State.CREATED
+
+    captureAssociationCallback().onAssociated(mockCar)
+
+    verify(mockFeature).onCarAssociated(mockCar.deviceId)
   }
 
   @Test
@@ -288,7 +299,7 @@ class ConnectedDeviceManagerTest {
           /* requestCode= */ 0,
           /* intent= */ FakeActivity.createIntent(context),
           /* flags= */ 0,
-          /* options= */ null
+          /* options= */ null,
         )
       )
     val mockCallback: ConnectedDeviceManager.Callback = mock()
@@ -322,7 +333,7 @@ class ConnectedDeviceManagerTest {
       createScanRecord(
         name = "deviceName",
         serviceUuids = listOf(SERVICE_UUID),
-        serviceData = emptyMap()
+        serviceData = emptyMap(),
       )
     val fakeScanResult = createScanResult(fakeScanRecord)
     mockConnectionManager.stub {
@@ -334,6 +345,7 @@ class ConnectedDeviceManagerTest {
     shadowOf(Looper.getMainLooper()).idle()
 
     verify(mockConnectionManager).connect(eq(fakeScanResult), any())
+    assertThat(manager.ongoingReconnections.count()).isEqualTo(1)
   }
 
   @Test
@@ -343,7 +355,7 @@ class ConnectedDeviceManagerTest {
       createScanRecord(
         name = "deviceName",
         serviceUuids = listOf(SERVICE_UUID),
-        serviceData = emptyMap()
+        serviceData = emptyMap(),
       )
     val fakeScanResult = createScanResult(fakeScanRecord)
 
@@ -359,7 +371,7 @@ class ConnectedDeviceManagerTest {
       createScanRecord(
         name = "deviceName",
         serviceUuids = listOf(SERVICE_UUID),
-        serviceData = emptyMap()
+        serviceData = emptyMap(),
       )
     val fakeScanResult = createScanResult(fakeScanRecord)
     mockConnectionManager.stub {
@@ -378,7 +390,7 @@ class ConnectedDeviceManagerTest {
       createScanRecord(
         name = "deviceName",
         serviceUuids = listOf(SERVICE_UUID),
-        serviceData = emptyMap()
+        serviceData = emptyMap(),
       )
     val fakeScanResult = createScanResult(fakeScanRecord)
     mockConnectionManager.stub {
@@ -392,6 +404,7 @@ class ConnectedDeviceManagerTest {
     shadowOf(Looper.getMainLooper()).idle()
 
     verify(mockConnectionManager).connect(eq(fakeScanResult), any())
+    assertThat(manager.ongoingReconnections.count()).isEqualTo(1)
   }
 
   @Test
@@ -566,6 +579,16 @@ class ConnectedDeviceManagerTest {
   }
 
   @Test
+  fun stop_clearsOngoingReconnections() {
+    testLifecycleOwner.currentState = Lifecycle.State.CREATED
+    captureConnectionCallback().onConnected(mockCar)
+
+    manager.stop()
+
+    assertThat(manager.ongoingReconnections).isEmpty()
+  }
+
+  @Test
   fun renameCar_updateConnectedCar() {
     val updatedName = "updatedName"
     whenever(mockAssociationManager.renameCar(DEVICE_ID, updatedName))
@@ -576,6 +599,49 @@ class ConnectedDeviceManagerTest {
 
     assertThat(manager.renameCar(DEVICE_ID, updatedName).get()).isTrue()
     verify(mockCar).name = updatedName
+  }
+
+  @Test
+  fun bluetoothState_stateOn_start() {
+    testLifecycleOwner.currentState = Lifecycle.State.CREATED
+
+    val intent =
+      Intent(BluetoothAdapter.ACTION_STATE_CHANGED).apply {
+        putExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_ON)
+      }
+    manager.bluetoothStateChangeReceiver.onReceive(context, intent)
+
+    // We request start twice - once by the lifecycle update; the other by BT enabled.
+    verify(mockConnectionManager, times(2)).startScanForAssociatedCars(any())
+  }
+
+  @Test
+  fun bluetoothState_stateOff_stop() {
+    testLifecycleOwner.currentState = Lifecycle.State.CREATED
+
+    val intent =
+      Intent(BluetoothAdapter.ACTION_STATE_CHANGED).apply {
+        putExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF)
+      }
+    manager.bluetoothStateChangeReceiver.onReceive(context, intent)
+
+    verify(mockConnectionManager).stop()
+  }
+
+  @Test
+  fun bluetoothState_stateOff_ongoingReconnectionsAreCleared() {
+    val mockCar: Car = mock { on { deviceId } doReturn UUID.randomUUID() }
+
+    testLifecycleOwner.currentState = Lifecycle.State.CREATED
+    captureConnectionCallback().onConnected(mockCar)
+
+    val intent =
+      Intent(BluetoothAdapter.ACTION_STATE_CHANGED).apply {
+        putExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF)
+      }
+    manager.bluetoothStateChangeReceiver.onReceive(context, intent)
+
+    assertThat(manager.ongoingReconnections).isEmpty()
   }
 
   private fun captureAssociationCallback(): AssociationManager.AssociationCallback {

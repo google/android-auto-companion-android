@@ -27,10 +27,10 @@ import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trusteddevice.TrustedDeviceFeature.EnrollmentError
 import com.google.android.libraries.car.trusteddevice.TrustedDeviceFeature.UnlockingError
 import com.google.android.libraries.car.trusteddevice.storage.TrustedDeviceManagerStorage
-import com.google.companionprotos.trusteddevice.PhoneAuth.PhoneCredentials
-import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceError
-import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceMessage
-import com.google.companionprotos.trusteddevice.TrustedDeviceMessageOuterClass.TrustedDeviceState
+import com.google.companionprotos.trusteddevice.PhoneAuthProto.PhoneCredentials
+import com.google.companionprotos.trusteddevice.TrustedDeviceMessageProto.TrustedDeviceError
+import com.google.companionprotos.trusteddevice.TrustedDeviceMessageProto.TrustedDeviceMessage
+import com.google.companionprotos.trusteddevice.TrustedDeviceMessageProto.TrustedDeviceState
 import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
 import java.security.SecureRandom
@@ -60,7 +60,7 @@ class TrustedDeviceManager
 internal constructor(
   private val context: Context,
   private val trustedDeviceManagerStorage: TrustedDeviceManagerStorage,
-  private val coroutineScope: CoroutineScope
+  private val coroutineScope: CoroutineScope,
 ) : TrustedDeviceFeature, FeatureManager() {
   override val featureId = FEATURE_ID
 
@@ -100,7 +100,7 @@ internal constructor(
   override fun onCarConnected(carId: UUID) {
     context.registerReceiver(
       phoneUnlockedBroadcastReceiver,
-      IntentFilter(Intent.ACTION_USER_PRESENT)
+      IntentFilter(Intent.ACTION_USER_PRESENT),
     )
 
     // Use `runBlocking` instead of `launch` to ensure the immediate execution of `unlock()`.
@@ -122,7 +122,7 @@ internal constructor(
       loge(
         TAG,
         "Received message from $carId, but could not parse into a valid " +
-          "TrustedDeviceMessage. Ignoring."
+          "TrustedDeviceMessage. Ignoring.",
       )
       return
     }
@@ -141,7 +141,7 @@ internal constructor(
         loge(
           TAG,
           "Received unrecognized proto message type ${protoMessage.type} for car $carId. " +
-            "Ignoring."
+            "Ignoring.",
         )
       }
     }
@@ -272,7 +272,7 @@ internal constructor(
     logi(
       TAG,
       "Car $carId's enrollment status cleared, but not currently connected. " +
-        "Saving status to send on next connection."
+        "Saving status to send on next connection.",
     )
 
     trustedDeviceManagerStorage.storeFeatureState(message, carId)
@@ -346,7 +346,7 @@ internal constructor(
     if (isPasscodeRequired && !isDeviceSecure(context)) {
       loge(
         TAG,
-        "Could not unlock car with id $carId since passcode has not been set on this device."
+        "Could not unlock car with id $carId since passcode has not been set on this device.",
       )
       notifyUnlockingError(carId, UnlockingError.PASSCODE_NOT_SET)
       return
@@ -394,7 +394,7 @@ internal constructor(
   private suspend fun clearEnrollment(
     carId: UUID,
     syncToCar: Boolean,
-    initiatedFromCar: Boolean = false
+    initiatedFromCar: Boolean = false,
   ) {
     logi(TAG, "Clearing enrollment for car $carId")
 
@@ -409,7 +409,7 @@ internal constructor(
       logi(
         TAG,
         "Car $carId has cleared or stopped enrollment, but is not currently enrolled. " +
-          "Not notifying callbacks."
+          "Not notifying callbacks.",
       )
       return
     }
@@ -422,7 +422,7 @@ internal constructor(
     logi(
       TAG,
       "Car $carId has cleared its enrollment. Initiated from car: $initiatedFromCar. " +
-        "Notifying callbacks"
+        "Notifying callbacks",
     )
 
     callbacks.forEach { it.onUnenroll(carId, initiatedFromCar) }
@@ -496,7 +496,7 @@ internal constructor(
       logd(
         TAG,
         "Received state sync message from $carId with enabled state. Ignoring message since " +
-          "the normal enrollment flow should toggle this on."
+          "the normal enrollment flow should toggle this on.",
       )
       return
     }
@@ -504,7 +504,7 @@ internal constructor(
     logi(
       TAG,
       "Received state sync message from $carId indicating trusted device feature has disabled." +
-        "Clearing local enrollment"
+        "Clearing local enrollment",
     )
 
     clearEnrollment(carId, syncToCar = false, initiatedFromCar = true)
