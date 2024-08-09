@@ -17,6 +17,7 @@ syntax = "proto3";
 package aae.trustagent;
 
 option java_package = "com.google.companionprotos.trusteddevice";
+option java_outer_classname = "TrustedDeviceMessageProto";
 
 // A message specific to the trusted device feature.
 message TrustedDeviceMessage {

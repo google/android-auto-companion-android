@@ -16,7 +16,7 @@ package com.google.android.libraries.car.trusteddevice.storage
 
 import android.content.Context
 import androidx.annotation.VisibleForTesting
-import com.google.companionprotos.trusteddevice.PhoneAuth.PhoneCredentials
+import com.google.companionprotos.trusteddevice.PhoneAuthProto.PhoneCredentials
 import com.google.protobuf.ByteString
 import java.time.Clock
 import java.time.Duration

@@ -17,16 +17,28 @@ package com.google.android.libraries.car.trustagent.blemessagestream
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothDevice.ACTION_BOND_STATE_CHANGED
+import android.bluetooth.BluetoothDevice.BOND_BONDED
+import android.bluetooth.BluetoothDevice.BOND_BONDING
+import android.bluetooth.BluetoothDevice.BOND_NONE
+import android.bluetooth.BluetoothDevice.EXTRA_BOND_STATE
+import android.bluetooth.BluetoothDevice.EXTRA_DEVICE
+import android.bluetooth.BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
+import androidx.annotation.VisibleForTesting
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logw
@@ -34,6 +46,7 @@ import com.google.android.libraries.car.trustagent.util.logwtf
 import com.google.android.libraries.car.trustagent.util.toHexString
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -49,7 +62,7 @@ open class BluetoothGattManager(
   private val serviceUuid: UUID,
   private val clientWriteCharacteristicUuid: UUID,
   private val serverWriteCharacteristicUuid: UUID,
-  private val advertiseDataCharacteristicUuid: UUID = ADVERTISE_DATA_CHARACTERITIC_UUID
+  private val advertiseDataCharacteristicUuid: UUID = ADVERTISE_DATA_CHARACTERITIC_UUID,
 ) : BluetoothConnectionManager() {
   private val defaultMtu = getDefaultMtu(context)
   private val bluetoothAdapter: BluetoothAdapter
@@ -61,6 +74,54 @@ open class BluetoothGattManager(
 
   private var retrieveAdvertisedDataContinuation: CancellableContinuation<ByteArray?>? = null
 
+  // Before going through GATT operations to set up the connection, we should make sure the BT stack
+  // is idle, i.e. not in BONDING state for classic BT. If the state is BONDING, we should pause
+  // GATT operations and restart after BT state update (through the broadcast receiver).
+  @VisibleForTesting internal val isConnectionPaused = AtomicBoolean(false)
+  @VisibleForTesting
+  internal val bluetoothBondStateBroadcastReceiver: BroadcastReceiver =
+    object : BroadcastReceiver() {
+      override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != ACTION_BOND_STATE_CHANGED) {
+          loge(
+            TAG,
+            "Bond state broadcast receiver received invalid action: ${intent.action}. Ignored.",
+          )
+          return
+        }
+
+        val device: BluetoothDevice? =
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_DEVICE, BluetoothDevice::class.java)
+          } else {
+            intent.getParcelableExtra(EXTRA_DEVICE) as? BluetoothDevice
+          }
+        if (device == null) {
+          loge(TAG, "Intent does not contain valid bluetooth device. Ignored.")
+          return
+        }
+
+        val prevBondState = intent.getIntExtra(EXTRA_PREVIOUS_BOND_STATE, -1)
+        val bondState = intent.getIntExtra(EXTRA_BOND_STATE, -1)
+        logi(TAG, "$device bonding state changed from $prevBondState to $bondState.")
+
+        when (bondState) {
+          BOND_BONDING -> {
+            logi(TAG, "Device in BOND_BONDING state. Pausing GATT connection at $gattState.")
+            isConnectionPaused.set(true)
+          }
+          BOND_NONE,
+          BOND_BONDED -> {
+            if (isConnectionPaused.getAndSet(false)) {
+              logi(TAG, "Classic BT is no longer bonding. Restarting GATT connection.")
+              handler.removeCallbacksAndMessages(null)
+              connect()
+            }
+          }
+        }
+      }
+    }
+
   /**
    * The updated name of the [bluetoothDevice] managed by this class.
    *
@@ -70,19 +131,17 @@ open class BluetoothGattManager(
    *
    * This field will instead return that up-to-date name.
    */
-  // TODO: Remove lint suppression once false positive lint error has been fixed.
-  @SuppressLint("MissingPermission")
   final override var deviceName = bluetoothDevice.name
     private set
 
   /** Retry count for each step in the connection flow. */
-  private var retryCount = 0
+  private val retryCount = mutableMapOf<Int, Int>()
 
   private enum class GattState {
     DISCONNECTED,
     CONNECTED,
     RETRIEVING_NAME,
-    DISCOVERY_COMPLETED
+    DISCOVERY_COMPLETED,
   }
 
   private var gattState = GattState.DISCONNECTED
@@ -122,6 +181,15 @@ open class BluetoothGattManager(
   init {
     val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     bluetoothAdapter = bluetoothManager.adapter
+
+    registerForBondStateBroadcast()
+  }
+
+  @SuppressLint("UnprotectedReceiver") // System broadcast so this is safe.
+  // Create an individual method so that it can be annotated (we can't annotate init).
+  private fun registerForBondStateBroadcast() {
+    val filter = IntentFilter(ACTION_BOND_STATE_CHANGED)
+    context.registerReceiver(bluetoothBondStateBroadcastReceiver, filter)
   }
 
   /**
@@ -133,12 +201,9 @@ open class BluetoothGattManager(
    * Connection enables [sendMessage].
    */
   override fun connect() {
-    retryCount = 0
-    handler.obtainMessage(MSG_CONNECT_GATT).let {
-      if (!handler.sendMessage(it)) {
-        logwtf(TAG, "connect: could not send $it")
-      }
-    }
+    retryCount.clear()
+    val message = handler.obtainMessage(MSG_CONNECT_GATT)
+    sendHandlerMessage(message)
   }
 
   override fun disconnect() {
@@ -180,7 +245,7 @@ open class BluetoothGattManager(
     if (characteristic == null) {
       loge(
         TAG,
-        "Missing GATT service $serviceUuid or characteristic $clientWriteCharacteristicUuid"
+        "Missing GATT service $serviceUuid or characteristic $clientWriteCharacteristicUuid",
       )
       return false
     }
@@ -189,7 +254,7 @@ open class BluetoothGattManager(
       if (!success) {
         loge(
           TAG,
-          "Could not write characteristic ${characteristic.uuid} in GATT service $serviceUuid."
+          "Could not write characteristic ${characteristic.uuid} in GATT service $serviceUuid.",
         )
         disconnect()
       }
@@ -206,11 +271,8 @@ open class BluetoothGattManager(
       retrieveAdvertisedDataContinuation = cont
       logi(TAG, "Issuing request to read advertise data from GATT characteristic.")
 
-      handler.obtainMessage(MSG_READ_CHARACTERISTIC, advertiseDataCharacteristicUuid).let {
-        if (!handler.sendMessage(it)) {
-          logwtf(TAG, "readCharacteristic: could not send $it")
-        }
-      }
+      val message = handler.obtainMessage(MSG_READ_CHARACTERISTIC, advertiseDataCharacteristicUuid)
+      sendHandlerMessage(message)
     }
   }
 
@@ -221,24 +283,66 @@ open class BluetoothGattManager(
     gatt.connect(context)
   }
 
-  /**
-   * Constructs a message with the given `what` and `arg1` and sends it after the specified [delay].
-   */
-  private fun retryMessage(what: Int, arg1: Int = 0, delay: Duration = Duration.ZERO): Boolean {
-    if (retryCount >= MAX_RETRY_COUNT) {
-      loge(TAG, "Exceeded max retry for message $what with $arg1.")
-      return false
+  /** Attempts to queue or retry a handler message with [delay]. */
+  private fun sendHandlerMessage(message: Message, delay: Duration = Duration.ZERO) {
+    if (isConnectionPaused.get()) {
+      logi(TAG, "GATT connection is paused; current message is ${message.what}. Ignored.")
+      return
     }
 
-    // Note: need to specify `arg2` to differentiate from the `obtainMessage` that takes an `obj`.
-    with(handler.obtainMessage(what, arg1, /* arg2= */ 0)) {
-      logi(TAG, "Retrying message $this for $retryCount time.")
-      if (!handler.sendMessageDelayed(this, delay.toMillis())) {
-        logwtf(TAG, "retryMessage: could not send $this message.")
+    fun GattState.handleError() {
+      loge(TAG, "Error at GATT state $this.")
+      when (this) {
+        GattState.DISCONNECTED,
+        GattState.CONNECTED,
+        GattState.RETRIEVING_NAME -> {
+          notifyConnectionFailed()
+        }
+        // When GATT state is DISCOVERY_COMPLETED, we have notified the client of a successful
+        // connection, so we should initiate a disconnect().
+        GattState.DISCOVERY_COMPLETED -> {
+          disconnect()
+        }
       }
-      retryCount += 1
-      return true
     }
+
+    if (!message.shouldRetry()) {
+      loge(TAG, "Exceeded max retry for $message.")
+      gattState.handleError()
+      return
+    }
+
+    if (!handler.sendMessageDelayed(message, delay.plus(message.retryDelay()).toMillis())) {
+      loge(TAG, "Could not send $message to handler.")
+      gattState.handleError()
+    }
+  }
+
+  private fun Message.shouldRetry(): Boolean {
+    val what = this.what
+
+    // No retry to handle GATT callback messages.
+    when (what) {
+      MSG_ON_CONNECTION_STATE_CHANGE,
+      MSG_ON_MTU_CHANGED,
+      MSG_ON_SERVICES_DISCOVERED -> return true
+    }
+
+    val count = retryCount.getOrPut(what) { 0 }
+    val shouldRetry = count < MAX_RETRY_COUNT
+
+    if (shouldRetry) {
+      if (count > 0) {
+        logi(TAG, "Retrying message $this for $count time.")
+      }
+      retryCount[what] = count + 1
+    }
+    return shouldRetry
+  }
+
+  private fun Message.retryDelay(): Duration {
+    val count = retryCount.getOrPut(this.what) { 0 }
+    return RETRY_DELAY.multipliedBy(count.toLong())
   }
 
   /**
@@ -249,7 +353,10 @@ open class BluetoothGattManager(
   private fun handleOnConnectionStateChange(message: Message) {
     val (status, newState) = message.obj as OnConnectionStateChangeInput
 
-    logi(TAG, "handleOnConnectionStateChange: $status; $newState. Internal $gattState.")
+    logi(
+      TAG,
+      "handleOnConnectionStateChange: internal $gattState; status: $status; newState: $newState.",
+    )
 
     if (status == BluetoothGatt.GATT_SUCCESS) {
       // Happy path.
@@ -272,10 +379,7 @@ open class BluetoothGattManager(
     when (gattState) {
       GattState.DISCONNECTED -> {
         // We haven't establish a connection - retry.
-        if (!retryMessage(MSG_CONNECT_GATT)) {
-          logi(TAG, "handleOnConnectionStateChange exceeded max retry: $status, $newState.")
-          notifyConnectionFailed()
-        }
+        sendHandlerMessage(handler.obtainMessage(MSG_CONNECT_GATT))
       }
       GattState.CONNECTED,
       GattState.RETRIEVING_NAME -> {
@@ -310,14 +414,15 @@ open class BluetoothGattManager(
       BluetoothProfile.STATE_CONNECTED -> {
         logi(TAG, "GATT connected. Requesting MTU.")
         gattState = GattState.CONNECTED
-        retryCount = 0
-        if (!retryMessage(MSG_REQUEST_MTU, arg1 = defaultMtu)) {
-          loge(TAG, "handleOnConnectionStateChange: could not request MTU. Disconnecting.")
-          disconnect()
-        }
+        requestMtu()
       }
       else -> logi(TAG, "Bluetooth GATT connection state changed to $newState.")
     }
+  }
+
+  private fun requestMtu(mtu: Int = defaultMtu) {
+    val message = handler.obtainMessage(MSG_REQUEST_MTU, /* arg1= */ mtu, /* arg2=no-op */ 0)
+    sendHandlerMessage(message)
   }
 
   /**
@@ -327,16 +432,12 @@ open class BluetoothGattManager(
    */
   private fun handleRequestMtu(message: Message) {
     val mtuSize = message.arg1
-
     logi(TAG, "Requesting MTU of size $mtuSize")
 
-    // `requestMtu` will eventually result in an `onMtuChanged` callback.
+    // [requestMtu] will eventually result in an [onMtuChanged] callback.
     if (!gatt.requestMtu(mtuSize)) {
-      logw(TAG, "Request to change MTU to $mtuSize could not be initiated.")
-      if (!retryMessage(MSG_REQUEST_MTU, arg1 = mtuSize)) {
-        loge(TAG, "handleRequestMtu: could not request MTU. Disconnecting.")
-        disconnect()
-      }
+      logw(TAG, "Request to change MTU to $mtuSize could not be initiated. Retrying.")
+      requestMtu(mtuSize)
       return
     }
 
@@ -350,10 +451,7 @@ open class BluetoothGattManager(
     logi(TAG, "Posting delayed message to skip MTU callback.")
 
     val message = handler.obtainMessage(MSG_SKIP_MTU_CALLBACK)
-    if (!handler.sendMessageDelayed(message, DISCOVER_SERVICES_DELAY.toMillis())) {
-      logwtf(TAG, "scheduleSkipOnMtuChangedCallback: could not post $message. Disconnecting.")
-      disconnect()
-    }
+    sendHandlerMessage(message, DISCOVER_SERVICES_DELAY)
   }
 
   /**
@@ -368,21 +466,17 @@ open class BluetoothGattManager(
 
     if (status != BluetoothGatt.GATT_SUCCESS) {
       loge(TAG, "handleOnMtuChanged: status is $status.")
-      if (!retryMessage(MSG_REQUEST_MTU, arg1 = defaultMtu)) {
-        loge(TAG, "handleOnMtuChanged: exceeded max retry. Disconnecting.")
-        disconnect()
-      }
+      requestMtu()
       return
     }
 
     // Clear the delayed message for skipping mtu callback.
     handler.removeMessages(MSG_SKIP_MTU_CALLBACK).also {
-      logi(TAG, "Received handleOnMtuChanged; removing DISCOVER_SERVICES_MSG from handler.")
+      logi(TAG, "Received handleOnMtuChanged; removing MSG_SKIP_MTU_CALLBACK from handler.")
     }
 
     maxWriteSize = mtu - ATT_PAYLOAD_RESERVED_BYTES
 
-    retryCount = 0
     requestDiscoverServices()
   }
 
@@ -392,26 +486,8 @@ open class BluetoothGattManager(
    * Message may be sent with a delay based on device bond state and device build version.
    */
   private fun requestDiscoverServices(delay: Duration = Duration.ZERO) {
-    @SuppressLint("MissingPermission")
-    // BluetoothDevice.getBondState() requires BLUETOOTH permission.
-    // Okay to suppress because caller needs to have BLUETOOTH permission to reach this logic.
-    val bondState =
-      gatt.device.bondState.also {
-        logi(TAG, "requestDiscoverServices: device: ${gatt.device} bond state: $it")
-      }
-
-    if (bondState == BluetoothDevice.BOND_BONDING) {
-      // TODO: Retry the request later if the device is still bonding.
-      loge(TAG, "Device is bonding. We should wait for bonding to complete.")
-      disconnect()
-    }
-
-    // TODO: for Android 7 and below, if bondState is BOND_BONDED, Android stack is
-    // still busy handling it and calling discoverServices() without a delay would make it fail.
-    if (!retryMessage(MSG_DISCOVER_SERVICES, delay = delay)) {
-      loge(TAG, "Could not retry sending MSG_DISCOVER_SERVICES. Disconnecting")
-      disconnect()
-    }
+    val message = handler.obtainMessage(MSG_DISCOVER_SERVICES)
+    sendHandlerMessage(message, delay = delay)
   }
 
   /**
@@ -421,6 +497,7 @@ open class BluetoothGattManager(
    */
   private fun handleDiscoverServices() {
     if (!gatt.discoverServices()) {
+      logi(TAG, "Could not request GATT services discovery. Retrying.")
       requestDiscoverServices()
     }
   }
@@ -460,7 +537,7 @@ open class BluetoothGattManager(
         TAG,
         "handleOnServicesDiscovered: GATT service $serviceUuid missing write " +
           "characteristic. Server characteristic: $serverWriteCharacteristic; " +
-          "client characteristic: $clientWriteCharacteristic."
+          "client characteristic: $clientWriteCharacteristic.",
       )
       refreshAndDiscoverServices()
       return
@@ -483,7 +560,7 @@ open class BluetoothGattManager(
       if (descriptor == null) {
         logi(
           TAG,
-          "Characteristic ${characteristic.uuid} does not have descriptor. Retrieving device name."
+          "Characteristic ${characteristic.uuid} does not have descriptor. Retrieving device name.",
         )
         retrieveDeviceName()
       } else {
@@ -494,7 +571,7 @@ open class BluetoothGattManager(
           loge(
             TAG,
             "Could not write to descriptor of characteristic ${characteristic.uuid}. " +
-              "Retrieving device name."
+              "Retrieving device name.",
           )
           retrieveDeviceName()
         }
@@ -538,7 +615,7 @@ open class BluetoothGattManager(
 
     // Set up a timeout for the read request so that the connection is not stopped by a failure
     // to retrieve the name.
-    handler.postDelayed(notifyDiscoveryCompleteRunnable, RETRIEVE_NAME_TIMEOUT_MS)
+    handler.postDelayed(notifyDiscoveryCompleteRunnable, RETRIEVE_NAME_DELAY.toMillis())
   }
 
   private fun notifyDiscoveryComplete() {
@@ -562,11 +639,10 @@ open class BluetoothGattManager(
     logw(
       TAG,
       "Did not receive onMtuChanged() callback in allotted time; setting maxWriteSize based " +
-        "on requested $defaultMtu."
+        "on requested $defaultMtu.",
     )
     maxWriteSize = defaultMtu - ATT_PAYLOAD_RESERVED_BYTES
 
-    retryCount = 0
     requestDiscoverServices()
   }
 
@@ -600,35 +676,26 @@ open class BluetoothGattManager(
       override fun onConnectionStateChange(status: Int, newState: Int) {
         val input = OnConnectionStateChangeInput(status, newState)
         val message = handler.obtainMessage(MSG_ON_CONNECTION_STATE_CHANGE, input)
-
-        if (!handler.sendMessage(message)) {
-          logwtf(TAG, "onConnectionStateChange: could not send $message to handler.")
-        }
+        sendHandlerMessage(message)
       }
 
       override fun onMtuChanged(mtu: Int, status: Int) {
         val input = OnMtuChangedInput(mtu, status)
         val message = handler.obtainMessage(MSG_ON_MTU_CHANGED, input)
-
-        if (!handler.sendMessage(message)) {
-          logwtf(TAG, "onMtuChanged: could not send $message to handler.")
-        }
+        sendHandlerMessage(message)
       }
 
       override fun onServicesDiscovered(status: Int) {
         val message = handler.obtainMessage(MSG_ON_SERVICES_DISCOVERED, /* obj= */ status)
-        if (!handler.sendMessage(message)) {
-          logwtf(TAG, "onServicesDiscovered: could not send $message to handler.")
-        }
+        sendHandlerMessage(message)
       }
 
       override fun onCharacteristicChanged(characteristic: BluetoothGattCharacteristic) {
         // Prevent a race condition with future notifications by copying the value out of the
         // characteristic prior to notifying callbacks.
-        val value =
-          characteristic.value.copyOf().also {
-            logi(TAG, "Received data from service $serviceUuid")
-          }
+        val value = characteristic.value.copyOf()
+        logi(TAG, "Received data from service $serviceUuid")
+
         handler.post { messageCallbacks.forEach { it.onMessageReceived(value) } }
       }
 
@@ -656,7 +723,7 @@ open class BluetoothGattManager(
           else -> {
             logw(
               TAG,
-              "OnCharacteristicRead of an unknown service ${characteristic.service.uuid}. Ignored."
+              "OnCharacteristicRead of an unknown service ${characteristic.service.uuid}. Ignored.",
             )
           }
         }
@@ -670,7 +737,7 @@ open class BluetoothGattManager(
           |Received characteristic read for ${characteristic.uuid}
           |while expecting $DEVICE_NAME_UUID. Ignored.
           """
-              .trimMargin()
+              .trimMargin(),
           )
           return
         }
@@ -693,7 +760,7 @@ open class BluetoothGattManager(
 
       private fun readRetrievingAdvertisedData(
         characteristic: BluetoothGattCharacteristic,
-        status: Int
+        status: Int,
       ) {
         if (characteristic.uuid != advertiseDataCharacteristicUuid) {
           logw(
@@ -702,7 +769,7 @@ open class BluetoothGattManager(
           |Received characteristic read for ${characteristic.uuid}
           |while expecting $advertiseDataCharacteristicUuid. Ignored.
           """
-              .trimMargin()
+              .trimMargin(),
           )
           return
         }
@@ -723,7 +790,7 @@ open class BluetoothGattManager(
         if (descriptor.characteristic.uuid != serverWriteCharacteristicUuid) {
           loge(
             TAG,
-            "onDescriptorWrite: unexpected callback for ${descriptor.characteristic.uuid}. Ignored."
+            "onDescriptorWrite: unexpected callback for ${descriptor.characteristic.uuid}. Ignored.",
           )
           return
         }
@@ -739,11 +806,27 @@ open class BluetoothGattManager(
       }
 
       override fun onServiceChanged() {
-        loge(TAG, "Received onServiceChanged callback. Disconnecting.")
-        // The suggested behavior by Android is to re-discover services.
-        // But we don't expect the GATT services to change. We'd get this callback when IHU
-        // disconnects (see b/241451594), so disconnect instead.
-        disconnect()
+        loge(TAG, "onServiceChanged: current GATT state is $gattState")
+        when (gattState) {
+          GattState.CONNECTED,
+          GattState.RETRIEVING_NAME -> {
+            // We may receive this callback if GATT connection triggers a classic BT pairing
+            // attempt. If the service changes during connection, re-discover services.
+            logi(
+              TAG,
+              "Received onServiceChanged during GATT connection. Requesting service discovery.",
+            )
+            requestDiscoverServices()
+          }
+          GattState.DISCONNECTED,
+          GattState.DISCOVERY_COMPLETED -> {
+            loge(TAG, "Received onServiceChanged callback at $gattState. Disconnecting.")
+            // The suggested behavior by Android is to re-discover services.
+            // But we don't expect the GATT services to change. We'd get this callback when IHU
+            // disconnects (see b/241451594), so disconnect instead.
+            disconnect()
+          }
+        }
       }
     }
 
@@ -765,8 +848,9 @@ open class BluetoothGattManager(
 
     // Measured average time to request MTU is around 0.7 seconds.
     private val DISCOVER_SERVICES_DELAY = Duration.ofSeconds(2)
-    private val RETRIEVE_NAME_TIMEOUT_MS = Duration.ofSeconds(2).toMillis()
+    private val RETRIEVE_NAME_DELAY = Duration.ofSeconds(2)
     private val REFRESH_DELAY = Duration.ofMillis(3)
+    private val RETRY_DELAY = Duration.ofSeconds(1)
 
     /**
      * Reserved bytes for an ATT write request payload.
@@ -817,12 +901,18 @@ open class BluetoothGattManager(
       UUID.fromString("24289b40-af40-4149-a5f4-878ccff87566")
 
     /**
-     * The maximum supported MTU for Android.
+     * The maximum MTU to use.
      *
-     * If a default MTU has not been configured by [setDefaultMtu], this is the default value. This
-     * value is defined by the framework. See `system/bt/stack/include/gatt_api.h`.
+     * This value is arbitrarily picked, and does not guarantee success on a particular hardware
+     * platform.
+     *
+     * Use [setDefaultMtu] to set a suitable value based on your hardware and bluetooth
+     * implementation.
+     *
+     * On Android 14 (U) the default MTU size will be 517 bytes.
+     * https://developer.android.com/about/versions/14/behavior-changes-all#mtu-set-to-517
      */
-    internal const val MAXIMUM_MTU = 517
+    internal const val MAXIMUM_MTU = 512
 
     internal const val SHARED_PREF = "com.google.android.libraries.car.trustagent.ConnectionManager"
     private const val KEY_DEFAULT_MTU = "default_mtu"
@@ -838,7 +928,7 @@ open class BluetoothGattManager(
           ?: run {
             loge(
               TAG,
-              "Set default MTU: could not retrieve shared preferences of name $SHARED_PREF."
+              "Set default MTU: could not retrieve shared preferences of name $SHARED_PREF.",
             )
             return false
           }
@@ -853,7 +943,7 @@ open class BluetoothGattManager(
           ?: run {
             loge(
               TAG,
-              "Could not retrieve shared preference of name $SHARED_PREF. Using $MAXIMUM_MTU"
+              "Could not retrieve shared preference of name $SHARED_PREF. Using $MAXIMUM_MTU",
             )
             return MAXIMUM_MTU
           }

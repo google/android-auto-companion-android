@@ -92,8 +92,7 @@ internal class MessagingUtils constructor(private val context: Context) {
 
   companion object {
     private const val MESSAGING_SYNC_SHARED_PREFERENCE_KEY =
-      "TrustedDevice.MessagingSyncPreferences"
+      "TrustedDevice.MessagingSyncPreferencesKey"
     private const val ENABLED_CARS_KEY = "enabledCars"
-    private const val MESSAGING_APP_LIST_FEATURE_FLAG_ENABLED = false
   }
 }

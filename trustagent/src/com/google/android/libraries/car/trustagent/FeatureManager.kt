@@ -67,6 +67,15 @@ abstract class FeatureManager {
    */
   abstract fun onAllCarsDisassociated()
 
+  /**
+   * Invoked when a car with the given [deviceId] has associated.
+   *
+   * [onCarConnected] will be invoked after association as well. Only implement this method if the
+   * feature needs to differentiated the first connection and the subsequent connections. Otherwise,
+   * use [onCarConnected] instead.
+   */
+  open fun onCarAssociated(deviceId: UUID) {}
+
   internal fun getFeatureSupportStatusProvider(deviceId: UUID): FeatureSupportStatusProvider? {
     return carsAndCallbacks[deviceId]?.first
   }
@@ -86,7 +95,7 @@ abstract class FeatureManager {
   open fun onQueryReceived(
     query: Query,
     deviceId: UUID,
-    responseHandler: (Boolean, ByteArray) -> Unit
+    responseHandler: (Boolean, ByteArray) -> Unit,
   ) {}
 
   /**

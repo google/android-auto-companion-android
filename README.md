@@ -35,4 +35,3 @@ dependencies {
     implementation 'com.google.android.car.connectionservice:connectionservice:3.1.2'
 }
 ```
-
