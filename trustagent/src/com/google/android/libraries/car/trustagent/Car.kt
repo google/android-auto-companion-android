@@ -113,13 +113,14 @@ open class Car(
   private val gattCallback =
     object : BluetoothConnectionManager.ConnectionCallback {
       override fun onConnected() {
-        loge(TAG, "Unexpected BluetoothGattManager callback: onConnected.")
-        throw IllegalStateException()
+        loge(TAG, "Unexpected BluetoothGattManager callback: onConnected. Disconnecting.")
+        disconnect()
       }
 
       override fun onConnectionFailed() {
-        loge(TAG, "Unexpected BluetoothGattManager callback: onConnectionFailed.")
-        throw IllegalStateException()
+        loge(TAG, "Unexpected BluetoothGattManager callback: onConnectionFailed. Disconnecting.")
+        // We should already be connected so this callback is unexpected.
+        disconnect()
       }
 
       override fun onDisconnected() {

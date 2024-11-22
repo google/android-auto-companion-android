@@ -53,12 +53,11 @@ fun createCalendarSyncManager(context: Context): FeatureManager {
     return CalendarSyncManagerV2(context)
 }
 
+// TODO: Make CalendarSyncManager methods non-blocking.
 /**
  * A [FeatureManager] that synchronizes local calendar data with connected cars.
  *
  * There should only exist a single instance of this class managed by a service.
- *
- * TODO: Make CalendarSyncManager methods non-blocking.
  */
 @PublicApi
 class CalendarSyncManagerV2(
@@ -132,17 +131,17 @@ class CalendarSyncManagerV2(
     datastore.updateData { Settings.getDefaultInstance() }
   }
 
+  // TODO: Make CalendarSyncManager methods non-blocking.
   /**
    * A blocking read to the preferences data store.
-   * TODO: Make CalendarSyncManager methods non-blocking.
    */
   private fun read(carId: UUID): Car? = runBlocking {
     datastore.data.map { settings -> settings.carsMap[carId.toString()] }.first()
   }
 
+  // TODO: Make CalendarSyncManager methods non-blocking.
   /**
    * A blocking write to the preferences data store.
-   * TODO: Make CalendarSyncManager methods non-blocking.
    */
   private fun write(carId: UUID, modify: Car.Builder.() -> Unit): Unit = runBlocking {
     datastore.updateData { settings ->

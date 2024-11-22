@@ -14,7 +14,10 @@
 
 package com.google.android.libraries.car.trustagent
 
+import android.os.Build.VERSION
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.android.companionprotos.DeviceOS
+import com.google.android.companionprotos.DeviceVersionsResponse
 import com.google.android.companionprotos.FeatureSupportResponse
 import com.google.android.companionprotos.SystemQuery
 import com.google.android.companionprotos.SystemQueryType
@@ -35,6 +38,7 @@ import org.mockito.kotlin.verify
 private val CAR_ID = UUID.fromString("b9592993-2f53-40a8-8b87-e218e592c165")
 private const val DEVICE_NAME = "deviceName"
 private const val APP_NAME = "appName"
+private const val COMPANION_SDK_VERSION = "1.0.0"
 
 @RunWith(AndroidJUnit4::class)
 class SystemFeatureManagerTest {
@@ -43,7 +47,11 @@ class SystemFeatureManagerTest {
   @Before
   fun setUp() {
     manager =
-      SystemFeatureManager(deviceNameProvider = { DEVICE_NAME }, appNameProvider = { APP_NAME })
+      SystemFeatureManager(
+        deviceNameProvider = { DEVICE_NAME },
+        appNameProvider = { APP_NAME },
+        companionSdkVersion = COMPANION_SDK_VERSION,
+      )
   }
 
   @Test
@@ -55,6 +63,25 @@ class SystemFeatureManagerTest {
     manager.onQueryReceived(query, CAR_ID, onResponse)
 
     verify(onResponse).invoke(true, DEVICE_NAME.toByteArray())
+  }
+
+  @Test
+  fun onValidOsQuery_writesOsResponseHandler() {
+    val onResponse: (Boolean, ByteArray) -> Unit = mock()
+    val request = createSystemQueryProto(SystemQueryType.DEVICE_OS)
+    val query = Query(request, parameters = null)
+
+    manager.onQueryReceived(query, CAR_ID, onResponse)
+
+    val deviceVersionsResponse =
+      DeviceVersionsResponse.newBuilder()
+        .setOs(DeviceOS.ANDROID)
+        .setOsVersion(VERSION.SDK_INT.toString())
+        .setCompanionSdkVersion(COMPANION_SDK_VERSION)
+        .build()
+        .toByteArray()
+
+    verify(onResponse).invoke(true, deviceVersionsResponse)
   }
 
   @Test
@@ -198,7 +225,7 @@ class SystemFeatureManagerTest {
   /** Returns a serialized [SystemQuery] with the given operation type. */
   private fun createSystemQueryProto(
     type: SystemQueryType,
-    payloads: List<ByteArray> = emptyList()
+    payloads: List<ByteArray> = emptyList(),
   ): ByteArray =
     SystemQuery.newBuilder()
       .run {

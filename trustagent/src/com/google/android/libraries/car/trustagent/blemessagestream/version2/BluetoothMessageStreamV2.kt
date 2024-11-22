@@ -17,6 +17,7 @@ package com.google.android.libraries.car.trustagent.blemessagestream.version2
 import androidx.annotation.GuardedBy
 import androidx.annotation.VisibleForTesting
 import com.google.android.companionprotos.DeviceMessageProto.Message
+import com.google.android.companionprotos.OperationProto.OperationType
 import com.google.android.companionprotos.PacketProto.Packet
 import com.google.android.encryptionrunner.Key
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothConnectionManager
@@ -44,7 +45,7 @@ import kotlin.concurrent.withLock
  */
 class BluetoothMessageStreamV2(
   private val bluetoothManager: BluetoothConnectionManager,
-  private val isCompressionEnabled: Boolean
+  private val isCompressionEnabled: Boolean,
 ) : MessageStream {
 
   override var encryptionKey: Key? = null
@@ -68,6 +69,12 @@ class BluetoothMessageStreamV2(
   private val payloadStreamListener =
     object : PacketPayloadStream.OnMessageCompletedListener {
       override fun onMessageCompleted(deviceMessage: Message) {
+        if (deviceMessage.operation == OperationType.DISCONNECT) {
+          logi(TAG, "Received request to disconnect. Disconnecting.")
+          bluetoothManager.disconnect()
+          return
+        }
+
         var message = deviceMessage.toStreamMessage()
         if (message.isPayloadEncrypted) {
           message = message.toDecrypted()
@@ -80,7 +87,7 @@ class BluetoothMessageStreamV2(
           logw(
             TAG,
             "Received a message when no callback is registered. Ignored. Recipient ID: " +
-              "${message.recipient}, operation type: ${message.operation.name}."
+              "${message.recipient}, operation type: ${message.operation.name}.",
           )
         }
         callbacks.forEach { it.onMessageReceived(message) }
@@ -125,7 +132,7 @@ class BluetoothMessageStreamV2(
         logi(
           TAG,
           "Received packet ${blePacket.packetNumber} of ${blePacket.totalPackets} for " +
-            "message ${blePacket.messageId} containing ${blePacket.payload.size()} bytes."
+            "message ${blePacket.messageId} containing ${blePacket.payload.size()} bytes.",
         )
         lock.withLock {
           try {
@@ -161,7 +168,7 @@ class BluetoothMessageStreamV2(
         val blePackets = makePackets(message, maxSize, messageId)
         logi(
           TAG,
-          "Sending message $messageId to device, number of packets send: ${blePackets.size}"
+          "Sending message $messageId to device, number of packets send: ${blePackets.size}",
         )
 
         // Messages are queued up for delivery.
@@ -180,7 +187,7 @@ class BluetoothMessageStreamV2(
       // If writeInProgress does not match expected value - false, (obviously) it is true.
       logw(
         TAG,
-        "Request to write a message when writing is in progress. Waiting until write is complete."
+        "Request to write a message when writing is in progress. Waiting until write is complete.",
       )
       return
     }
@@ -195,7 +202,7 @@ class BluetoothMessageStreamV2(
     logi(
       TAG,
       "Sending packet ${nextMessage.packetNumber} of ${nextMessage.totalPackets} for " +
-        "message ${nextMessage.messageId} containing ${nextMessage.payload.size()} bytes."
+        "message ${nextMessage.messageId} containing ${nextMessage.payload.size()} bytes.",
     )
 
     if (!bluetoothManager.sendMessage(nextMessage.toByteArray())) {
@@ -203,7 +210,7 @@ class BluetoothMessageStreamV2(
       loge(
         TAG,
         "Could not send message: $nextMessage. " +
-          "Remaining ${messageQueue.size} messages in queue. Disconnecting."
+          "Remaining ${messageQueue.size} messages in queue. Disconnecting.",
       )
       writeInProgress.set(false)
       bluetoothManager.disconnect()
@@ -219,6 +226,7 @@ class BluetoothMessageStreamV2(
       loge(TAG, "Did not remove callback from existing ones.")
     }
   }
+
   companion object {
     private const val TAG = "BluetoothMessageStreamV2"
   }
@@ -233,5 +241,6 @@ class BluetoothMessageStreamV2(
  */
 open class MessageIdGenerator {
   private var messageId = 0
+
   open fun next() = messageId.also { messageId = (messageId + 1) % Int.MAX_VALUE }
 }

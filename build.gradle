@@ -10,7 +10,7 @@ plugins {
 }
 
 ext {
-    sdkVersion = 31
+    sdkVersion = 34
     minSdkVersion = 26
     protocVersion = 'com.google.protobuf:protoc:3.21.12'
 }

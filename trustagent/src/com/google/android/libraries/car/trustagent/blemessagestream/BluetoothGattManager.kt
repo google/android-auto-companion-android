@@ -208,6 +208,7 @@ open class BluetoothGattManager(
 
   override fun disconnect() {
     if (bluetoothAdapter.isEnabled) {
+      logi(TAG, "Disconnecting GATT.")
       gatt.disconnect()
       return
     }

@@ -47,4 +47,8 @@ enum OperationType {
 
   // The payload contains a response to a query.
   QUERY_RESPONSE = 6;
+
+  // The message requests the receiver to initiate a disconnection. The request
+  // should only be sent from IHU to mobile.
+  DISCONNECT = 7;
 }

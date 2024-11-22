@@ -39,7 +39,7 @@ import java.util.concurrent.Executors
 class SppManager(
   context: Context,
   override val bluetoothDevice: BluetoothDevice,
-  private val serviceUuid: UUID
+  private val serviceUuid: UUID,
 ) : BluetoothConnectionManager() {
   internal var connectTask: ConnectTask? = null
   @VisibleForTesting internal var writeExecutor: Executor = Executors.newSingleThreadExecutor()
@@ -101,6 +101,7 @@ class SppManager(
   }
 
   override fun disconnect() {
+    logi(TAG, "Disconnecting SPP.")
     // Cancel the task that attempts to establish the connection
     connectTask?.cancel()
     connectTask = null

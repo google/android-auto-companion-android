@@ -16,6 +16,7 @@ package com.google.android.libraries.car.trustagent
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.companionprotos.OperationProto.OperationType
+import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothConnectionManager
 import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothGattManager
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
 import com.google.android.libraries.car.trustagent.blemessagestream.StreamMessage
@@ -439,5 +440,45 @@ class CarTest {
     val featureId = UUID.fromString("e284f45d-666f-479f-bd48-b8be0283977e")
 
     assertThat(car.isFeatureSupported(featureId)).isFalse()
+  }
+
+  @Test
+  fun testBluetoothGattCallback_onConnected_disconnect() {
+    val connectionCallback = argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+      verify(bluetoothGattManager).registerConnectionCallback(capture())
+      firstValue
+    }
+
+    connectionCallback.onConnected()
+
+    verify(bluetoothGattManager).disconnect()
+  }
+
+  @Test
+  fun testBluetoothGattCallback_onConnectionFailed_disconnect() {
+    val connectionCallback = argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+      verify(bluetoothGattManager).registerConnectionCallback(capture())
+      firstValue
+    }
+
+    connectionCallback.onConnectionFailed()
+
+    verify(bluetoothGattManager).disconnect()
+  }
+
+  @Test
+  fun testBluetoothGattCallback_onDisconnected_propagate() {
+    val callback: Car.Callback = mock()
+    val recipient = UUID.fromString("e284f45d-666f-479f-bd48-b8be0283977e")
+    car.setCallback(callback, recipient)
+
+    val connectionCallback = argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+      verify(bluetoothGattManager).registerConnectionCallback(capture())
+      firstValue
+    }
+
+    connectionCallback.onDisconnected()
+
+    verify(callback).onDisconnected()
   }
 }

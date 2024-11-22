@@ -43,6 +43,9 @@ enum SystemQueryType {
   // SystemQuery proto will be a list of strings that each represents a
   // feature recipient UUID.
   IS_FEATURE_SUPPORTED = 4;
+
+  // Query that returns the OS of the device.
+  DEVICE_OS = 5;
 }
 
 // Definition proto for a system query.
@@ -88,4 +91,31 @@ message FeatureSupportStatus {
 
   // Whether the feature is supported.
   bool is_supported = 2;
+}
+
+// Potential operating systems.
+enum DeviceOS {
+  // The device's OS is unknown.
+  //
+  // Note, this enum name is prefixed. See
+  // go/proto-best-practices-checkers#enum-default-value-name-conflict
+  DEVICE_OS_UNKNOWN = 0;
+
+  // The device is running any version of Android.
+  ANDROID = 1;
+
+  // The device is running any version of iOS.
+  IOS = 2;
+}
+
+// Response to a device OS query.
+message DeviceVersionsResponse {
+  // The device's operating system.
+  DeviceOS os = 1;
+
+  // A string representing the OS version following that OS's conventions.
+  string os_version = 2;
+
+  // Companion SDK version.
+  string companion_sdk_version = 3;
 }

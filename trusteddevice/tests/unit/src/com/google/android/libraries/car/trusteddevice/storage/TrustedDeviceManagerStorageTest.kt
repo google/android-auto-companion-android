@@ -20,9 +20,9 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
-import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit.MILLIS
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -30,9 +30,6 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.doReturn
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 
 private val TEST_CAR_ID1 = UUID.fromString("e0ee1a8c-5f03-4010-97ba-cd4d6a560caa")
 private val TEST_CAR_ID2 = UUID.fromString("cd51c0a3-7250-461d-a4bd-9737f9daff09")
@@ -45,7 +42,7 @@ private val TEST_STATE = "state".toByteArray(Charsets.UTF_8)
 class TrustedDeviceManagerStorageTest {
 
   private val context = ApplicationProvider.getApplicationContext<Context>()
-  private val mockClock: Clock = mock { on { instant() } doReturn Clock.systemUTC().instant() }
+  private val fakeClock = FakeClock()
   private lateinit var manager: TrustedDeviceManagerStorage
   private lateinit var database: TrustedDeviceDatabase
 
@@ -59,7 +56,7 @@ class TrustedDeviceManagerStorageTest {
         .allowMainThreadQueries()
         .setQueryExecutor(directExecutor())
         .build()
-    manager = TrustedDeviceManagerStorage(context, mockClock, database)
+    manager = TrustedDeviceManagerStorage(context, fakeClock, database)
   }
 
   @After
@@ -119,37 +116,40 @@ class TrustedDeviceManagerStorageTest {
   @Test
   fun testStoringUnlockHistory_savesSingleDate() {
     runBlocking {
-      val now = Clock.systemUTC().instant()
-      whenever(mockClock.instant()).thenReturn(now)
+      val now = Instant.now().truncatedTo(MILLIS)
+      fakeClock.setNow(now)
 
       manager.recordUnlockDate(TEST_CAR_ID1)
-      assertThat(manager.getUnlockHistory(TEST_CAR_ID1)).contains(now.inMillis())
+      assertThat(manager.getUnlockHistory(TEST_CAR_ID1)).contains(now)
     }
   }
 
   @Test
   fun testStoringUnlockHistory_savesMultipleDates() {
     runBlocking {
-      val now = mockClock.instant()
-      val earlier = mockClock.instant().minus(Duration.ofMinutes(5))
-      whenever(mockClock.instant()).thenReturn(earlier).thenReturn(now)
+      val now = fakeClock.instant().truncatedTo(MILLIS)
+      val earlier = now.minus(Duration.ofMinutes(5))
 
+      fakeClock.setNow(earlier)
       manager.recordUnlockDate(TEST_CAR_ID1)
+      fakeClock.setNow(now)
       manager.recordUnlockDate(TEST_CAR_ID1)
-      assertThat(manager.getUnlockHistory(TEST_CAR_ID1)).contains(now.inMillis())
-      assertThat(manager.getUnlockHistory(TEST_CAR_ID1)).contains(earlier.inMillis())
+
+      assertThat(manager.getUnlockHistory(TEST_CAR_ID1)).contains(now)
+      assertThat(manager.getUnlockHistory(TEST_CAR_ID1)).contains(earlier)
     }
   }
 
   @Test
   fun testStoringUnlockHistory_oldDatesAreCleared() {
     runBlocking {
-      val now = mockClock.instant()
-      val oneMonthAgo = mockClock.instant().minus(Duration.ofDays(30))
+      val now = fakeClock.instant()
+      val oneMonthAgo = fakeClock.instant().minus(Duration.ofDays(30))
       // First return an date for recording; then return now for comparison.
-      whenever(mockClock.instant()).thenReturn(oneMonthAgo).thenReturn(now)
+      fakeClock.setNow(oneMonthAgo)
 
       manager.recordUnlockDate(TEST_CAR_ID1)
+      fakeClock.setNow(now)
       assertThat(manager.getUnlockHistory(TEST_CAR_ID1)).isEmpty()
     }
   }
@@ -157,8 +157,8 @@ class TrustedDeviceManagerStorageTest {
   @Test
   fun testClearAllUnlockHistory() {
     runBlocking {
-      val now = Clock.systemUTC().instant()
-      whenever(mockClock.instant()).thenReturn(now)
+      val now = Instant.now()
+      fakeClock.setNow(now)
 
       manager.recordUnlockDate(TEST_CAR_ID1)
       manager.recordUnlockDate(TEST_CAR_ID2)
@@ -216,8 +216,8 @@ class TrustedDeviceManagerStorageTest {
       manager.storeToken(TEST_TOKEN, TEST_CAR_ID1)
       manager.storeHandle(TEST_HANDLE, TEST_CAR_ID1)
 
-      val now = Clock.systemUTC().instant()
-      whenever(mockClock.instant()).thenReturn(now)
+      val now = Instant.now().truncatedTo(MILLIS)
+      fakeClock.setNow(now)
       manager.recordUnlockDate(TEST_CAR_ID1)
 
       manager.storeFeatureState(TEST_STATE, TEST_CAR_ID1)
@@ -229,15 +229,7 @@ class TrustedDeviceManagerStorageTest {
 
       // Assert no other data has been cleared
       assertThat(manager.containsCredential(TEST_CAR_ID1)).isTrue()
-      assertThat(manager.getUnlockHistory(TEST_CAR_ID1)).containsExactly(now.inMillis())
+      assertThat(manager.getUnlockHistory(TEST_CAR_ID1)).containsExactly(now)
     }
   }
-
-  /**
-   * Reduces the precision of an Instant to millis.
-   *
-   * This reduction matches the precision of an Instant from [Clock] with that of an Instant
-   * reconstructed from storage. See b/154390034 for context.
-   */
-  private fun Instant.inMillis() = Instant.ofEpochMilli(this.toEpochMilli())
 }

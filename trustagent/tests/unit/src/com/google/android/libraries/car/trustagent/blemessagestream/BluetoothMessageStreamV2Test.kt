@@ -37,10 +37,6 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
-private const val IS_MESSAGE_ENCRYPTED = false
-private const val MESSAGE_ID = 1
-private val OPERATION_TYPE = OperationType.CLIENT_MESSAGE
-
 /** Test the receive and send message functions of [BleMessageStream] */
 @RunWith(AndroidJUnit4::class)
 class BluetoothMessageStreamV2Test {
@@ -84,7 +80,9 @@ class BluetoothMessageStreamV2Test {
       verify(mockBluetothManager).sendMessage(capture())
       val actual = Packet.parseFrom(firstValue)
       assertThat(actual).isEqualTo(expected)
-      managerCallbacks.forEach { it.onMessageSent(firstValue) }
+      for (callback in managerCallbacks) {
+        callback.onMessageSent(firstValue)
+      }
     }
     assertThat(stream.messageQueue).hasSize(0)
   }
@@ -104,7 +102,9 @@ class BluetoothMessageStreamV2Test {
       if (responseCount > 0) {
         responseCount--
         // For every sendMessage, notify callback to cue the next message.
-        managerCallbacks.forEach { callback -> callback.onMessageSent(it.getArgument(0)) }
+        for (callback in managerCallbacks) {
+          callback.onMessageSent(it.getArgument(0))
+        }
       }
       // Return `true` to indicate writing was initiated successfully.
       true
@@ -135,7 +135,9 @@ class BluetoothMessageStreamV2Test {
 
     argumentCaptor<ByteArray>().apply {
       verify(mockBluetothManager).sendMessage(capture())
-      managerCallbacks.forEach { it.onMessageSent(firstValue) }
+      for (callback in managerCallbacks) {
+        callback.onMessageSent(firstValue)
+      }
     }
 
     assertThat(semaphore.tryAcquire(100, TimeUnit.MILLISECONDS)).isTrue()
@@ -156,7 +158,9 @@ class BluetoothMessageStreamV2Test {
     whenever(mockBluetothManager.sendMessage(any())).thenAnswer {
       if (responseCount > 0) {
         responseCount--
-        managerCallbacks.forEach { callback -> callback.onMessageSent(it.getArgument(0)) }
+        for (callback in managerCallbacks) {
+          callback.onMessageSent(it.getArgument(0))
+        }
         assertThat(semaphore.tryAcquire(100, TimeUnit.MILLISECONDS)).isFalse()
       }
       // Return `true` to indicate writing was initiated successfully.
@@ -168,10 +172,29 @@ class BluetoothMessageStreamV2Test {
 
     argumentCaptor<ByteArray>().apply {
       verify(mockBluetothManager, times(expectedWrites)).sendMessage(capture())
-      managerCallbacks.forEach { it.onMessageSent(lastValue) }
+      for (callback in managerCallbacks) {
+        callback.onMessageSent(lastValue)
+      }
     }
     assertThat(semaphore.tryAcquire(100, TimeUnit.MILLISECONDS)).isTrue()
     verify(callbackSpy).onMessageSent(messageID)
+  }
+
+  @Test
+  fun receiveMessage_disconnectRequest_disconnect() {
+    val packets =
+      makePackets(
+        createStreamMessage(payload = ByteArray(0), operationType = OperationType.DISCONNECT),
+        maxSize = 100,
+        MESSAGE_ID,
+      )
+    for (packet in packets) {
+      for (callback in managerCallbacks) {
+        callback.onMessageReceived(packet.toByteArray())
+      }
+    }
+
+    verify(mockBluetothManager).disconnect()
   }
 
   @Test
@@ -185,8 +208,10 @@ class BluetoothMessageStreamV2Test {
     val payload = makePayload(payloadSize)
     val packets = makePackets(createStreamMessage(payload), maxSize, MESSAGE_ID)
 
-    packets.forEach { packet ->
-      managerCallbacks.forEach { it.onMessageReceived(packet.toByteArray()) }
+    for (packet in packets) {
+      for (callback in managerCallbacks) {
+        callback.onMessageReceived(packet.toByteArray())
+      }
     }
 
     assertThat(semaphore.tryAcquire(100, TimeUnit.MILLISECONDS)).isTrue()
@@ -204,7 +229,9 @@ class BluetoothMessageStreamV2Test {
     val incoming =
       makePackets(createStreamMessage(message), maxSize, MESSAGE_ID).last().toByteArray()
 
-    managerCallbacks.forEach { it.onMessageReceived(incoming) }
+    for (callback in managerCallbacks) {
+      callback.onMessageReceived(incoming)
+    }
 
     assertThat(semaphore.tryAcquire(100, TimeUnit.MILLISECONDS)).isTrue()
     verify(listenerSpy).onMessageReceived(createStreamMessage(message))
@@ -213,7 +240,9 @@ class BluetoothMessageStreamV2Test {
   @Test
   fun receiveMessage_unableToParse_disconnect() {
     val message = "invalidMessage".toByteArray()
-    managerCallbacks.forEach { it.onMessageReceived(message) }
+    for (callback in managerCallbacks) {
+      callback.onMessageReceived(message)
+    }
     verify(mockBluetothManager).disconnect()
   }
 
@@ -229,10 +258,10 @@ class BluetoothMessageStreamV2Test {
     val packets = makePackets(createStreamMessage(payload), maxSize, MESSAGE_ID)
 
     for (packet in packets) {
-      managerCallbacks.forEach {
+      for (callback in managerCallbacks) {
         // Note: calling `onMessageReceived` twice to simulate a duplicate packet.
-        it.onMessageReceived(packet.toByteArray())
-        it.onMessageReceived(packet.toByteArray())
+        callback.onMessageReceived(packet.toByteArray())
+        callback.onMessageReceived(packet.toByteArray())
       }
     }
 
@@ -250,9 +279,9 @@ class BluetoothMessageStreamV2Test {
     // Sanity check to ensure that writing the first and last packet is considered out-of-order.
     assertThat(packets.size).isGreaterThan(2)
 
-    managerCallbacks.forEach {
-      it.onMessageReceived(packets.first().toByteArray())
-      it.onMessageReceived(packets.last().toByteArray())
+    for (callback in managerCallbacks) {
+      callback.onMessageReceived(packets.first().toByteArray())
+      callback.onMessageReceived(packets.last().toByteArray())
     }
 
     verify(mockBluetothManager).disconnect()
@@ -269,13 +298,16 @@ class BluetoothMessageStreamV2Test {
     return message
   }
 
-  private fun createStreamMessage(payload: ByteArray) =
+  private fun createStreamMessage(
+    payload: ByteArray,
+    operationType: OperationType = OperationType.CLIENT_MESSAGE,
+  ) =
     StreamMessage(
       payload,
-      OPERATION_TYPE,
-      IS_MESSAGE_ENCRYPTED,
+      operationType,
+      isPayloadEncrypted = false,
       originalMessageSize = 0,
-      recipient = null
+      recipient = null,
     )
 
   /**
@@ -295,5 +327,9 @@ class BluetoothMessageStreamV2Test {
     override fun onMessageSent(messageId: Int) {
       semaphore.release()
     }
+  }
+
+  companion object {
+    private const val MESSAGE_ID = 1
   }
 }
