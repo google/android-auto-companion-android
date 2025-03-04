@@ -17,16 +17,13 @@ package com.google.android.libraries.car.communication.messagingsync
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.google.android.libraries.car.notifications.CoroutineTestRule
 import com.google.android.libraries.car.notifications.SettingsNotificationHelper.grantNotificationAccess
 import com.google.android.libraries.car.notifications.SettingsNotificationHelper.revokeAllNotificationAccess
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestScope
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
@@ -38,18 +35,21 @@ import org.mockito.kotlin.verify
 @ExperimentalCoroutinesApi
 class MessagingUtilsTest {
   private val context: Context = ApplicationProvider.getApplicationContext()
-  private val messagingUtils = MessagingUtils(context)
+  private val testScope = TestScope()
 
   private val deviceId = "deviceId"
   private val packageName = "com.package.com"
   private lateinit var onSuccess: () -> Unit
   private lateinit var onFailure: () -> Unit
 
-  @get:Rule var coroutinesTestRule = CoroutineTestRule()
+  private lateinit var messagingUtils: MessagingUtils
 
   @Before
   fun setup() {
+    messagingUtils = MessagingUtils(context, testScope)
+
     grantNotificationAccess(context)
+
     onSuccess = mock()
     onFailure = mock()
   }
@@ -71,6 +71,11 @@ class MessagingUtilsTest {
   @Test
   fun enableMessagingSync_enables_onSuccessCallbackCalled() {
     messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
+    // enableMessagingSync() launches a coroutine to request notification access.
+    // Run the scheduled coroutine to complete the request, which makes a callback of whether the
+    // access has been granted.
+    testScope.testScheduler.runCurrent()
+
     assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isTrue()
     verify(onSuccess).invoke()
     verify(onFailure, never()).invoke()
@@ -79,7 +84,9 @@ class MessagingUtilsTest {
   @Test
   fun isMessagingSyncEnabled_revokedAccess_enabledStateReturnsFalse() {
     messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
+    testScope.testScheduler.runCurrent()
     revokeAllNotificationAccess(context.contentResolver)
+
     assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isFalse()
   }
 
@@ -87,16 +94,18 @@ class MessagingUtilsTest {
   fun enableMessagingSync_failsWhenNotificationAccessIsNotGranted() {
     revokeAllNotificationAccess(context.contentResolver)
     messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
+    testScope.testScheduler.runCurrent()
+
     assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isFalse()
   }
 
   @Test
-  @Ignore // TODO: Fails under coroutines 1.6.0: runBlocking hangs until timeout
   fun enableMessagingSync_succeedsIfNotificationAccessIsGranted() {
     revokeAllNotificationAccess(context.contentResolver)
-    val coroutineScope = messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
+    messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
     grantNotificationAccess(context)
-    runBlocking { coroutineScope.join() }
+    testScope.testScheduler.runCurrent()
+
     assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isTrue()
     verify(onSuccess).invoke()
     verify(onFailure, never()).invoke()
@@ -105,14 +114,20 @@ class MessagingUtilsTest {
   @Test
   fun disableMessagingSync_disables() {
     messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
+    testScope.testScheduler.runCurrent()
+
     messagingUtils.disableMessagingSync(deviceId)
+
     assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isFalse()
   }
 
   @Test
   fun disableMessagingSync_all() {
     messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
+    testScope.testScheduler.runCurrent()
+
     messagingUtils.disableMessagingSyncForAll()
+
     assertThat(messagingUtils.isMessagingSyncEnabled(deviceId)).isFalse()
   }
 }

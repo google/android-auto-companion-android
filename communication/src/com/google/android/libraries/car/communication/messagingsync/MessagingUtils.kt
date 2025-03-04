@@ -16,79 +16,65 @@ package com.google.android.libraries.car.communication.messagingsync
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.google.android.libraries.car.notifications.NotificationAccessUtils
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-/**
- * Provides util methods for Messaging Sync Feature
- */
-internal class MessagingUtils constructor(private val context: Context) {
-  private val enabledCars
-    get() = sharedPreferences
-      .getStringSet(ENABLED_CARS_KEY, mutableSetOf())
-      ?: mutableSetOf()
+/** Provides util methods for Messaging Sync Feature */
+internal class MessagingUtils
+constructor(private val context: Context, private val coroutineScope: CoroutineScope) {
+  private val enabledCars: MutableSet<String>
 
-  private val sharedPreferences
-    get() = context.getSharedPreferences(
-      MESSAGING_SYNC_SHARED_PREFERENCE_KEY,
-      Context.MODE_PRIVATE
-    )
+  init {
+    val stored = sharedPreferences.getStringSet(ENABLED_CARS_KEY, emptySet()) ?: emptySet()
+    enabledCars = stored.toMutableSet()
+  }
 
-  fun isMessagingSyncEnabled(deviceId: String) =
-    enabledCars.contains(deviceId) &&
-      NotificationAccessUtils.hasNotificationAccess(context)
+  private val sharedPreferences: SharedPreferences
+    get() = context.getSharedPreferences(MESSAGING_SYNC_SHARED_PREFERENCE_KEY, Context.MODE_PRIVATE)
 
-  fun isNotificationAccessEnabled() =
+  fun isMessagingSyncEnabled(deviceId: String): Boolean {
+    return enabledCars.contains(deviceId) && NotificationAccessUtils.hasNotificationAccess(context)
+  }
+
+  fun isNotificationAccessEnabled(): Boolean =
     NotificationAccessUtils.hasNotificationAccess(context)
 
-  /**
-   * Handles the user flow to request user permissions and turn on messaging sync.
-   */
-  fun enableMessagingSync(deviceId: String, onSuccess: () -> Unit, onFailure: (() -> Unit)?) =
-    CoroutineScope(Dispatchers.Main).launch {
-      val notificationGranted =
-        NotificationAccessUtils.requestNotificationAccess(context)
-
+  /** Handles the user flow to request user permissions and turn on messaging sync. */
+  fun enableMessagingSync(deviceId: String, onSuccess: () -> Unit, onFailure: (() -> Unit)) {
+    coroutineScope.launch {
+      val notificationGranted = NotificationAccessUtils.requestNotificationAccess(context)
       if (notificationGranted) {
         enableMessagingSyncSharedPreferences(deviceId)
-        DebugLogs.logMessagingSyncFeatureEnabled()
         onSuccess()
       } else {
-        onFailure?.let { it() }
+        onFailure()
       }
     }
+  }
 
-  /**
-   * Turns off messaging sync feature.
-   */
-  fun disableMessagingSync(deviceId: String) =
-    sharedPreferences.putStringSet(
-      ENABLED_CARS_KEY,
-      enabledCars.apply {
-        remove(deviceId)
-      }
-    ).also {
-      DebugLogs.logMessagingSyncFeatureDisabled()
-    }
+  private fun enableMessagingSyncSharedPreferences(deviceId: String) {
+    enabledCars.add(deviceId)
 
-  /**
-   * Turns off messaging sync feature for all cars.
-   */
-  fun disableMessagingSyncForAll() =
-    sharedPreferences.edit().remove(ENABLED_CARS_KEY).apply()
+    sharedPreferences.edit { putStringSet(ENABLED_CARS_KEY, enabledCars) }
+    DebugLogs.logMessagingSyncFeatureEnabled()
+  }
 
-  private fun enableMessagingSyncSharedPreferences(deviceId: String) =
-    sharedPreferences.putStringSet(
-      ENABLED_CARS_KEY,
-      enabledCars.apply {
-        add(deviceId)
-      }
-    )
+  /** Turns off messaging sync feature. */
+  fun disableMessagingSync(deviceId: String) {
+    enabledCars.remove(deviceId)
 
-  private fun SharedPreferences.putStringSet(key: String, set: Set<String>) =
-    edit().putStringSet(key, set).apply()
+    sharedPreferences.edit { putStringSet(ENABLED_CARS_KEY, enabledCars) }
+    DebugLogs.logMessagingSyncFeatureDisabled()
+  }
+
+  /** Turns off messaging sync feature for all cars. */
+  fun disableMessagingSyncForAll() {
+    enabledCars.clear()
+
+    sharedPreferences.edit { remove(ENABLED_CARS_KEY) }
+  }
 
   companion object {
     private const val MESSAGING_SYNC_SHARED_PREFERENCE_KEY =

@@ -15,6 +15,7 @@
 package com.google.android.libraries.car.communication.messagingsync
 
 import android.content.Context
+import androidx.lifecycle.testing.TestLifecycleOwner
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.libraries.car.notifications.CoroutineTestRule
@@ -33,17 +34,17 @@ import org.junit.runner.RunWith
 class MessagingSyncManagerTest {
   private val context: Context = ApplicationProvider.getApplicationContext()
   private val deviceId = UUID.fromString("c2337f28-18ff-4f92-a0cf-4df63ab2c881")
-  private val messagingSyncManager = MessagingSyncManager(context)
+  private val messagingSyncManager = MessagingSyncManager(context, TestLifecycleOwner())
   private val handlers: Map<*, *>
     get() {
       val handlersField = messagingSyncManager.javaClass.getDeclaredField("messagingHandlers")
       handlersField.isAccessible = true
       return handlersField.get(messagingSyncManager) as Map<*, *>
     }
+
   private val msgAppPackageName = "com.package.com"
 
-  @get:Rule
-  val coroutinesTestRule = CoroutineTestRule()
+  @get:Rule val coroutinesTestRule = CoroutineTestRule()
 
   @Before
   fun setup() {

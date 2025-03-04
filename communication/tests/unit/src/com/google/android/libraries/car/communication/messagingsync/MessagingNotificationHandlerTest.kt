@@ -37,6 +37,8 @@ import com.google.protos.aae.messenger.NotificationMsg.PhoneToCarMessage
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -54,10 +56,11 @@ import org.mockito.kotlin.verify
 @ExperimentalCoroutinesApi
 class MessagingNotificationHandlerTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
+  private val testScope = TestScope(UnconfinedTestDispatcher())
   private val deviceId = UUID.fromString("c2337f28-18ff-4f92-a0cf-4df63ab2c881")
   private val sharedState = NotificationHandlerSharedState()
   private val replyMessages = sharedState.replyMessages
-  private val messagingUtils = MessagingUtils(context)
+  private val messagingUtils = MessagingUtils(context, testScope)
   private val defaultKey = "key"
 
   private lateinit var sendMessage: (data: ByteArray, deviceId: UUID) -> Int
@@ -157,7 +160,7 @@ class MessagingNotificationHandlerTest {
           NotificationCompat.MessagingStyle.Message(
             "Another message in the same thread",
             connectionTime.toEpochMilli() + 300,
-            Person.Builder().setName("senderName").build()
+            Person.Builder().setName("senderName").build(),
           )
       )
     handler.onNotificationReceived(anotherSBN)
@@ -287,7 +290,7 @@ class MessagingNotificationHandlerTest {
     showsUI: Boolean = false,
     key: String = defaultKey,
     connectionTime: Instant = Instant.now(),
-    postSpecificMessage: NotificationCompat.MessagingStyle.Message? = null
+    postSpecificMessage: NotificationCompat.MessagingStyle.Message? = null,
   ): StatusBarNotification {
     return MessageNotificationMocks.createSBN(
       hasMessagingStyle = hasMessagingStyle,
@@ -299,7 +302,7 @@ class MessagingNotificationHandlerTest {
       key = key,
       showsUI = showsUI,
       connectionTime = connectionTime,
-      postSpecificMessage = postSpecificMessage
+      postSpecificMessage = postSpecificMessage,
     )
   }
 
@@ -310,7 +313,7 @@ class MessagingNotificationHandlerTest {
       sendMessage,
       messagingUtils,
       SystemTimeProvider(),
-      sharedState = sharedState
+      sharedState = sharedState,
     )
 
   private fun buildReply(key: String) =

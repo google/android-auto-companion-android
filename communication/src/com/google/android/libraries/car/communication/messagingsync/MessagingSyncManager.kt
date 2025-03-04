@@ -15,28 +15,33 @@
 package com.google.android.libraries.car.communication.messagingsync
 
 import android.content.Context
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import com.google.android.libraries.car.trustagent.FeatureManager
 import com.google.android.libraries.car.trustagent.api.PublicApi
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
 
 /**
- * Handles turning on messaging sync features, including turning on messaging sync
- * and enable specific messaging apps
+ * Handles turning on messaging sync features, including turning on messaging sync and enable
+ * specific messaging apps
  */
 @PublicApi
-class MessagingSyncManager constructor(
+class MessagingSyncManager
+constructor(
   private val context: Context,
-  private val timeProvider: TimeProvider = SystemTimeProvider()
+  private val lifecycleOwner: LifecycleOwner,
+  private val timeProvider: TimeProvider = SystemTimeProvider(),
 ) : FeatureManager() {
+  private val coroutineScope: CoroutineScope = lifecycleOwner.lifecycleScope
+
   /** A map of car ids to messaging notification handlers. */
   private val messagingHandlers = mutableMapOf<UUID, MessagingNotificationHandler>()
   private val sharedHandlerState = NotificationHandlerSharedState()
-  private val messagingUtils = MessagingUtils(context)
+  private val messagingUtils = MessagingUtils(context, coroutineScope)
   override val featureId: UUID = FEATURE_ID
 
-  /**
-   * Assigns the car to all known handlers
-   */
+  /** Assigns the car to all known handlers */
   override fun onCarConnected(deviceId: UUID) {
     // reuse the existing messaging handler before creating a new one
     messagingHandlers.getOrPut(deviceId, { createMessagingHandler(deviceId) }).onCarConnected()
@@ -68,29 +73,24 @@ class MessagingSyncManager constructor(
   fun isMessagingSyncEnabled(deviceId: String): Boolean =
     messagingUtils.isMessagingSyncEnabled(deviceId)
 
-  fun isNotificationAccessEnabled() =
-    messagingUtils.isNotificationAccessEnabled()
+  fun isNotificationAccessEnabled() = messagingUtils.isNotificationAccessEnabled()
 
-  /**
-   * Handles the user flow to request user permissions and turn on messaging sync.
-   */
-  fun enableMessagingSync(deviceId: String, onSuccess: () -> Unit, onFailure: (() -> Unit)?) =
+  /** Handles the user flow to request user permissions and turn on messaging sync. */
+  fun enableMessagingSync(deviceId: String, onSuccess: () -> Unit, onFailure: (() -> Unit)) =
     messagingUtils.enableMessagingSync(deviceId, onSuccess, onFailure)
 
-  /**
-   * Turns off messaging sync feature.
-   */
-  fun disableMessagingSync(deviceId: String) =
-    messagingUtils.disableMessagingSync(deviceId)
+  /** Turns off messaging sync feature. */
+  fun disableMessagingSync(deviceId: String) = messagingUtils.disableMessagingSync(deviceId)
 
-  private fun createMessagingHandler(deviceId: UUID) = MessagingNotificationHandler(
-    context,
-    deviceId,
-    ::sendMessage,
-    messagingUtils,
-    timeProvider,
-    sharedHandlerState
-  )
+  private fun createMessagingHandler(deviceId: UUID) =
+    MessagingNotificationHandler(
+      context,
+      deviceId,
+      ::sendMessage,
+      messagingUtils,
+      timeProvider,
+      sharedHandlerState,
+    )
 
   companion object {
     // Recipient ID used by feature Third Party Messaging aka Snapback
