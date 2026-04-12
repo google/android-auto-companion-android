@@ -1,0 +1,3 @@
+[submodule "libs/ukey2"]
+	path = libs/ukey2
+	url = https://github.com/google/ukey2

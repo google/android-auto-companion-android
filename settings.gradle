@@ -27,7 +27,7 @@ dependencyResolutionManagement {
      * Repository by default, but it does not configure any dependencies (unless
      * you select a template that requires some).
      */
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
@@ -57,10 +57,12 @@ dependencyResolutionManagement {
             library('androidx.lifecycle.livedata', 'androidx.lifecycle:lifecycle-livedata-ktx:2.3.1')
             library('androidx.lifecycle.common', 'androidx.lifecycle:lifecycle-common-java8:2.3.1')
             library('androidx.lifecycle.service', 'androidx.lifecycle:lifecycle-service:2.3.1')
+            library('androidx.lifecycle.runtime', 'androidx.lifecycle:lifecycle-runtime-ktx:2.3.1')
             bundle('androidx.lifecycle', [
                 'androidx.lifecycle.livedata',
                 'androidx.lifecycle.common',
                 'androidx.lifecycle.service',
+                'androidx.lifecycle.runtime',
             ])
 
             library('auto.factory', 'com.google.auto.factory:auto-factory:1.0.1')
@@ -123,3 +125,4 @@ include(":communication")
 include(":calendarsync")
 include(":loggingsupport")
 include(":connectionservice")
+include(":libs:ukey2")

@@ -10,7 +10,7 @@ plugins {
 }
 
 ext {
-    sdkVersion = 31
+    sdkVersion = 34
     minSdkVersion = 26
     protocVersion = 'com.google.protobuf:protoc:3.21.12'
 }
@@ -78,7 +78,7 @@ android {
 }
 
 dependencies {
-    implementation files('encryptionrunner/ukey2.jar')
+    implementation project(path: ':libs:ukey2')
 
     implementation libs.androidx.room.runtime
     implementation libs.androidx.room.ktx
