@@ -64,6 +64,7 @@ android {
 
 dependencies {
     implementation libs.bundles.androidx
+    implementation libs.bundles.androidx.lifecycle
     implementation libs.bundles.kotlin
 
     implementation libs.guava
