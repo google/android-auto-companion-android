@@ -14,6 +14,8 @@
 
 package com.google.android.libraries.car.trustagent
 
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -26,7 +28,13 @@ import com.google.android.libraries.car.trustagent.testutils.createScanResult
 import com.google.common.truth.Truth.assertThat
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
 import java.util.UUID
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -35,13 +43,17 @@ import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
+@ExperimentalCoroutinesApi
 class ConnectionManagerTest {
 
   private lateinit var connectionManager: ConnectionManager
 
   private val context = ApplicationProvider.getApplicationContext<Context>()
+  private val bluetoothAdapter: BluetoothAdapter =
+    (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
 
   private lateinit var connectionCallback: ConnectionManager.ConnectionCallback
 
@@ -63,13 +75,9 @@ class ConnectionManagerTest {
     connectionCallback = mock()
 
     connectionManager =
-      ConnectionManager(
-          context,
-          SERVICE_UUID,
-          associatedCarManager,
-          directExecutor(),
-        )
-        .apply { registerConnectionCallback(connectionCallback) }
+      ConnectionManager(context, SERVICE_UUID, associatedCarManager, directExecutor()).apply {
+        registerConnectionCallback(connectionCallback)
+      }
   }
 
   @After
@@ -83,7 +91,7 @@ class ConnectionManagerTest {
       createScanRecord(
         name = "deviceName",
         serviceUuids = listOf(SERVICE_UUID),
-        serviceData = emptyMap()
+        serviceData = emptyMap(),
       )
 
     val fakeScanResult = createScanResult(fakeScanRecord)
@@ -98,7 +106,7 @@ class ConnectionManagerTest {
       createScanRecord(
         name = "deviceName",
         serviceUuids = listOf(SERVICE_UUID),
-        serviceData = emptyMap()
+        serviceData = emptyMap(),
       )
 
     val fakeAssociatedCar = AssociatedCar(DEVICE_ID, "NAME", "MAC_ADDRESS", FakeSecretKey())
@@ -119,7 +127,7 @@ class ConnectionManagerTest {
           mapOf(
             ConnectionManager.V2_DATA_UUID to
               ByteArray(PendingCarV2Reconnection.ADVERTISED_DATA_SIZE_BYTES)
-          )
+          ),
       )
     val fakeAssociatedCar = AssociatedCar(DEVICE_ID, "NAME", "MAC_ADDRESS", FakeSecretKey())
 
@@ -139,7 +147,7 @@ class ConnectionManagerTest {
           mapOf(
             // Send advertised data of lenth (1) that doesn't match expected value.
             ConnectionManager.V2_DATA_UUID to ByteArray(1)
-          )
+          ),
       )
     val fakeAssociatedCar = AssociatedCar(DEVICE_ID, "NAME", "MAC_ADDRESS", FakeSecretKey())
 
@@ -150,55 +158,107 @@ class ConnectionManagerTest {
   }
 
   @Test
-  fun resolveVersion_bluetoothDisconnects_onConnectionFailed() {
+  fun resolveVersion_bluetoothDisconnects_returnsNull() {
     runBlocking {
       val mockBluetoothManager = mock<BluetoothConnectionManager>()
+      val device = bluetoothAdapter.getRemoteDevice("00:11:22:33:44:55")
+      whenever(mockBluetoothManager.bluetoothDevice).thenReturn(device)
+      whenever(mockBluetoothManager.sendMessage(anyOrNull())).thenReturn(true)
 
-      connectionManager.resolveVersion(mockBluetoothManager)
-      val bluetoothCallback =
-        argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
-          verify(mockBluetoothManager).registerConnectionCallback(capture())
-          firstValue
-        }
-      bluetoothCallback.onConnectionFailed()
+      val deferredResult = async { connectionManager.resolveVersion(mockBluetoothManager) }
 
-      verify(connectionCallback).onConnectionFailed(anyOrNull())
+      yield()
+
+      val connectionCallbackCaptor = argumentCaptor<BluetoothConnectionManager.ConnectionCallback>()
+      verify(mockBluetoothManager).registerConnectionCallback(connectionCallbackCaptor.capture())
+      val capturedConnectionCallback = connectionCallbackCaptor.firstValue
+
+      val messageCallbackCaptor = argumentCaptor<BluetoothConnectionManager.MessageCallback>()
+      verify(mockBluetoothManager).registerMessageCallback(messageCallbackCaptor.capture())
+      val messageCallback = messageCallbackCaptor.firstValue
+
+      capturedConnectionCallback.onDisconnected()
+      messageCallback.onMessageReceived(ByteArray(0))
+
+      val result = deferredResult.await()
+      assertThat(result).isNull()
+      verify(connectionCallback).onConnectionFailed(device, 0)
     }
   }
 
   @Test
-  fun resolveVersion_bluetoothOnConnected_onConnectionFailed() {
+  fun resolveVersion_bluetoothOnConnected_returnsNull() {
     runBlocking {
       val mockBluetoothManager = mock<BluetoothConnectionManager>()
+      val device = bluetoothAdapter.getRemoteDevice("00:11:22:33:44:55")
+      whenever(mockBluetoothManager.bluetoothDevice).thenReturn(device)
+      whenever(mockBluetoothManager.sendMessage(anyOrNull())).thenReturn(true)
 
-      connectionManager.resolveVersion(mockBluetoothManager)
-      val bluetoothCallback =
-        argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
-          verify(mockBluetoothManager).registerConnectionCallback(capture())
-          firstValue
-        }
-      bluetoothCallback.onConnected()
+      val deferredResult = async { connectionManager.resolveVersion(mockBluetoothManager) }
 
-      verify(connectionCallback).onConnectionFailed(anyOrNull())
+      yield()
+
+      val connectionCallbackCaptor = argumentCaptor<BluetoothConnectionManager.ConnectionCallback>()
+      verify(mockBluetoothManager).registerConnectionCallback(connectionCallbackCaptor.capture())
+      val capturedConnectionCallback = connectionCallbackCaptor.firstValue
+
+      val messageCallbackCaptor = argumentCaptor<BluetoothConnectionManager.MessageCallback>()
+      verify(mockBluetoothManager).registerMessageCallback(messageCallbackCaptor.capture())
+      val messageCallback = messageCallbackCaptor.firstValue
+
+      capturedConnectionCallback.onConnected()
+      messageCallback.onMessageReceived(ByteArray(0))
+
+      val result = deferredResult.await()
+      assertThat(result).isNull()
+      verify(connectionCallback).onConnectionFailed(device, 0)
     }
   }
 
   @Test
-  fun resolveVersion_bluetoothOnConnectionFailed_onConnectionFailed() {
+  fun resolveVersion_bluetoothOnConnectionFailed_returnsNull() {
     runBlocking {
       val mockBluetoothManager = mock<BluetoothConnectionManager>()
+      val device = bluetoothAdapter.getRemoteDevice("00:11:22:33:44:55")
+      whenever(mockBluetoothManager.bluetoothDevice).thenReturn(device)
+      whenever(mockBluetoothManager.sendMessage(anyOrNull())).thenReturn(true)
 
-      connectionManager.resolveVersion(mockBluetoothManager)
-      val bluetoothCallback =
-        argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
-          verify(mockBluetoothManager).registerConnectionCallback(capture())
-          firstValue
-        }
-      bluetoothCallback.onConnectionFailed()
+      val deferredResult = async { connectionManager.resolveVersion(mockBluetoothManager) }
 
-      verify(connectionCallback).onConnectionFailed(anyOrNull())
+      yield()
+
+      val connectionCallbackCaptor = argumentCaptor<BluetoothConnectionManager.ConnectionCallback>()
+      verify(mockBluetoothManager).registerConnectionCallback(connectionCallbackCaptor.capture())
+      val capturedConnectionCallback = connectionCallbackCaptor.firstValue
+
+      val messageCallbackCaptor = argumentCaptor<BluetoothConnectionManager.MessageCallback>()
+      verify(mockBluetoothManager).registerMessageCallback(messageCallbackCaptor.capture())
+      val messageCallback = messageCallbackCaptor.firstValue
+
+      capturedConnectionCallback.onConnectionFailed(5)
+      messageCallback.onMessageReceived(ByteArray(0))
+
+      val result = deferredResult.await()
+      assertThat(result).isNull()
+      verify(connectionCallback).onConnectionFailed(device, 5)
     }
   }
+
+  @Test
+  fun connect_timeout_callsDisconnectAndNotifiesCallback() =
+    runTest(UnconfinedTestDispatcher()) {
+      val mockBluetoothManager = mock<BluetoothConnectionManager>()
+      val device = bluetoothAdapter.getRemoteDevice("00:11:22:33:44:55")
+      whenever(mockBluetoothManager.bluetoothDevice).thenReturn(device)
+
+      val job = launch { connectionManager.connect(mockBluetoothManager, null) }
+
+      // Wait for the timeout to trigger and the job to complete
+      job.join()
+
+      verify(mockBluetoothManager).disconnect()
+      verify(connectionCallback).onConnectionFailed(device, 0)
+    }
 
   companion object {
     private val SERVICE_UUID = UUID.fromString("8a16e891-d4ad-455d-8194-cbc2dfbaebdf")

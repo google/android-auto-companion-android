@@ -16,9 +16,9 @@
 
 package com.google.android.libraries.car.trustagent
 
-import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.companion.CompanionDeviceManager
@@ -126,11 +126,18 @@ internal constructor(
         features.forEach { it.onCarAssociated(car.deviceId) }
       }
 
-      override fun onAssociationFailed() {
+      override fun onAssociationFailed(error: Int) {
         ongoingAssociation = null
-        loge(TAG, "onAssociationFailed.")
+        loge(TAG, "onAssociationFailed with error $error.")
 
-        callbacks.forEach { it.onAssociationFailed() }
+        val mappedError =
+          if (error == BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION) {
+            Callback.Error.PEER_REMOVED_PAIRING_INFORMATION
+          } else {
+            Callback.Error.UNKNOWN
+          }
+
+        callbacks.forEach { it.onAssociationFailed(mappedError) }
       }
 
       override fun onCarDisassociated(deviceId: UUID) {
@@ -165,19 +172,16 @@ internal constructor(
         }
 
         coroutineScope.launch(backgroundDispatcher) {
-          logi(TAG, "onScanResult: checking whether we should connect to ${result.device}.")
           // Specifiy the filteredScanResult type to eliminate ambiguity in calling
           // ConnectionManager#connect().
           val filteredScanResult: ScanResult? =
             connectionManager.filterForConnectableCars(listOf(result)).firstOrNull()
           if (filteredScanResult == null) {
-            loge(TAG, "$result does not meet condition for reconnection. Ignored.")
             return@launch
           }
 
           val device = filteredScanResult.device
           if (device in ongoingReconnections) {
-            loge(TAG, "$device has an ongoing connection. Ignored.")
             return@launch
           }
           ongoingReconnections.add(device)
@@ -210,12 +214,37 @@ internal constructor(
         callbacks.forEach { it.onConnected(car.toAssociatedCar()) }
       }
 
-      override fun onConnectionFailed(device: BluetoothDevice) {
+      override fun onConnectionFailed(device: BluetoothDevice, error: Int) {
         if (!ongoingReconnections.remove(device)) {
           logw(TAG, "onConnectionFailed: $device does not exist in $ongoingReconnections.")
         }
 
-        loge(TAG, "onConnectionFailed: could not reconnect to $device.")
+        loge(TAG, "onConnectionFailed: could not reconnect to $device. Error: $error")
+
+        val mappedError =
+          if (error == BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION) {
+            Callback.Error.PEER_REMOVED_PAIRING_INFORMATION
+          } else {
+            Callback.Error.UNKNOWN
+          }
+
+        coroutineScope.launch {
+          val associatedCars = associationManager.retrieveAssociatedCars().await()
+          val associatedCar =
+            associatedCars.find { it.macAddress == device.address }
+              // If the connection fails, it could be due to the IHU removing the pairing
+              // information (classic bond) while the phone still retains it.
+              // If the car's MAC address rotated since the last connection, the lookup
+              // by MAC address will fail because the database contains the stale address.
+              // If there is only one associated car, we assume the failure belongs to it
+              // and notify the callback to trigger recovery (e.g., prompting re-pairing).
+              ?: if (associatedCars.size == 1) associatedCars.first() else null
+          if (associatedCar != null) {
+            callbacks.forEach { it.onReconnectionFailed(associatedCar, mappedError) }
+          } else {
+            loge(TAG, "onConnectionFailed: Could not find AssociatedCar for device $device")
+          }
+        }
       }
     }
 
@@ -539,6 +568,17 @@ internal constructor(
 
   @PublicApi
   interface Callback {
+    /** Error during association. */
+    enum class Error {
+      /** Unknown error. */
+      UNKNOWN,
+      /**
+       * The user needs to manually remove the classic bluetooth bonding. This is usually done by
+       * going to Settings > Connected devices > Saved devices
+       */
+      PEER_REMOVED_PAIRING_INFORMATION,
+    }
+
     /**
      * Invoked when [startDiscovery] has found a device that can be associated with.
      *
@@ -561,14 +601,16 @@ internal constructor(
     fun onAssociated(associatedCar: AssociatedCar)
 
     /** Invoked when association process failed. */
-    // TODO: define error enum.
-    fun onAssociationFailed()
+    fun onAssociationFailed(error: Error)
 
     /** Invoked when an already associated device has reconnected. */
     fun onConnected(associatedCar: AssociatedCar)
 
     /** Invoked when a connected device has disconnected. */
     fun onDisconnected(associatedCar: AssociatedCar)
+
+    /** Invoked when reconnection to an associated device failed. */
+    fun onReconnectionFailed(associatedCar: AssociatedCar, error: Error)
   }
 
   companion object {

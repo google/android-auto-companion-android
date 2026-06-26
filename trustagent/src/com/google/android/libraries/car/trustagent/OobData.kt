@@ -37,7 +37,7 @@ internal fun ByteArray.toOobData(): OobData? {
   return OobData(
     copyOfRange(NONCE_LENGTH_BYTES * 2, size),
     copyOfRange(NONCE_LENGTH_BYTES, NONCE_LENGTH_BYTES * 2),
-    copyOfRange(0, NONCE_LENGTH_BYTES)
+    copyOfRange(0, NONCE_LENGTH_BYTES),
   )
 }
 
@@ -49,11 +49,7 @@ internal fun ByteArray.toOobData(): OobData? {
  * @property mobileIv the initialization vector (IV) for messages sent by mobile.
  */
 @PublicApi
-data class OobData(
-  val encryptionKey: ByteArray,
-  val ihuIv: ByteArray,
-  val mobileIv: ByteArray,
-) {
+data class OobData(val encryptionKey: ByteArray, val ihuIv: ByteArray, val mobileIv: ByteArray) {
   override fun equals(other: Any?): Boolean {
     if (this === other) return true
     if (other !is OobData) return false
@@ -64,4 +60,6 @@ data class OobData(
   }
 
   override fun hashCode() = Objects.hash(encryptionKey, ihuIv, mobileIv)
+
+  override fun toString(): String = "OobData(hash ${hashCode()})"
 }

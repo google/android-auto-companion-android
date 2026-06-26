@@ -130,7 +130,7 @@ class CarTest {
         operation = OperationType.CLIENT_MESSAGE,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
 
     car.streamForwardingMessageCallback.onMessageReceived(streamMessage)
@@ -148,7 +148,7 @@ class CarTest {
         operation = OperationType.CLIENT_MESSAGE,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
     car.streamForwardingMessageCallback.onMessageReceived(streamMessage)
 
@@ -168,7 +168,7 @@ class CarTest {
         operation = OperationType.CLIENT_MESSAGE,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
     )
     val message2 = "message2".toByteArray()
@@ -178,7 +178,7 @@ class CarTest {
         operation = OperationType.CLIENT_MESSAGE,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
     )
 
@@ -209,7 +209,7 @@ class CarTest {
         operation = OperationType.QUERY,
         isPayloadEncrypted = true,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
 
     assertThat(captor.firstValue).isEqualTo(expectedMessage)
@@ -258,7 +258,7 @@ class CarTest {
         operation = OperationType.QUERY_RESPONSE,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
 
     car.streamForwardingMessageCallback.onMessageReceived(streamMessage)
@@ -286,7 +286,7 @@ class CarTest {
         operation = OperationType.QUERY,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
 
     car.streamForwardingMessageCallback.onMessageReceived(streamMessage)
@@ -310,7 +310,7 @@ class CarTest {
         operation = OperationType.QUERY_RESPONSE,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
 
     car.streamForwardingMessageCallback.onMessageReceived(streamMessage)
@@ -332,7 +332,7 @@ class CarTest {
         operation = OperationType.QUERY,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
 
     car.streamForwardingMessageCallback.onMessageReceived(streamMessage)
@@ -356,7 +356,7 @@ class CarTest {
         operation = OperationType.QUERY_RESPONSE,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
 
     car.streamForwardingMessageCallback.onMessageReceived(streamMessage)
@@ -376,7 +376,7 @@ class CarTest {
         operation = OperationType.QUERY,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
     car.streamForwardingMessageCallback.onMessageReceived(streamMessage)
 
@@ -399,7 +399,7 @@ class CarTest {
         operation = OperationType.QUERY,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
     )
 
@@ -412,7 +412,7 @@ class CarTest {
         operation = OperationType.QUERY,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
     )
 
@@ -444,10 +444,11 @@ class CarTest {
 
   @Test
   fun testBluetoothGattCallback_onConnected_disconnect() {
-    val connectionCallback = argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
-      verify(bluetoothGattManager).registerConnectionCallback(capture())
-      firstValue
-    }
+    val connectionCallback =
+      argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+        verify(bluetoothGattManager).registerConnectionCallback(capture())
+        firstValue
+      }
 
     connectionCallback.onConnected()
 
@@ -456,12 +457,13 @@ class CarTest {
 
   @Test
   fun testBluetoothGattCallback_onConnectionFailed_disconnect() {
-    val connectionCallback = argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
-      verify(bluetoothGattManager).registerConnectionCallback(capture())
-      firstValue
-    }
+    val connectionCallback =
+      argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+        verify(bluetoothGattManager).registerConnectionCallback(capture())
+        firstValue
+      }
 
-    connectionCallback.onConnectionFailed()
+    connectionCallback.onConnectionFailed(0)
 
     verify(bluetoothGattManager).disconnect()
   }
@@ -472,10 +474,11 @@ class CarTest {
     val recipient = UUID.fromString("e284f45d-666f-479f-bd48-b8be0283977e")
     car.setCallback(callback, recipient)
 
-    val connectionCallback = argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
-      verify(bluetoothGattManager).registerConnectionCallback(capture())
-      firstValue
-    }
+    val connectionCallback =
+      argumentCaptor<BluetoothConnectionManager.ConnectionCallback>().run {
+        verify(bluetoothGattManager).registerConnectionCallback(capture())
+        firstValue
+      }
 
     connectionCallback.onDisconnected()
 

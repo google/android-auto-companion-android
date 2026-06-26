@@ -37,7 +37,7 @@ internal constructor(
   internal val device: BluetoothDevice,
   open val name: String,
   internal val gattServiceUuid: UUID,
-  internal var oobConnectionManager: OobConnectionManager? = null
+  internal var oobConnectionManager: OobConnectionManager? = null,
 ) {
   override fun equals(other: Any?): Boolean {
     if (this === other) return true
@@ -53,6 +53,7 @@ internal constructor(
   override fun hashCode(): Int {
     return Objects.hash(device, name, gattServiceUuid, oobConnectionManager)
   }
+
   /**
    * Converts to a list of [BluetoothConnectionManager]s.
    *
@@ -66,10 +67,10 @@ internal constructor(
       mutableListOf<BluetoothConnectionManager>(
         BluetoothGattManager(
           context,
-          BluetoothGattHandle(device, context.gattTransport),
+          BluetoothGattHandle(device),
           gattServiceUuid,
           CLIENT_WRITE_CHARACTERISTIC_UUID,
-          SERVER_WRITE_CHARACTERISTIC_UUID
+          SERVER_WRITE_CHARACTERISTIC_UUID,
         )
       )
     return managers

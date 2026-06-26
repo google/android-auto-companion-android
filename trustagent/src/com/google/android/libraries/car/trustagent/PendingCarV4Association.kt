@@ -80,13 +80,14 @@ internal constructor(
   private val coroutineScope: CoroutineScope = CoroutineScope(coroutineDispatcher)
 
   private var state = State.UNINITIATED
+
   private enum class State {
     UNINITIATED,
     ENCRYPTION_HANDSHAKE,
     PENDING_CONFIRMATION,
     PENDING_OOB_CONFIRMATION,
     PENDING_ENCRYPTED_DEVICE_ID,
-    SENDING_DEVICE_ID_AND_SECRET
+    SENDING_DEVICE_ID_AND_SECRET,
   }
 
   private var deferredOobData: Deferred<OobData?>? = null
@@ -101,8 +102,6 @@ internal constructor(
 
         coroutineScope.launch {
           val oobData = deferredOobData?.await()
-          logi(TAG, "OOB data is $oobData.")
-
           if (oobData == null) {
             handleVisualVerification(authString)
           } else {
@@ -125,7 +124,7 @@ internal constructor(
             operation = OperationType.ENCRYPTION_HANDSHAKE,
             isPayloadEncrypted = false,
             originalMessageSize = 0,
-            recipient = null
+            recipient = null,
           )
         )
 
@@ -157,7 +156,7 @@ internal constructor(
             operation = OperationType.ENCRYPTION_HANDSHAKE,
             isPayloadEncrypted = false,
             originalMessageSize = 0,
-            recipient = null
+            recipient = null,
           )
         )
 
@@ -186,7 +185,7 @@ internal constructor(
   private val encryptionRunnerManager: EncryptionRunnerManager =
     EncryptionRunnerManager(
         EncryptionRunnerFactory.newRunner(EncryptionRunnerFactory.EncryptionRunnerType.UKEY2),
-        messageStream
+        messageStream,
       )
       .apply { callback = encryptionCallback }
 

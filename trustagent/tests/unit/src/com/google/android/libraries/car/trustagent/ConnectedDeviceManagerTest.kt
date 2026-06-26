@@ -17,6 +17,7 @@ package com.google.android.libraries.car.trustagent
 import android.app.Activity
 import android.app.PendingIntent
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothGatt
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
@@ -63,7 +64,7 @@ class ConnectedDeviceManagerTest {
     AssociatedCar(
       deviceId = DEVICE_ID,
       name = "NAME",
-      macAddress = "MACADDRESS",
+      macAddress = "00:11:22:33:44:55",
       identificationKey = FakeSecretKey(),
     )
 
@@ -71,6 +72,7 @@ class ConnectedDeviceManagerTest {
   private val mockAssociationManager: AssociationManager = mock {
     on { isBluetoothEnabled } doReturn true
     on { startCdmDiscovery(any(), any()) } doReturn true
+    on { retrieveAssociatedCars() } doReturn Futures.immediateFuture(emptyList())
   }
   private val mockConnectionManager: ConnectionManager = mock {
     on { startScanForAssociatedCars(any<ScanCallback>()) } doReturn true
@@ -222,10 +224,25 @@ class ConnectedDeviceManagerTest {
     val request = associationRequest(Intent()) {}
     manager.associate(request)
 
-    captureAssociationCallback().onAssociationFailed()
+    captureAssociationCallback().onAssociationFailed(0)
 
     manager.associate(request)
     verify(mockAssociationManager, times(2)).associate(request)
+  }
+
+  @Test
+  fun associate_insufficientAuthentication_notifiesPeerRemovedPairingInformation() {
+    testLifecycleOwner.currentState = Lifecycle.State.CREATED
+    val request = associationRequest(Intent()) {}
+    manager.associate(request)
+
+    val mockCallback = mock<ConnectedDeviceManager.Callback>()
+    manager.registerCallback(mockCallback)
+
+    captureAssociationCallback().onAssociationFailed(BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION)
+
+    verify(mockCallback)
+      .onAssociationFailed(ConnectedDeviceManager.Callback.Error.PEER_REMOVED_PAIRING_INFORMATION)
   }
 
   @Test
@@ -670,6 +687,74 @@ class ConnectedDeviceManagerTest {
       verify(mockConnectionManager).startScanForAssociatedCars(capture())
       firstValue
     }
+  }
+
+  @Test
+  fun connectionCallback_onConnectionFailed_notifiesCallbackWithReconnectionFailed() {
+    val mockCallback: ConnectedDeviceManager.Callback = mock()
+    manager.registerCallback(mockCallback)
+
+    mockAssociationManager.stub {
+      on { retrieveAssociatedCars() } doReturn Futures.immediateFuture(listOf(fakeAssociatedCar))
+    }
+
+    val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice("00:11:22:33:44:55")
+
+    captureConnectionCallback()
+      .onConnectionFailed(device, BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION)
+
+    verify(mockCallback)
+      .onReconnectionFailed(
+        fakeAssociatedCar,
+        ConnectedDeviceManager.Callback.Error.PEER_REMOVED_PAIRING_INFORMATION,
+      )
+  }
+
+  @Test
+  fun connectionCallback_onConnectionFailed_macMismatchSingleCar_notifiesCallback() {
+    val mockCallback: ConnectedDeviceManager.Callback = mock()
+    manager.registerCallback(mockCallback)
+
+    mockAssociationManager.stub {
+      on { retrieveAssociatedCars() } doReturn Futures.immediateFuture(listOf(fakeAssociatedCar))
+    }
+
+    val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice("66:77:88:99:AA:BB")
+
+    captureConnectionCallback()
+      .onConnectionFailed(device, BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION)
+
+    verify(mockCallback)
+      .onReconnectionFailed(
+        fakeAssociatedCar,
+        ConnectedDeviceManager.Callback.Error.PEER_REMOVED_PAIRING_INFORMATION,
+      )
+  }
+
+  @Test
+  fun connectionCallback_onConnectionFailed_macMismatchMultipleCars_doesNotNotifyCallback() {
+    val mockCallback: ConnectedDeviceManager.Callback = mock()
+    manager.registerCallback(mockCallback)
+
+    val anotherAssociatedCar =
+      AssociatedCar(
+        deviceId = UUID.randomUUID(),
+        name = "ANOTHER_NAME",
+        macAddress = "66:77:88:99:AA:BB",
+        identificationKey = FakeSecretKey(),
+      )
+
+    mockAssociationManager.stub {
+      on { retrieveAssociatedCars() } doReturn
+        Futures.immediateFuture(listOf(fakeAssociatedCar, anotherAssociatedCar))
+    }
+
+    val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice("CC:DD:EE:FF:00:11")
+
+    captureConnectionCallback()
+      .onConnectionFailed(device, BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION)
+
+    verifyNoMoreInteractions(mockCallback)
   }
 
   companion object {

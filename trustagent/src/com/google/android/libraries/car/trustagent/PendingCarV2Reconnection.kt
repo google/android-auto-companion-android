@@ -65,8 +65,8 @@ internal constructor(
         callback?.onConnectionFailed(this@PendingCarV2Reconnection)
       }
 
-      override fun onConnectionFailed() {
-        loge(TAG, "Unexpected gatt callback: onConnectionFailed. Disconnecting.")
+      override fun onConnectionFailed(error: Int) {
+        loge(TAG, "Unexpected gatt callback: onConnectionFailed with error $error. Disconnecting.")
         bluetoothManager.disconnect()
         callback?.onConnectionFailed(this@PendingCarV2Reconnection)
       }
@@ -146,7 +146,7 @@ internal constructor(
           operation = OperationType.ENCRYPTION_HANDSHAKE,
           isPayloadEncrypted = false,
           originalMessageSize = 0,
-          recipient = null
+          recipient = null,
         )
       // After sending challenge, the created stream callback will be triggered.
       sendMessage(message)
@@ -220,7 +220,7 @@ internal constructor(
       messageStream,
       checkNotNull(identificationKey),
       deviceId,
-      associatedCarManager.loadName(deviceId)
+      associatedCarManager.loadName(deviceId),
     )
   }
 
@@ -260,7 +260,6 @@ internal constructor(
           return associatedCar
         }
       }
-      logi(TAG, "No associated car matched advertised data. Returning null.")
       return null
     }
 
@@ -280,13 +279,13 @@ internal constructor(
       return PaddedSaltAndTruncatedHmac(
         // Zero-padded salt.
         salt.copyOf(CHALLENGE_BLOCK_SIZE_BYTES),
-        truncatedExpected
+        truncatedExpected,
       )
     }
 
     private data class PaddedSaltAndTruncatedHmac(
       val paddedSalt: ByteArray,
-      val truncatedExpected: ByteArray
+      val truncatedExpected: ByteArray,
     )
 
     /** Hashes [input] with [secretKey]. */

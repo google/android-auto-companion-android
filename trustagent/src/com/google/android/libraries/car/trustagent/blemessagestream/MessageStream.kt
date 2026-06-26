@@ -14,7 +14,6 @@
 
 package com.google.android.libraries.car.trustagent.blemessagestream
 
-import android.bluetooth.BluetoothDevice
 import androidx.annotation.IntRange
 import com.google.android.companionprotos.OperationProto.OperationType
 import com.google.android.encryptionrunner.Key
@@ -29,7 +28,7 @@ import java.util.zip.Deflater
 import java.util.zip.Inflater
 
 /**
- * Handles the streaming of messages to a specific [BluetoothDevice].
+ * Handles the streaming of messages to a specific BluetoothDevice.
  *
  * This stream will handle if messages to a particular remote device need to be split into multiple
  * messages or if the messages can be sent all at once. Internally, it will have its own protocol
@@ -88,7 +87,6 @@ interface MessageStream {
 
     val compressed = compressData(payload)
     if (compressed == null) {
-      logi(TAG, "Compression did not result in positive net savings. Returning as is.")
       return this
     }
 
@@ -164,7 +162,7 @@ interface MessageStream {
      */
     internal fun decompressData(
       byteArray: ByteArray,
-      @IntRange(from = 0) originalSize: Int
+      @IntRange(from = 0) originalSize: Int,
     ): ByteArray? {
       if (originalSize == 0) {
         logi(TAG, "Decompression: input is not compressed because original size is 0.")
@@ -198,7 +196,7 @@ interface MessageStream {
      */
     fun create(
       @IntRange(from = 2) messageVersion: Int,
-      bluetoothManager: BluetoothConnectionManager
+      bluetoothManager: BluetoothConnectionManager,
     ): MessageStream? {
       return when (messageVersion) {
         2 -> {
@@ -224,9 +222,9 @@ interface MessageStream {
  * @property payload Bytes to be sent.
  * @property operation The [OperationType] of this message.
  * @property isPayloadEncrypted For a outgoing message, `true` if the payload should be encrypted;
- *           For an incoming message, `true` is the payload is encrypted.
- * @property originalMessageSize If payload is compressed, its original size.
- *           0 if payload is not compressed.
+ *   For an incoming message, `true` if the payload is encrypted.
+ * @property originalMessageSize If payload is compressed, its original size. 0 if payload is not
+ *   compressed.
  * @property recipient Identifies the intended receiver of payload.
  */
 data class StreamMessage(
@@ -234,7 +232,7 @@ data class StreamMessage(
   val operation: OperationType,
   val isPayloadEncrypted: Boolean,
   val originalMessageSize: Int,
-  val recipient: UUID?
+  val recipient: UUID?,
 ) {
   val isCompressed: Boolean = originalMessageSize > 0
 
@@ -256,6 +254,6 @@ data class StreamMessage(
       recipient,
       operation,
       isPayloadEncrypted,
-      originalMessageSize
+      originalMessageSize,
     )
 }

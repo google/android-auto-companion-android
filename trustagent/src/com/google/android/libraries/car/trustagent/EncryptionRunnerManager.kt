@@ -47,11 +47,12 @@ private const val TAG = "EncryptionRunnerManager"
 internal class EncryptionRunnerManager(
   private var runner: EncryptionRunner,
   private val stream: MessageStream,
-  @VisibleForTesting internal val previousKey: ByteArray? = null
+  @VisibleForTesting internal val previousKey: ByteArray? = null,
 ) {
   init {
     runner.setIsReconnect(previousKey != null)
   }
+
   var callback: Callback? = null
 
   enum class FailureReason {
@@ -70,7 +71,7 @@ internal class EncryptionRunnerManager(
      *
      * This failure should only occur during association flows.
      */
-    NO_VERIFICATION_CODE
+    NO_VERIFICATION_CODE,
   }
 
   private var state = HandshakeState.UNKNOWN
@@ -116,7 +117,7 @@ internal class EncryptionRunnerManager(
 
   constructor(
     stream: MessageStream,
-    previousKey: ByteArray? = null
+    previousKey: ByteArray? = null,
   ) : this(EncryptionRunnerFactory.newRunner(UKEY2), stream, previousKey)
 
   /** Resets the internal encryption state; also restores [stream] callback. */
@@ -216,8 +217,11 @@ internal class EncryptionRunnerManager(
 
     // Attempting to establish a new encryption.
     // Waiting for user to verify on server side; expect confirmation signal.
-    logi(TAG, "Requiring display of verification code: $verificationCode")
+    logi(TAG, "Requiring display of verification code.")
     callback?.onAuthStringAvailable(verificationCode, fullVerificationCode)
+
+    // Expect no more incoming message for UKey2 during association.
+    stream.unregisterMessageEventCallback(streamCallback)
   }
 
   private fun notifyOobAuthTokenAvailable(message: HandshakeMessage) {
@@ -240,14 +244,16 @@ internal class EncryptionRunnerManager(
   fun notifyAuthStringConfirmed() {
     require(
       state == HandshakeState.VERIFICATION_NEEDED || state == HandshakeState.OOB_VERIFICATION_NEEDED
-    ) { "Unexpected call of notifyAuthStringConfirmed. Internal state is $state." }
+    ) {
+      "Unexpected call of notifyAuthStringConfirmed. Internal state is $state."
+    }
     logi(TAG, "Notify encryption runner verification code is confirmed.")
     val message = runner.notifyPinVerified()
 
     state = message.handshakeState
     val key = message.key
     if (state != HandshakeState.FINISHED || key == null) {
-      "VERIFICATION_NEEDED: unexpected next handshake state: $state; or null key. Reset."
+      loge(TAG, "Unexpected next handshake state: $state; or null key. Reset.")
       reset()
       return
     }
@@ -300,7 +306,7 @@ internal class EncryptionRunnerManager(
         OperationType.ENCRYPTION_HANDSHAKE,
         isPayloadEncrypted = false,
         originalMessageSize = 0,
-        recipient = null
+        recipient = null,
       )
     )
   }

@@ -53,7 +53,7 @@ open class Car(
   internal open val identificationKey: SecretKey,
   open val deviceId: UUID,
   open var name: String? = bluetoothManager.deviceName,
-  private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.Main
+  private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.Main,
 ) : FeatureSupportStatusProvider {
   /** The BluetoothDevice that this object represents (and is being connected to). */
   open val bluetoothDevice = bluetoothManager.bluetoothDevice
@@ -117,8 +117,8 @@ open class Car(
         disconnect()
       }
 
-      override fun onConnectionFailed() {
-        loge(TAG, "Unexpected BluetoothGattManager callback: onConnectionFailed. Disconnecting.")
+      override fun onConnectionFailed(error: Int) {
+        loge(TAG, "Unexpected: onConnectionFailed with error $error. Disconnecting.")
         // We should already be connected so this callback is unexpected.
         disconnect()
       }
@@ -165,7 +165,7 @@ open class Car(
           operation = OperationType.CLIENT_MESSAGE,
           isPayloadEncrypted = true,
           originalMessageSize = 0,
-          recipient = recipient
+          recipient = recipient,
         )
       )
     lock.withLock { messageIdMap[messageId] = recipient }
@@ -186,7 +186,7 @@ open class Car(
         operation = OperationType.QUERY,
         isPayloadEncrypted = true,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
     )
 
@@ -207,7 +207,7 @@ open class Car(
         operation = OperationType.QUERY_RESPONSE,
         isPayloadEncrypted = true,
         originalMessageSize = 0,
-        recipient = recipient
+        recipient = recipient,
       )
     )
   }
@@ -281,8 +281,9 @@ open class Car(
     }
   }
 
-  internal open fun toAssociatedCar() =
-    lock.withLock { AssociatedCar(deviceId, name, bluetoothDevice.address, identificationKey) }
+  internal open fun toAssociatedCar() = lock.withLock {
+    AssociatedCar(deviceId, name, bluetoothDevice.address, identificationKey)
+  }
 
   private fun handleMessage(streamMessage: StreamMessage) {
     lock.withLock {
@@ -323,7 +324,7 @@ open class Car(
         callbacks[recipient]?.onQueryReceived(
           queryProto.id,
           bytesToUuid(queryProto.sender.toByteArray()),
-          queryProto.toQuery()
+          queryProto.toQuery(),
         )
       } else {
         logi(TAG, "Received query for $recipient but no registered callback. Saving query.")
@@ -352,14 +353,14 @@ open class Car(
       loge(
         TAG,
         "Received query response for query id ${queryResponseProto.queryId}, " +
-          "but no registered handler. Ignoring."
+          "but no registered handler. Ignoring.",
       )
       return
     }
 
     logi(
       TAG,
-      "Received a query response for recipient: ${streamMessage.recipient}. Invoking callback"
+      "Received a query response for recipient: ${streamMessage.recipient}. Invoking callback",
     )
 
     handler(queryResponseProto.toQueryResponse())
@@ -384,8 +385,9 @@ open class Car(
   /**
    * Determines the support status by checking if [featureId] has registered for message callback.
    */
-  override fun isFeatureSupported(featureId: UUID): Boolean =
-    lock.withLock { callbacks.containsKey(featureId) }
+  override fun isFeatureSupported(featureId: UUID): Boolean = lock.withLock {
+    callbacks.containsKey(featureId)
+  }
 
   /** Callback for car interaction. */
   interface Callback {

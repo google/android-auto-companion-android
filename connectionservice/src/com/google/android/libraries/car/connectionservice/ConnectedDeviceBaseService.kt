@@ -24,7 +24,6 @@ import androidx.annotation.CallSuper
 import androidx.annotation.VisibleForTesting
 import com.google.android.libraries.car.trustagent.AssociatedCar
 import com.google.android.libraries.car.trustagent.ConnectedDeviceManager
-import com.google.android.libraries.car.trustagent.FeatureManager
 import com.google.android.libraries.car.trustagent.R
 import com.google.android.libraries.car.trustagent.api.PublicApi
 import com.google.android.libraries.car.trustagent.util.logi
@@ -32,15 +31,15 @@ import java.io.FileDescriptor
 import java.io.PrintWriter
 
 /**
- * A service that is responsible for creating [FeatureManager]s and posting foreground notification
- * to inform user of companion device connections.
+ * A service that is responsible for creating FeatureManagers and posting foreground notification to
+ * inform user of companion device connections.
  *
  * ## Running in the foreground
  *
  * This service will post a notification and start running in the foreground when a companion device
  * has connected. Implementation is responsible for providing the notification.
  *
- * ## [FeatureManager] instantiation
+ * ## FeatureManager instantiation
  *
  * Implementation should create features that need to exchange messages with a companion device.
  */
@@ -77,7 +76,12 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
 
       override fun onAuthStringAvailable(authString: String) {}
 
-      override fun onAssociationFailed() {}
+      override fun onAssociationFailed(error: ConnectedDeviceManager.Callback.Error) {}
+
+      override fun onReconnectionFailed(
+        associatedCar: AssociatedCar,
+        error: ConnectedDeviceManager.Callback.Error,
+      ) {}
     }
 
   @CallSuper
@@ -85,17 +89,14 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
     logi(
       TAG,
       "Service created. Companion SDK version is " +
-        "${getResources().getString(R.string.android_companion_sdk_version)}"
+        resources.getString(R.string.android_companion_sdk_version),
     )
     super.onCreate()
 
     connectedDeviceManager =
-      ConnectedDeviceManager(
-          this,
-          lifecycle,
-          featureManagers,
-        )
-        .apply { registerCallback(connectedDeviceManagerCallback) }
+      ConnectedDeviceManager(this, lifecycle, featureManagers).apply {
+        registerCallback(connectedDeviceManagerCallback)
+      }
   }
 
   override fun onBind(intent: Intent): ServiceBinder {
@@ -125,7 +126,7 @@ abstract class ConnectedDeviceBaseService : FeatureManagerService() {
     super.dump(fd, writer, args)
     writer.printf(
       "Companion SDK version is %s\n",
-      getResources().getString(R.string.android_companion_sdk_version)
+      resources.getString(R.string.android_companion_sdk_version),
     )
   }
 

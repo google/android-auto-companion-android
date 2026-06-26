@@ -51,6 +51,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
@@ -91,8 +92,11 @@ class AssociationManagerTest {
   private val fakeCompanionDeviceManagerCallback =
     object : CompanionDeviceManager.Callback() {
       override fun onAssociationCreated(associationInfo: AssociationInfo) {}
+
       override fun onAssociationPending(intentSender: IntentSender) {}
+
       override fun onDeviceFound(intentSender: IntentSender) {}
+
       override fun onFailure(error: CharSequence?) {}
     }
 
@@ -215,7 +219,7 @@ class AssociationManagerTest {
       createScanRecord(
         name = SHORT_LOCAL_NAME,
         serviceUuids = listOf(TEST_UUID),
-        serviceData = emptyMap()
+        serviceData = emptyMap(),
       )
 
     val scanResult = createScanResult(scanRecord)
@@ -253,7 +257,7 @@ class AssociationManagerTest {
       createScanRecord(
         name = null,
         serviceUuids = listOf(TEST_UUID, invalidUuid),
-        serviceData = serviceData
+        serviceData = serviceData,
       )
 
     val scanResult = createScanResult(scanRecord)
@@ -271,8 +275,20 @@ class AssociationManagerTest {
 
   @Test
   fun associate_onAssociationFailed() {
+    var connectionCallback: BluetoothConnectionManager.ConnectionCallback? = null
     val mockBluetoothManager =
-      mock<BluetoothConnectionManager> { onBlocking { connectToDevice() } doReturn false }
+      mock<BluetoothConnectionManager> {
+        on { registerConnectionCallback(any()) } doAnswer
+          { invocation ->
+            connectionCallback = invocation.getArgument(0)
+            null
+          }
+        on { connect() } doAnswer
+          {
+            connectionCallback?.onConnectionFailed(0)
+            null
+          }
+      }
     val mockDiscoveredCar =
       mock<DiscoveredCar> {
         on { toBluetoothConnectionManagers(any()) } doReturn listOf(mockBluetoothManager)
@@ -280,13 +296,26 @@ class AssociationManagerTest {
 
     associationManager.associate(mockDiscoveredCar)
 
-    verify(associationCallback).onAssociationFailed()
+    // 0 corresponds to UNKNOWN error
+    verify(associationCallback).onAssociationFailed(0)
   }
 
   @Test
   fun associate_onAssociationStart() {
+    var connectionCallback: BluetoothConnectionManager.ConnectionCallback? = null
     val mockBluetoothManager =
-      mock<BluetoothConnectionManager> { onBlocking { connectToDevice() } doReturn true }
+      mock<BluetoothConnectionManager> {
+        on { registerConnectionCallback(any()) } doAnswer
+          { invocation ->
+            connectionCallback = invocation.getArgument(0)
+            null
+          }
+        on { connect() } doAnswer
+          {
+            connectionCallback?.onConnected()
+            null
+          }
+      }
     val mockDiscoveredCar =
       mock<DiscoveredCar> {
         on { toBluetoothConnectionManagers(any()) } doReturn listOf(mockBluetoothManager)
@@ -344,7 +373,8 @@ class AssociationManagerTest {
         }
       connectionCallback.onDisconnected()
 
-      verify(associationCallback).onAssociationFailed()
+      // 0 corresponds to UNKNOWN error
+      verify(associationCallback).onAssociationFailed(0)
     }
   }
 
@@ -361,7 +391,8 @@ class AssociationManagerTest {
         }
       connectionCallback.onConnected()
 
-      verify(associationCallback).onAssociationFailed()
+      // 0 corresponds to UNKNOWN error
+      verify(associationCallback).onAssociationFailed(0)
     }
   }
 
@@ -378,7 +409,8 @@ class AssociationManagerTest {
         }
       connectionCallback.onConnectionFailed()
 
-      verify(associationCallback).onAssociationFailed()
+      // 0 corresponds to UNKNOWN error
+      verify(associationCallback).onAssociationFailed(0)
     }
   }
 

@@ -89,7 +89,7 @@ internal interface PendingCar {
       device: BluetoothDevice,
       bluetoothManager: BluetoothConnectionManager,
       oobChannelTypes: List<OobChannelType>,
-      oobData: OobData?
+      oobData: OobData?,
     ): PendingCar {
       if (!isAssociating) {
         return when (securityVersion) {
@@ -114,7 +114,7 @@ internal interface PendingCar {
             device,
             bluetoothManager,
             oobChannelTypes,
-            oobData
+            oobData,
           )
         4 -> {
           PendingCarV4Association(
@@ -123,7 +123,7 @@ internal interface PendingCar {
             associatedCarManager,
             device,
             bluetoothManager,
-            oobData
+            oobData,
           )
         }
         else -> {
@@ -154,8 +154,11 @@ internal interface PendingCar {
           pendingCar.callback?.onConnectionFailed(pendingCar)
         }
 
-        override fun onConnectionFailed() {
-          loge(TAG, "Unexpected gatt callback: onConnectionFailed. Disconnecting.")
+        override fun onConnectionFailed(error: Int) {
+          loge(
+            TAG,
+            "Unexpected gatt callback: onConnectionFailed with error $error. Disconnecting.",
+          )
           pendingCar.disconnect()
           pendingCar.callback?.onConnectionFailed(pendingCar)
         }
@@ -177,10 +180,7 @@ internal interface PendingCar {
  *
  * Returns the message ID of sent message.
  */
-internal fun MessageStream.send(
-  deviceId: UUID,
-  secretKey: SecretKey,
-): Int {
+internal fun MessageStream.send(deviceId: UUID, secretKey: SecretKey): Int {
   val payload = uuidToBytes(deviceId) + secretKey.encoded
   val messageId =
     sendMessage(
@@ -189,7 +189,7 @@ internal fun MessageStream.send(
         operation = OperationType.ENCRYPTION_HANDSHAKE,
         isPayloadEncrypted = true,
         originalMessageSize = 0,
-        recipient = null
+        recipient = null,
       )
     )
   logi(PendingCar.TAG, "Sent deviceId and secret key. Message Id: $messageId")

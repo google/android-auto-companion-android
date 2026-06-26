@@ -14,20 +14,7 @@
 
 package com.google.android.libraries.car.trustagent
 
-import android.bluetooth.BluetoothDevice
 import android.content.Context
-
-/** Converts value of R.string.gatt_transport to [BluetoothDevice] TRANSPORT_* constant. */
-internal val Context.gattTransport: Int
-  get() =
-    when (getString(R.string.gatt_transport)) {
-      "TRANSPORT_AUTO" -> BluetoothDevice.TRANSPORT_AUTO
-      "TRANSPORT_BREDR" -> BluetoothDevice.TRANSPORT_BREDR
-      "TRANSPORT_LE" -> BluetoothDevice.TRANSPORT_LE
-      else -> {
-        throw IllegalArgumentException("Unrecognized value of R.string.gatt_transport.")
-      }
-    }
 
 /**
  * Names of bluetooth devices that we should always connect to.

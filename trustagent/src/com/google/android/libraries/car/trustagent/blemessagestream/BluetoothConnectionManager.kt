@@ -15,11 +15,7 @@
 package com.google.android.libraries.car.trustagent.blemessagestream
 
 import android.bluetooth.BluetoothDevice
-import com.google.android.libraries.car.trustagent.util.logd
-import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
-import kotlin.coroutines.resume
-import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * A generic class which manages common logics shared among different connection managers e.g.
@@ -42,42 +38,6 @@ abstract class BluetoothConnectionManager() {
    * Connection enables [sendMessage].
    */
   abstract fun connect()
-
-  /**
-   * Connects to remote device.
-   *
-   * This method functions the same as [connect] except it returns `true` if connection was
-   * established, instead of [ConnectionCallback].
-   *
-   * Use this method, rather than [connect], if you are not interested in the disconnection
-   * callback, or will register a callback separately.
-   */
-  open suspend fun connectToDevice(): Boolean =
-    suspendCancellableCoroutine<Boolean> { cont ->
-      val callback =
-        object : ConnectionCallback {
-          override fun onConnected() {
-            logd(TAG, "Device connected!")
-            unregisterConnectionCallback(this)
-            cont.resume(true)
-          }
-
-          override fun onConnectionFailed() {
-            loge(TAG, "Bluetooth could not establish connection.")
-            unregisterConnectionCallback(this)
-            cont.resume(false)
-          }
-
-          override fun onDisconnected() {
-            loge(TAG, "Disconnected while attempting to establish connection.")
-            unregisterConnectionCallback(this)
-            cont.resume(false)
-          }
-        }
-      registerConnectionCallback(callback)
-      logd(TAG, "Connecting to device")
-      connect()
-    }
 
   abstract fun disconnect()
 
@@ -116,8 +76,13 @@ abstract class BluetoothConnectionManager() {
     /** Invoked when GATT has been connected. */
     fun onConnected()
 
-    /** Invoked when [connect] could not be completed. */
-    fun onConnectionFailed()
+    /**
+     * Invoked when [connect] could not be completed.
+     *
+     * @param error The error code representing the failure. For GATT connections, this is the GATT
+     *   error status. NOTE: default value error = 0 indicates unknown error.
+     */
+    fun onConnectionFailed(error: Int = 0)
 
     /** Invoked when GATT has been disconnected. */
     fun onDisconnected()
