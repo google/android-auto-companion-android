@@ -71,6 +71,17 @@ interface GattHandle {
   fun writeCharacteristic(characteristic: BluetoothGattCharacteristic): Boolean
 
   /**
+   * Attempts to write [value] to the [characteristic] on the remote device.
+   *
+   * The preferred API on API 33+.
+   */
+  fun writeCharacteristic(
+    characteristic: BluetoothGattCharacteristic,
+    value: ByteArray,
+    writeType: Int,
+  ): Boolean
+
+  /**
    * Issues a request to read the given [characteristic] on the remote [device] and returns `true`
    * if the request was initiated successfully.
    *
@@ -87,7 +98,7 @@ interface GattHandle {
    */
   fun setCharacteristicNotification(
     characteristic: BluetoothGattCharacteristic,
-    isEnabled: Boolean
+    isEnabled: Boolean,
   ): Boolean
 
   /**

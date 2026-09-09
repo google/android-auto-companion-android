@@ -17,7 +17,6 @@ package com.google.android.libraries.car.connectionservice
 import com.google.android.libraries.car.trustagent.util.logi
 import java.util.UUID
 
-// LINT.IfChange
 /** Logs events that are expected by automated test. */
 object EventLog {
   private const val TAG = "ConnectionEvent"
@@ -42,4 +41,3 @@ object EventLog {
     logi(TAG, "Service has stopped running in the foreground.")
   }
 }
-// LINT.ThenChange(//depot/google3/java/com/google/android/libraries/automotive/multidevice/testing/python_aae/tests/common/companion_longevity.py)

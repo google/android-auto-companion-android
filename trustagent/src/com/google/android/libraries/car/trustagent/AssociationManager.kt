@@ -36,6 +36,7 @@ import com.google.android.libraries.car.trustagent.blemessagestream.BluetoothCon
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
 import com.google.android.libraries.car.trustagent.util.checkPermissionsForBleScanner
 import com.google.android.libraries.car.trustagent.util.checkPermissionsForBluetoothConnection
+import com.google.android.libraries.car.trustagent.util.logd
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logw
@@ -45,6 +46,7 @@ import java.nio.ByteOrder.BIG_ENDIAN
 import java.nio.ByteOrder.LITTLE_ENDIAN
 import java.util.UUID
 import java.util.concurrent.Executors
+import kotlin.coroutines.resume
 import kotlin.experimental.or
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +54,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Manages the process of associating the current device with a car, including
@@ -96,24 +99,6 @@ internal constructor(
   // This field should be re-initiliazed every time it's used; it being non-null has no implication.
   private var oobChannel: OobChannel? = null
 
-  private val versionExchangeConnectionCallback =
-    object : BluetoothConnectionManager.ConnectionCallback {
-      override fun onConnected() {
-        loge(TAG, "Received onConnected() during version exchange. Stopping association.")
-        notifyCallbacksOfFailedAssociation()
-      }
-
-      override fun onConnectionFailed() {
-        loge(TAG, "Received onConnectionFailed() during version exchange. Stopping association.")
-        notifyCallbacksOfFailedAssociation()
-      }
-
-      override fun onDisconnected() {
-        loge(TAG, "Disconnected during version exchange.")
-        notifyCallbacksOfFailedAssociation()
-      }
-    }
-
   /**
    * `true` if Bluetooth is currently enabled.
    *
@@ -133,7 +118,7 @@ internal constructor(
   }
 
   constructor(
-    context: Context,
+    context: Context
   ) : this(
     context = context.applicationContext,
     associatedCarManager = AssociatedCarManagerProvider.getInstance(context).manager,
@@ -314,7 +299,7 @@ internal constructor(
           createBleDeviceFilter(
             request.namePrefix,
             associationServiceUuid,
-            request.deviceIdentifier
+            request.deviceIdentifier,
           )
         )
         // A device identifier ensures only a single device can be found.
@@ -331,7 +316,7 @@ internal constructor(
   private fun createBleDeviceFilter(
     namePrefix: String,
     filterService: UUID,
-    serviceData: ByteArray?
+    serviceData: ByteArray?,
   ): BluetoothLeDeviceFilter {
     val bleDeviceFilterBuilder =
       BluetoothLeDeviceFilter.Builder()
@@ -340,7 +325,7 @@ internal constructor(
           "",
           DEVICE_NAME_START_INDEX,
           ADVERTISED_NAME_DATA_LENGTH_SHORT,
-          BIG_ENDIAN
+          BIG_ENDIAN,
         )
 
     // Filter raw data instead of service uuid because of the filter bug b/158243042
@@ -435,8 +420,8 @@ internal constructor(
 
     val bluetoothManager = connectBluetooth(discoveredCar)
     if (bluetoothManager == null) {
+      // `connectBluetooth` already notified failure so no need here.
       loge(TAG, "Could not establish connection.")
-      notifyCallbacksOfFailedAssociation()
       return
     }
 
@@ -468,7 +453,7 @@ internal constructor(
         discoveredCar.device,
         bluetoothManager,
         resolvedConnection.oobChannels,
-        oobData
+        oobData,
       )
     currentPendingCar?.connect()
   }
@@ -478,8 +463,28 @@ internal constructor(
   @VisibleForTesting
   internal suspend fun resolveConnection(
     bluetoothManager: BluetoothConnectionManager,
-    oobData: OobData?
+    oobData: OobData?,
   ): ResolvedConnection? {
+    // We don't expect connection events to happen during version exchange.
+    // Any event is treated as a failure.
+    val versionExchangeConnectionCallback =
+      object : BluetoothConnectionManager.ConnectionCallback {
+        override fun onConnected() {
+          loge(TAG, "Received onConnected() during version exchange. Stopping association.")
+          notifyCallbacksOfFailedAssociation()
+        }
+
+        override fun onConnectionFailed(error: Int) {
+          loge(TAG, "onConnectionFailed() with error $error during version exchange.")
+          notifyCallbacksOfFailedAssociation(error)
+        }
+
+        override fun onDisconnected() {
+          loge(TAG, "Disconnected during version exchange.")
+          notifyCallbacksOfFailedAssociation()
+        }
+      }
+
     bluetoothManager.registerConnectionCallback(versionExchangeConnectionCallback)
     val resolved = ConnectionResolver.resolve(bluetoothManager, oobData, isAssociating = true)
     bluetoothManager.unregisterConnectionCallback(versionExchangeConnectionCallback)
@@ -487,19 +492,57 @@ internal constructor(
     return resolved
   }
 
-  private fun notifyCallbacksOfFailedAssociation() {
+  /** @param error GATT error status during association. */
+  private fun notifyCallbacksOfFailedAssociation(error: Int = 0) {
     for (callback in associationCallbacks) {
-      callback.onAssociationFailed()
+      callback.onAssociationFailed(error)
     }
   }
 
   /** Establishes connection with discovered car over GATT. */
   private suspend fun connectBluetooth(discoveredCar: DiscoveredCar): BluetoothConnectionManager? {
     val bluetoothManagers = discoveredCar.toBluetoothConnectionManagers(context)
-    return bluetoothManagers.firstOrNull { manager ->
-      val connectionResult = manager.connectToDevice()
-      logi(TAG, "The result of the connection attempt with $manager is $connectionResult.")
-      connectionResult
+    if (bluetoothManagers.isEmpty()) {
+      logw(TAG, "No bluetooth managers found.")
+      notifyCallbacksOfFailedAssociation(0)
+      return null
+    }
+    // Only GATT connection is supported.
+    val manager = bluetoothManagers.first()
+
+    val isSuccess =
+      suspendCancellableCoroutine<Boolean> { cont ->
+        val callback =
+          object : BluetoothConnectionManager.ConnectionCallback {
+            override fun onConnected() {
+              manager.unregisterConnectionCallback(this)
+              cont.resume(true)
+            }
+
+            override fun onConnectionFailed(error: Int) {
+              loge(TAG, "Bluetooth could not establish connection. Error: $error")
+              manager.unregisterConnectionCallback(this)
+              notifyCallbacksOfFailedAssociation(error)
+              cont.resume(false)
+            }
+
+            override fun onDisconnected() {
+              loge(TAG, "Disconnected while attempting to establish connection.")
+              manager.unregisterConnectionCallback(this)
+              notifyCallbacksOfFailedAssociation()
+              cont.resume(false)
+            }
+          }
+        manager.registerConnectionCallback(callback)
+        logd(TAG, "Connecting to device")
+        manager.connect()
+      }
+
+    logi(TAG, "Connection result is $isSuccess.")
+    return if (isSuccess) {
+      manager
+    } else {
+      null
     }
   }
 
@@ -576,7 +619,7 @@ internal constructor(
     device: BluetoothDevice,
     bluetoothManager: BluetoothConnectionManager,
     oobChannelTypes: List<OobChannelType>,
-    oobData: OobData?
+    oobData: OobData?,
   ): PendingCar {
     return PendingCar.create(
         securityVersion,
@@ -587,7 +630,7 @@ internal constructor(
         device = device,
         bluetoothManager = bluetoothManager,
         oobChannelTypes = oobChannelTypes,
-        oobData = oobData
+        oobData = oobData,
       )
       .apply { callback = pendingCarCallback }
   }
@@ -638,7 +681,7 @@ internal constructor(
       loge(
         TAG,
         "Invalid services found. Expected $associationServiceUuid, " +
-          "available service UUIDs: ${scanRecord.serviceUuids}"
+          "available service UUIDs: ${scanRecord.serviceUuids}",
       )
       return null
     }
@@ -746,9 +789,12 @@ internal constructor(
     /** Invoked when this device has been successfully associated with [car]. */
     fun onAssociated(car: Car)
 
-    /** Invoked when the association process has failed. */
-    // TODO: Define error code when encryption error is exposed.
-    fun onAssociationFailed()
+    /**
+     * Invoked when the association process has failed.
+     *
+     * @param error The GATT error. 0 indicates unknown error.
+     */
+    fun onAssociationFailed(error: Int)
   }
 
   /** Listener for when a car has been disassociated. */
@@ -828,7 +874,7 @@ internal constructor(
         fill(
           0xff.toByte(),
           ADVERTISED_DATA_SERVICE_UUID_START_INDEX,
-          ADVERTISED_DATA_SERVICE_UUID_START_INDEX + UUID_LENGTH_BYTES
+          ADVERTISED_DATA_SERVICE_UUID_START_INDEX + UUID_LENGTH_BYTES,
         )
       }
     private val DEVICE_NAME_FILTER_MASK =
@@ -836,7 +882,7 @@ internal constructor(
         fill(
           0xff.toByte(),
           DEVICE_NAME_START_INDEX,
-          DEVICE_NAME_START_INDEX + ADVERTISED_NAME_DATA_LENGTH_SHORT
+          DEVICE_NAME_START_INDEX + ADVERTISED_NAME_DATA_LENGTH_SHORT,
         )
       }
 
@@ -867,7 +913,7 @@ internal constructor(
         0,
         rawDataFilter,
         ADVERTISED_DATA_SERVICE_UUID_START_INDEX,
-        uuidBytes.size
+        uuidBytes.size,
       )
       advertisedData?.let {
         // Also copy the advertised data into filter, only with supported length.

@@ -223,7 +223,7 @@ class BluetoothMessageStreamV2(
 
   override fun unregisterMessageEventCallback(callback: MessageStream.Callback) {
     if (!callbacks.remove(callback)) {
-      loge(TAG, "Did not remove callback from existing ones.")
+      logi(TAG, "Did not remove callback; already removed?")
     }
   }
 

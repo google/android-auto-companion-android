@@ -50,17 +50,10 @@ open class FakeBluetoothConnectionManager() : BluetoothConnectionManager() {
       if (isConnectionSuccessful) {
         callback.onConnected()
       } else {
-        callback.onConnectionFailed()
+        callback.onConnectionFailed(0)
       }
     }
   }
-
-  /**
-   * Connects to remote device.
-   *
-   * Always succeeds.
-   */
-  override suspend fun connectToDevice(): Boolean = true
 
   /** No-op. */
   override fun disconnect() {}

@@ -81,7 +81,7 @@ class AssociationManagerMissingBluetoothPermissionsTest {
           associatedCarManager,
           bleManager,
           testAssociationHandler,
-          testDispatcher
+          testDispatcher,
         )
         .apply { registerAssociationCallback(associationCallback) }
   }
@@ -100,6 +100,6 @@ class AssociationManagerMissingBluetoothPermissionsTest {
   @Test
   fun associate_notifiesCallbackOfFailure() {
     associationManager.associate(mock<DiscoveredCar>())
-    verify(associationCallback).onAssociationFailed()
+    verify(associationCallback).onAssociationFailed(0)
   }
 }

@@ -20,22 +20,16 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
+import android.os.Build
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logw
 import java.util.UUID
 
-/**
- * Provides GATT functionality by delegating to a [BluetoothGatt].
- *
- * @property[transport] Transport used for GATT connection. Can only be set as values of
- * BluetoothDevice.TRANSPORT_*.
- */
-class BluetoothGattHandle(
-  private val bluetoothDevice: BluetoothDevice,
-  private val transport: Int
-) : GattHandle {
+/** Provides GATT functionality by delegating to a [BluetoothGatt]. */
+class BluetoothGattHandle(private val bluetoothDevice: BluetoothDevice) : GattHandle {
   private var bluetoothGatt: BluetoothGatt? = null
 
   override val device
@@ -44,14 +38,19 @@ class BluetoothGattHandle(
   override var callback: GattHandleCallback? = null
 
   override fun connect(context: Context) {
-    bluetoothGatt?.let {
+    if (bluetoothGatt != null) {
       logw(TAG, "Call to `connect`, but already connected. Ignoring.")
       return
     }
 
-    logi(TAG, "Call to connect. Using GATT transport: $transport")
+    logi(TAG, "Call to connect. Using GATT TRANSPORT_LE.")
     bluetoothGatt =
-      bluetoothDevice.connectGatt(context, /* autoConnect= */ false, gattCallback, transport)
+      bluetoothDevice.connectGatt(
+        context,
+        /* autoConnect= */ false,
+        gattCallback,
+        BluetoothDevice.TRANSPORT_LE,
+      )
   }
 
   override fun disconnect() {
@@ -100,13 +99,30 @@ class BluetoothGattHandle(
     return bluetoothGatt?.writeCharacteristic(characteristic) ?: false
   }
 
+  override fun writeCharacteristic(
+    characteristic: BluetoothGattCharacteristic,
+    value: ByteArray,
+    writeType: Int,
+  ): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+      loge(TAG, "writeCharacteristic() with value requires API 33+. Ignored.")
+      return false
+    }
+
+    val code = bluetoothGatt?.writeCharacteristic(characteristic, value, writeType)
+    if (code != BluetoothStatusCodes.SUCCESS) {
+      loge(TAG, "writeCharacteristic() received code $code.")
+    }
+    return code == BluetoothStatusCodes.SUCCESS
+  }
+
   override fun readCharacteristic(characteristic: BluetoothGattCharacteristic): Boolean {
     return bluetoothGatt?.readCharacteristic(characteristic) ?: false
   }
 
   override fun setCharacteristicNotification(
     characteristic: BluetoothGattCharacteristic,
-    isEnabled: Boolean
+    isEnabled: Boolean,
   ): Boolean {
     return bluetoothGatt?.setCharacteristicNotification(characteristic, isEnabled) ?: false
   }
@@ -125,21 +141,21 @@ class BluetoothGattHandle(
 
   private val gattCallback =
     object : BluetoothGattCallback() {
-      override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+      override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         callback?.onConnectionStateChange(status, newState)
       }
 
-      override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+      override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
         callback?.onMtuChanged(mtu, status)
       }
 
-      override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+      override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
         callback?.onServicesDiscovered(status)
       }
 
       override fun onCharacteristicChanged(
-        gatt: BluetoothGatt?,
-        characteristic: BluetoothGattCharacteristic?
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic?,
       ) {
         if (characteristic == null) {
           loge(TAG, "onCharacteristicChanged received null characteristic. Not notifying callback.")
@@ -149,9 +165,9 @@ class BluetoothGattHandle(
       }
 
       override fun onCharacteristicWrite(
-        gatt: BluetoothGatt?,
+        gatt: BluetoothGatt,
         characteristic: BluetoothGattCharacteristic?,
-        status: Int
+        status: Int,
       ) {
         if (characteristic == null) {
           loge(TAG, "onCharacteristicWrite received null characteristic. Not notifying callback.")
@@ -161,9 +177,9 @@ class BluetoothGattHandle(
       }
 
       override fun onCharacteristicRead(
-        gatt: BluetoothGatt?,
+        gatt: BluetoothGatt,
         characteristic: BluetoothGattCharacteristic,
-        status: Int
+        status: Int,
       ) {
         callback?.onCharacteristicRead(characteristic, status)
       }
@@ -171,7 +187,7 @@ class BluetoothGattHandle(
       override fun onDescriptorWrite(
         gatt: BluetoothGatt,
         descriptor: BluetoothGattDescriptor,
-        status: Int
+        status: Int,
       ) {
         callback?.onDescriptorWrite(descriptor, status)
       }

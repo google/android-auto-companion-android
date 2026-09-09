@@ -16,13 +16,6 @@ package com.google.android.libraries.car.trustagent.blemessagestream
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothDevice.ACTION_BOND_STATE_CHANGED
-import android.bluetooth.BluetoothDevice.BOND_BONDED
-import android.bluetooth.BluetoothDevice.BOND_BONDING
-import android.bluetooth.BluetoothDevice.BOND_NONE
-import android.bluetooth.BluetoothDevice.EXTRA_BOND_STATE
-import android.bluetooth.BluetoothDevice.EXTRA_DEVICE
-import android.bluetooth.BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
@@ -30,7 +23,7 @@ import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
-import android.content.Intent
+import android.os.Build
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -47,12 +40,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowLooper
 
@@ -180,7 +175,26 @@ class BluetoothGattManagerTest {
     }
 
     verify(gattHandle, times(BluetoothGattManager.MAX_RETRY_COUNT)).connect(context)
-    verify(connectionCallback).onConnectionFailed()
+    verify(connectionCallback).onConnectionFailed(BluetoothGatt.GATT_FAILURE)
+  }
+
+  @Test
+  fun testOnConnectionStateChange_insufficientAuthentication_notifiesFailed() {
+    whenever(gattHandle.requestMtu(any())).thenReturn(true)
+
+    triggerConnect()
+    triggerOnConnectionStateChange(BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
+    // Handle message: MSG_ON_CONNECTION_STATE_CHANGE
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+
+    triggerOnConnectionStateChange(
+      BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION,
+      BluetoothProfile.STATE_DISCONNECTED,
+    )
+    // Handle message: MSG_ON_CONNECTION_STATE_CHANGE
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+
+    verify(connectionCallback).onConnectionFailed(BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION)
   }
 
   @Test
@@ -193,65 +207,6 @@ class BluetoothGattManagerTest {
     ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
 
     verify(gattHandle).requestMtu(BluetoothGattManager.MAXIMUM_MTU)
-  }
-
-  @Test
-  fun testBondingStateChange_bonding_connectionPaused() {
-    whenever(gattHandle.requestMtu(any())).thenReturn(true)
-
-    triggerConnect()
-    triggerOnConnectionStateChange(BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
-    // requestMtu should have been invoked.
-
-    setBondStateTransition(BOND_NONE, BOND_BONDING)
-
-    assertThat(manager.isConnectionPaused.get()).isTrue()
-    // Handle message: MSG_REQUEST_MTU
-    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-
-    // Attempt to handle message: MSG_DISCOVER_SERVICES, but it should not be scheduled.
-    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-    verify(gattHandle, never()).discoverServices()
-  }
-
-  @Test
-  fun testBondingStateChange_bonded_restartConnection() {
-    triggerConnect()
-
-    setBondStateTransition(BOND_NONE, BOND_BONDING)
-
-    // This message is scheduled but should not be handled.
-    // It should be cleared after bonding state changes.
-    triggerOnConnectionStateChange(BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
-
-    // Device state is now BONDED
-    setBondStateTransition(BOND_BONDING, BOND_BONDED)
-    // Handle message: MSG_CONNECT
-    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-
-    // After bonding state changes, another attempt was made.
-    verify(gattHandle, times(2)).connect(any())
-    assertThat(manager.isConnectionPaused.get()).isFalse()
-  }
-
-  @Test
-  fun testBondingStateChange_none_restartConnection() {
-    triggerConnect()
-
-    setBondStateTransition(BOND_NONE, BOND_BONDING)
-
-    // This message is scheduled but should not be handled.
-    // It should be cleared after bonding state changes.
-    triggerOnConnectionStateChange(BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
-
-    // Device state is now NONE
-    setBondStateTransition(BOND_BONDING, BOND_NONE)
-    // Handle message: MSG_CONNECT
-    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-
-    // After bonding state changes, another attempt was made.
-    verify(gattHandle, times(2)).connect(any())
-    assertThat(manager.isConnectionPaused.get()).isFalse()
   }
 
   @Test
@@ -294,7 +249,7 @@ class BluetoothGattManagerTest {
 
     verify(gattHandle, times(BluetoothGattManager.MAX_RETRY_COUNT)).requestMtu(any())
     // Max tries reached, so we should notify client of connection failure.
-    verify(connectionCallback).onConnectionFailed()
+    verify(connectionCallback).onConnectionFailed(BluetoothGatt.GATT_FAILURE)
   }
 
   @Test
@@ -348,7 +303,7 @@ class BluetoothGattManagerTest {
     }
 
     verify(gattHandle, times(BluetoothGattManager.MAX_RETRY_COUNT)).discoverServices()
-    verify(connectionCallback).onConnectionFailed()
+    verify(connectionCallback).onConnectionFailed(BluetoothGatt.GATT_FAILURE)
   }
 
   @Test
@@ -521,17 +476,17 @@ class BluetoothGattManagerTest {
     }
 
   @Test
-  fun testOnServiceChanged_connected_discoverServices() {
+  fun testOnServiceChanged_connected_ignored() {
     triggerConnect()
     triggerOnConnectionStateChange(BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
 
     triggerOnServiceChanged()
 
-    verify(gattHandle).discoverServices()
+    verify(gattHandle, never()).discoverServices()
   }
 
   @Test
-  fun testOnServiceChanged_serviceDiscoveryCompleted_disconnect() {
+  fun testOnServiceChanged_serviceDiscoveryCompleted_ignored() {
     setUpValidGattHandle()
     // Additional setup to add descriptor.
     val descriptor =
@@ -553,7 +508,7 @@ class BluetoothGattManagerTest {
 
     triggerOnServiceChanged()
 
-    verify(gattHandle).disconnect()
+    verify(gattHandle, never()).disconnect()
   }
 
   @Test
@@ -575,6 +530,70 @@ class BluetoothGattManagerTest {
     bluetoothAdapter.disable()
     manager.disconnect()
     verify(connectionCallback).onDisconnected()
+  }
+
+  @Test
+  @Config(sdk = [Build.VERSION_CODES.S_V2])
+  fun testSendMessage_API32_writeCharacteristicWithCharacteristic() {
+    setUpValidGattHandle()
+    triggerConnect()
+    triggerOnConnectionStateChange(BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
+    // Handle message: MSG_REQUEST_MTU
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+    triggerOnMtuChanged()
+    // Handle message: MSG_DISCOVER_SERVICES
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+    triggerOnServicesDiscoverd()
+    // Simulate the timeout with waiting for the `onCharacteristicRead` callback.
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+
+    val unused = manager.sendMessage(byteArrayOf(0x11, 0x11, 0x11, 0x11))
+
+    verify(gattHandle).writeCharacteristic(any())
+  }
+
+  @Test
+  @Config(sdk = [Build.VERSION_CODES.TIRAMISU])
+  fun testSendMessage_API33_writeCharacteristicWithCharacteristicValueType() {
+    setUpValidGattHandle()
+    triggerConnect()
+    triggerOnConnectionStateChange(BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
+    // Handle message: MSG_REQUEST_MTU
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+    triggerOnMtuChanged()
+    // Handle message: MSG_DISCOVER_SERVICES
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+    triggerOnServicesDiscoverd()
+    // Simulate the timeout with waiting for the `onCharacteristicRead` callback.
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+
+    val payload = byteArrayOf(0x11, 0x11, 0x11, 0x11)
+    val unused = manager.sendMessage(payload)
+
+    verify(gattHandle).writeCharacteristic(any(), eq(payload), any())
+  }
+
+  @Test
+  @Config(sdk = [Build.VERSION_CODES.TIRAMISU])
+  fun testSendMessage_writeFailure_disconnect() {
+    setUpValidGattHandle()
+    triggerConnect()
+    triggerOnConnectionStateChange(BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
+    // Handle message: MSG_REQUEST_MTU
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+    triggerOnMtuChanged()
+    // Handle message: MSG_DISCOVER_SERVICES
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+    triggerOnServicesDiscoverd()
+    // Simulate the timeout with waiting for the `onCharacteristicRead` callback.
+    ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+
+    whenever(gattHandle.writeCharacteristic(any(), any(), any())).thenReturn(false)
+
+    val payload = byteArrayOf(0x11, 0x11, 0x11, 0x11)
+    val unused = manager.sendMessage(payload)
+
+    verify(gattHandle).disconnect()
   }
 
   private fun triggerConnect() {
@@ -605,16 +624,6 @@ class BluetoothGattManagerTest {
     manager.gattCallback.onServiceChanged()
     // Handle message: MSG_DISCOVER_SERVICES
     ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-  }
-
-  private fun setBondStateTransition(from: Int, to: Int) {
-    val intent =
-      Intent(ACTION_BOND_STATE_CHANGED).apply {
-        putExtra(EXTRA_DEVICE, bluetoothDevice)
-        putExtra(EXTRA_PREVIOUS_BOND_STATE, from)
-        putExtra(EXTRA_BOND_STATE, to)
-      }
-    manager.bluetoothBondStateBroadcastReceiver.onReceive(context, intent)
   }
 
   /**

@@ -35,3 +35,36 @@ dependencies {
     implementation 'com.google.android.car.connectionservice:connectionservice:3.1.2'
 }
 ```
+
+## Building from Source
+
+If you want to build the library from source, follow these steps:
+
+### 1. Initialize Submodules
+
+This project depends on the `ukey2` library, which is included as a Git submodule. After cloning the repository, run the following command to fetch it:
+
+```bash
+git submodule update --init --recursive
+```
+
+### 2. Environment Setup
+
+*   **Java**: The project requires **Java 17**. Please ensure that your `JAVA_HOME` environment variable points to a Java 17 JDK, or that your default `java` version is 17.
+
+    ```bash
+    export JAVA_HOME=<path to jdk17>
+    ```
+
+*   **Android SDK**: Ensure that the `ANDROID_HOME` environment variable is set to your Android SDK location. Example:
+
+    ```bash
+    export ANDROID_HOME=$HOME/Android/Sdk
+    ```
+
+### 3. Build
+To build the project and generate the AARs, run:
+
+```bash
+./gradlew assembleDebug
+```

@@ -10,7 +10,7 @@ plugins {
 }
 
 ext {
-    sdkVersion = 31
+    sdkVersion = 34
     minSdkVersion = 26
     protocVersion = 'com.google.protobuf:protoc:3.21.12'
 }
@@ -41,8 +41,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     sourceSets {
@@ -78,7 +78,7 @@ android {
 }
 
 dependencies {
-    implementation files('encryptionrunner/ukey2.jar')
+    implementation project(path: ':libs:ukey2')
 
     implementation libs.androidx.room.runtime
     implementation libs.androidx.room.ktx
@@ -121,6 +121,18 @@ protobuf {
             task.builtins {
                 java {
                     option "lite"
+                }
+            }
+        }
+    }
+}
+
+project(':libs:ukey2') {
+    afterEvaluate {
+        if (plugins.hasPlugin('com.google.protobuf')) {
+            protobuf {
+                protoc {
+                    artifact = rootProject.ext.protocVersion
                 }
             }
         }

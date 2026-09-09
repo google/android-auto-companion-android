@@ -17,10 +17,11 @@ package com.google.android.libraries.car.trustagent.testutils
 import com.google.android.encryptionrunner.Key
 import com.google.android.libraries.car.trustagent.blemessagestream.MessageStream
 import com.google.android.libraries.car.trustagent.blemessagestream.StreamMessage
+import java.util.concurrent.CopyOnWriteArrayList
 
 /** A fake implementation of a [BleMessageStream]. */
 class FakeMessageStream() : MessageStream {
-  val callbacks = mutableListOf<MessageStream.Callback>()
+  val callbacks = CopyOnWriteArrayList<MessageStream.Callback>()
   val sentMessages = mutableListOf<StreamMessage>()
 
   var lastSentMessageId: Int = -1

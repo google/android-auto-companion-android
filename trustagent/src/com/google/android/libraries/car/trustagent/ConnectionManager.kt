@@ -34,16 +34,21 @@ import com.google.android.libraries.car.trustagent.blemessagestream.MessageStrea
 import com.google.android.libraries.car.trustagent.storage.getDeviceId
 import com.google.android.libraries.car.trustagent.util.checkPermissionsForBleScanner
 import com.google.android.libraries.car.trustagent.util.checkPermissionsForBluetoothConnection
+import com.google.android.libraries.car.trustagent.util.logd
 import com.google.android.libraries.car.trustagent.util.loge
 import com.google.android.libraries.car.trustagent.util.logi
 import com.google.android.libraries.car.trustagent.util.logw
 import com.google.common.util.concurrent.MoreExecutors
 import java.util.UUID
 import java.util.concurrent.Executor
+import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Provides methods to connect to [Car]s that this device has previously associated with.
@@ -261,12 +266,7 @@ internal constructor(
       return false
     }
 
-    val isAssociated = PendingCarV2Reconnection.findMatch(advertisedData, associatedCars) != null
-    if (!isAssociated) {
-      val size = associatedCars.size
-      logi(TAG, "Could not find a match for ScanResult in associated cars of $size.")
-    }
-    return isAssociated
+    return PendingCarV2Reconnection.findMatch(advertisedData, associatedCars) != null
   }
 
   /**
@@ -315,12 +315,59 @@ internal constructor(
     connect(gatt, advertisedData)
   }
 
-  private suspend fun connect(manager: BluetoothConnectionManager, advertisedData: ByteArray?) {
+  @VisibleForTesting
+  internal suspend fun connect(manager: BluetoothConnectionManager, advertisedData: ByteArray?) {
     val device = manager.bluetoothDevice
 
-    if (!manager.connectToDevice()) {
-      loge(TAG, "Could not establish connection.")
+    // Set a timeout for reconnection so it disconnects sooner than the platform default timeout
+    // (30 seconds) in case the remote BLE address has rotated (e.g. during user switch).
+    // This allows the manager to resume scanning and find the new address faster.
+    // This use case is not applicable to association where the address is expected to be stable.
+    val success: Boolean? =
+      withTimeoutOrNull(10.seconds) {
+        suspendCancellableCoroutine<Boolean> { cont ->
+          val callback =
+            object : BluetoothConnectionManager.ConnectionCallback {
+              override fun onConnected() {
+                manager.unregisterConnectionCallback(this)
+                cont.resume(true)
+              }
+
+              override fun onConnectionFailed(error: Int) {
+                loge(TAG, "Bluetooth could not establish connection. Error: $error")
+                manager.unregisterConnectionCallback(this)
+                notifyCallbacksOfFailedConnection(device, error)
+                cont.resume(false)
+              }
+
+              override fun onDisconnected() {
+                loge(TAG, "Disconnected while attempting to establish connection.")
+                manager.unregisterConnectionCallback(this)
+                notifyCallbacksOfFailedConnection(device)
+                cont.resume(false)
+              }
+            }
+          manager.registerConnectionCallback(callback)
+
+          cont.invokeOnCancellation {
+            logi(TAG, "Connection attempt cancelled.")
+            manager.unregisterConnectionCallback(callback)
+            manager.disconnect()
+          }
+
+          logd(TAG, "Connecting to device")
+          manager.connect()
+        }
+      }
+
+    if (success == null) {
+      loge(TAG, "Connection timed out.")
       notifyCallbacksOfFailedConnection(device)
+      return
+    }
+
+    if (!success) {
+      loge(TAG, "Could not establish connection.")
       return
     }
 
@@ -367,9 +414,9 @@ internal constructor(
           notifyCallbacksOfFailedConnection(device)
         }
 
-        override fun onConnectionFailed() {
-          loge(TAG, "Received onConnectionFailed() during version exchange. Stopping reconnection.")
-          notifyCallbacksOfFailedConnection(device)
+        override fun onConnectionFailed(error: Int) {
+          loge(TAG, "onConnectionFailed() with error $error during version exchange.")
+          notifyCallbacksOfFailedConnection(device, error)
         }
 
         override fun onDisconnected() {
@@ -385,9 +432,10 @@ internal constructor(
     return resolved
   }
 
-  private fun notifyCallbacksOfFailedConnection(device: BluetoothDevice) {
+  // [error] only supports PEER_REMOVED_PAIRING_INFORMATION; defaults to UNKNOWN ERROR.
+  private fun notifyCallbacksOfFailedConnection(device: BluetoothDevice, error: Int = 0) {
     for (callback in connectionCallbacks) {
-      callback.onConnectionFailed(device)
+      callback.onConnectionFailed(device, error)
     }
   }
 
@@ -426,7 +474,7 @@ internal constructor(
   private fun ScanResult.toV2BluetoothGattManager(serviceUuid: UUID) =
     BluetoothGattManager(
       context,
-      BluetoothGattHandle(device, context.gattTransport),
+      BluetoothGattHandle(device),
       serviceUuid,
       V2_CLIENT_WRITE_CHARACTERISTIC_UUID,
       V2_SERVER_WRITE_CHARACTERISTIC_UUID,
@@ -505,7 +553,7 @@ internal constructor(
      * the phone). [device] will be the same [BluetoothDevice] or [ScanResult.getDevice] passed to
      * the [connect] call.
      */
-    fun onConnectionFailed(device: BluetoothDevice)
+    fun onConnectionFailed(device: BluetoothDevice, error: Int)
   }
 
   companion object {

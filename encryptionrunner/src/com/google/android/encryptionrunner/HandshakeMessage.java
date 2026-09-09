@@ -44,16 +44,22 @@ public class HandshakeMessage {
   public @interface HandshakeState {
     /** The initial state, this value is not expected to be returned. */
     int UNKNOWN = 0;
+
     /** The handshake is in progress. */
     int IN_PROGRESS = 1;
+
     /** The handshake is complete, but verification of the code is needed. */
     int VERIFICATION_NEEDED = 2;
+
     /** The handshake is complete. */
     int FINISHED = 3;
+
     /** The handshake is complete and not successful. */
     int INVALID = 4;
+
     /** The handshake is complete, but extra verification is needed. */
     int RESUMING_SESSION = 5;
+
     /** The handshake is complete, but out of band verification of the code is needed. */
     int OOB_VERIFICATION_NEEDED = 6;
   }
@@ -99,8 +105,8 @@ public class HandshakeMessage {
   }
 
   /**
-   * Returns a string representing the truncated bytes returned by
-   * {@link #getFullVerificationCode()} to show to the user.
+   * Returns a string representing the truncated bytes returned by {@link
+   * #getFullVerificationCode()} to show to the user.
    */
   @Nullable
   public String getVerificationCode() {
@@ -196,7 +202,6 @@ public class HandshakeMessage {
      * @param value the value to convert to an unsigned {@code int}
      * @return the argument converted to {@code int} by an unsigned conversion
      */
-    @SuppressWarnings("AndroidJdkLibsChecker") // Call already guarded against API version.
     private static int toUnsignedInt(byte value) {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         return Byte.toUnsignedInt(value);
