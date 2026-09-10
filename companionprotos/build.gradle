@@ -1,5 +1,10 @@
 apply plugin: 'java-library'
+apply plugin: 'kotlin'
 apply plugin: 'com.google.protobuf'
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
 
 sourceCompatibility = '1.8'
 
@@ -12,7 +17,9 @@ sourceSets {
 }
 
 dependencies {
-    implementation "com.google.protobuf:protobuf-java:3.21.12"
+    implementation libs.protobuf
+    implementation libs.protobuf.kotlin
+    implementation libs.bundles.kotlin
 }
 
 protobuf {

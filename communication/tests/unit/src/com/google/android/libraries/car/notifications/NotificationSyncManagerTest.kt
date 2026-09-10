@@ -16,6 +16,7 @@ package com.google.android.libraries.car.notifications
 
 import android.service.notification.StatusBarNotification
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,9 +33,15 @@ class NotificationSyncManagerTest {
 
   @Before
   fun setup() {
+    NotificationSyncManager.clearHandlers()
     handler = mock()
     sbn = mock()
     notificationListener = NotificationListener()
+  }
+
+  @After
+  fun tearDown() {
+    NotificationSyncManager.clearHandlers()
   }
 
   @Test

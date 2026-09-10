@@ -227,6 +227,30 @@ class PendingCarV4AssociationOobTest {
       )
       .apply { callback = mockPendingCarCallback }
 
+  private class PassThroughOobChannelManager(private val oobData: OobData?) :
+    OobChannelManager(oobChannels = emptyList(), executorService = null) {
+
+    override suspend fun readOobData(device: BluetoothDevice) = oobData
+  }
+
+  private class InvalidOobChannelManager(private val oobData: OobData?) :
+    OobChannelManager(oobChannels = emptyList(), executorService = null) {
+
+    override suspend fun readOobData(device: BluetoothDevice): OobData? {
+      return null
+    }
+  }
+
+  private class FakeOobChannelManagerFactory(private val oobChannelManager: OobChannelManager) :
+    OobChannelManagerFactory {
+
+    override fun create(
+      oobChannelTypes: List<OobChannelType>,
+      oobData: OobData?,
+      securityVersion: Int
+    ) = oobChannelManager
+  }
+
   companion object {
     private const val NONCE_LENGTH_BYTES = 12
 
@@ -238,30 +262,6 @@ class PendingCarV4AssociationOobTest {
       ByteArray(NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
     private val TEST_IHU_IV = ByteArray(NONCE_LENGTH_BYTES).apply { SecureRandom().nextBytes(this) }
   }
-}
-
-private class PassThroughOobChannelManager(private val oobData: OobData?) :
-  OobChannelManager(oobChannels = emptyList(), executorService = null) {
-
-  override suspend fun readOobData(device: BluetoothDevice) = oobData
-}
-
-private class InvalidOobChannelManager(private val oobData: OobData?) :
-  OobChannelManager(oobChannels = emptyList(), executorService = null) {
-
-  override suspend fun readOobData(device: BluetoothDevice): OobData? {
-    return null
-  }
-}
-
-private class FakeOobChannelManagerFactory(private val oobChannelManager: OobChannelManager) :
-  OobChannelManagerFactory {
-
-  override fun create(
-    oobChannelTypes: List<OobChannelType>,
-    oobData: OobData?,
-    securityVersion: Int
-  ) = oobChannelManager
 }
 
 private class IhuOobDataManager(oobData: OobData) {

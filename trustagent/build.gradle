@@ -43,6 +43,7 @@ android {
         }
 
         test {
+            manifest.srcFile 'tests/unit/src/com/google/android/libraries/car/trustagent/AndroidManifest.xml'
             java.srcDirs = ['tests/unit/src']
             assets.srcDirs += ['tests/unit/schemas']
         }
@@ -54,6 +55,9 @@ android {
 
     testOptions {
         unitTests.includeAndroidResources = true
+        unitTests.all {
+            systemProperty 'org.robolectric.packagesToNotAcquire', 'com.google.security.cryptauth'
+        }
     }
 }
 
@@ -66,6 +70,7 @@ dependencies {
     implementation libs.guava
     implementation libs.javax.annotation
     implementation libs.protobuf
+    implementation libs.protobuf.kotlin
 
     implementation libs.bundles.androidx.lifecycle
     implementation libs.bundles.androidx
