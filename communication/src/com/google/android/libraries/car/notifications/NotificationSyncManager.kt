@@ -33,6 +33,10 @@ object NotificationSyncManager {
     handlers.remove(notificationHandler)
   }
 
+  fun clearHandlers() {
+    handlers.clear()
+  }
+
   /**
    * Calls known [NotificationHandler] with [NotificationHandler.onNotificationReceived]
    */

@@ -49,7 +49,6 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.spy
-import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 
 @ExperimentalCoroutinesApi
@@ -297,17 +296,17 @@ class PendingCarV4AssociationTest {
       )
       .apply { callback = mockPendingCarCallback }
 
+  private class InvalidOobChannelManager :
+    OobChannelManager(oobChannels = emptyList(), executorService = null) {
+
+    override suspend fun readOobData(device: BluetoothDevice): OobData? {
+      return null
+    }
+  }
+
   companion object {
     private const val NONCE_LENGTH_BYTES = 12
 
     private val DEVICE_ID = UUID.randomUUID()
-  }
-}
-
-private class InvalidOobChannelManager() :
-  OobChannelManager(oobChannels = emptyList(), executorService = null) {
-
-  override suspend fun readOobData(device: BluetoothDevice): OobData? {
-    return null
   }
 }
